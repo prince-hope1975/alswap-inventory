@@ -6,7 +6,7 @@ import { z } from "zod";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Image as ImageIcon, CheckCircle, RefreshCw, Building2, Palette, Globe } from "lucide-react";
+import { Image as ImageIcon, CheckCircle, RefreshCw, Building2, Palette, Globe, Receipt, Phone, MapPin } from "lucide-react";
 import { generateColorVariants } from "~/lib/color-utils";
 
 const settingsSchema = z.object({
@@ -26,6 +26,10 @@ const settingsSchema = z.object({
     logo: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     currency: z.string().max(10, "Currency code too long").optional(),
     location: z.string().max(255, "Location name too long").optional(),
+    address: z.string().optional(),
+    phone: z.string().max(50, "Phone number too long").optional(),
+    receiptTemplate: z.string().max(50).optional(),
+    receiptFooter: z.string().optional(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -74,6 +78,10 @@ export default function SettingsPage() {
             logo: "",
             currency: "₦",
             location: "",
+            address: "",
+            phone: "",
+            receiptTemplate: "classic",
+            receiptFooter: "Thank you for your business!",
         },
     });
 
@@ -87,6 +95,10 @@ export default function SettingsPage() {
                 logo: settings.logo ?? "",
                 currency: settings.currency ?? "₦",
                 location: settings.location ?? "",
+                address: settings.address ?? "",
+                phone: settings.phone ?? "",
+                receiptTemplate: settings.receiptTemplate ?? "classic",
+                receiptFooter: settings.receiptFooter ?? "Thank you for your business!",
             });
             if (settings.logo) {
                 setLogoPreview(settings.logo);
@@ -162,6 +174,117 @@ export default function SettingsPage() {
                                 {errors.name && (
                                     <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
                                 )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Phone Number
+                                </label>
+                                <div className="relative mt-1">
+                                    <Phone className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                                    <input
+                                        {...register("phone")}
+                                        className="block w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 shadow-sm transition-colors focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                        placeholder="+234 800 000 0000"
+                                    />
+                                </div>
+                                {errors.phone && (
+                                    <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
+                                )}
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Address
+                                </label>
+                                <div className="relative mt-1">
+                                    <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                                    <textarea
+                                        {...register("address")}
+                                        rows={3}
+                                        className="block w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 shadow-sm transition-colors focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                        placeholder="123 Store Street, City, Country"
+                                    />
+                                </div>
+                                {errors.address && (
+                                    <p className="mt-1 text-sm text-red-600">{errors.address.message}</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Receipt Settings Section */}
+                    <div className="p-6 md:p-8">
+                        <div className="mb-6 flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                                <Receipt className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Receipt Settings</h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Customize how your receipts look.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Receipt Template
+                                </label>
+                                <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                    {[
+                                        { id: "classic", name: "Classic", desc: "Simple list view" },
+                                        { id: "modern", name: "Modern", desc: "Styled with logo" },
+                                        { id: "thermal", name: "Thermal", desc: "Optimized for printers" },
+                                    ].map((template) => (
+                                        <label
+                                            key={template.id}
+                                            className={`relative flex cursor-pointer flex-col rounded-xl border p-4 shadow-sm focus:outline-none ${
+                                                watch("receiptTemplate") === template.id
+                                                    ? "border-[var(--brand-primary-500)] ring-2 ring-[var(--brand-primary-500)]"
+                                                    : "border-gray-300 dark:border-gray-600"
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                {...register("receiptTemplate")}
+                                                value={template.id}
+                                                className="sr-only"
+                                            />
+                                            <span className="flex flex-1">
+                                                <span className="flex flex-col">
+                                                    <span className="block text-sm font-medium text-gray-900 dark:text-white">
+                                                        {template.name}
+                                                    </span>
+                                                    <span className="mt-1 flex items-center text-sm text-gray-500 dark:text-gray-400">
+                                                        {template.desc}
+                                                    </span>
+                                                </span>
+                                            </span>
+                                            <CheckCircle
+                                                className={`absolute right-4 top-4 h-5 w-5 ${
+                                                    watch("receiptTemplate") === template.id
+                                                        ? "text-[var(--brand-primary-600)]"
+                                                        : "invisible"
+                                                }`}
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Receipt Footer Message
+                                </label>
+                                <textarea
+                                    {...register("receiptFooter")}
+                                    rows={2}
+                                    className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2.5 shadow-sm transition-colors focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                    placeholder="Thank you for your business!"
+                                />
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Message displayed at the bottom of the receipt.
+                                </p>
                             </div>
                         </div>
                     </div>
