@@ -1,114 +1,51 @@
-import Link from "next/link";
-import { Package, AlertTriangle, TrendingUp, DollarSign, type LucideIcon } from "lucide-react";
+"use client";
 
-export default async function InventoryDashboard() {
-    // In a real app, we would fetch these stats from the API
-    // const stats = await api.inventory.getStats();
-    const stats = {
-        totalProducts: 120,
-        lowStock: 5,
-        totalValue: 15000,
-        salesToday: 1200,
-    };
+import Link from "next/link";
+import { api } from "~/trpc/react";
+import { StatsGrid } from "./stats-grid";
+import { RecentSales } from "./recent-sales";
+import { TopSelling } from "./top-selling";
+import { Plus } from "lucide-react";
+
+export default function InventoryDashboard() {
+    const { data: stats, isLoading } = api.inventory.getDashboardStats.useQuery(undefined, {
+        refetchInterval: 1000 * 60, // Refresh every minute
+    });
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                    Dashboard
-                </h1>
-                <div className="flex items-center gap-2">
-                    <Link
-                        href="/inventory/products/new"
-                        className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
-                    >
-                        Add Product
-                    </Link>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+                        Dashboard
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Welcome back! Here&apos;s your inventory overview
+                    </p>
                 </div>
+                <Link
+                    href="/inventory/products/new"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+                >
+                    <Plus className="h-4 w-4" />
+                    Add Product
+                </Link>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatsCard
-                    title="Total Products"
-                    value={stats.totalProducts}
-                    icon={Package}
-                    description="Active items in stock"
-                />
-                <StatsCard
-                    title="Low Stock Alerts"
-                    value={stats.lowStock}
-                    icon={AlertTriangle}
-                    description="Items below threshold"
-                    alert
-                />
-                <StatsCard
-                    title="Total Value"
-                    value={`$${stats.totalValue.toLocaleString()}`}
-                    icon={DollarSign}
-                    description="Inventory asset value"
-                />
-                <StatsCard
-                    title="Sales Today"
-                    value={`$${stats.salesToday.toLocaleString()}`}
-                    icon={TrendingUp}
-                    description="+12% from yesterday"
-                />
-            </div>
+            <StatsGrid 
+                stats={stats ?? {
+                    totalProducts: 0,
+                    lowStock: 0,
+                    totalValue: 0,
+                    salesToday: 0
+                }} 
+                isLoading={isLoading} 
+            />
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <div className="col-span-4 rounded-xl border bg-white p-6 shadow-sm dark:bg-gray-800">
-                    <h3 className="mb-4 text-lg font-medium">Recent Activity</h3>
-                    <div className="h-[200px] flex items-center justify-center text-gray-500">
-                        Chart Placeholder
-                    </div>
-                </div>
-                <div className="col-span-3 rounded-xl border bg-white p-6 shadow-sm dark:bg-gray-800">
-                    <h3 className="mb-4 text-lg font-medium">Top Selling Items</h3>
-                    <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700" />
-                                    <div>
-                                        <p className="text-sm font-medium">Product {i}</p>
-                                        <p className="text-xs text-gray-500">Category A</p>
-                                    </div>
-                                </div>
-                                <div className="text-sm font-medium">$120.00</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+                <RecentSales sales={stats?.recentActivity ?? []} isLoading={isLoading} />
+                <TopSelling products={stats?.topSelling ?? []} isLoading={isLoading} />
             </div>
-        </div>
-    );
-}
-
-function StatsCard({
-    title,
-    value,
-    icon: Icon,
-    description,
-    alert,
-}: {
-    title: string;
-    value: string | number;
-    icon: LucideIcon;
-    description: string;
-    alert?: boolean;
-}) {
-    return (
-        <div className="rounded-xl border bg-white p-6 shadow-sm dark:bg-gray-800">
-            <div className="flex items-center justify-between space-y-0 pb-2">
-                <h3 className="text-sm font-medium tracking-tight text-gray-500 dark:text-gray-400">
-                    {title}
-                </h3>
-                <Icon
-                    className={`h-4 w-4 ${alert ? "text-red-500" : "text-gray-500"}`}
-                />
-            </div>
-            <div className="text-2xl font-bold">{value}</div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
         </div>
     );
 }

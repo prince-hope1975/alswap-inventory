@@ -4,6 +4,8 @@ import {
   pgEnum,
   pgTableCreator,
   primaryKey,
+  timestamp,
+  varchar,
   decimal,
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
@@ -43,8 +45,12 @@ export const users = createTable("user", (d) => ({
   tenantId: d.varchar({ length: 255 }).references(() => tenants.id), // Nullable for super admins or initial setup
   name: d.varchar({ length: 255 }),
   email: d.varchar({ length: 255 }).notNull(),
-  emailVerified: d.timestamp({ mode: "date", withTimezone: true }),
-  image: d.varchar({ length: 255 }),
+  emailVerified: timestamp("emailVerified", {
+    mode: "date",
+    withTimezone: true,
+  }),
+  password: varchar("password", { length: 255 }),
+  image: varchar("image", { length: 255 }),
   role: userRoles("role").default("CASHIER"),
 }));
 
@@ -122,6 +128,7 @@ export const products = createTable(
     tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
     categoryId: d.integer().references(() => categories.id),
     name: d.varchar({ length: 255 }).notNull(),
+    image: d.varchar({ length: 255 }),
     barcode: d.varchar({ length: 255 }), // Scannable code
     sku: d.varchar({ length: 255 }),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),
@@ -157,6 +164,10 @@ export const customers = createTable(
   }),
   (t) => [index("customer_tenant_idx").on(t.tenantId)],
 );
+
+export const customersRelations = relations(customers, ({ many }) => ({
+  orders: many(orders),
+}));
 
 // --- POS Module ---
 

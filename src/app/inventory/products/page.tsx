@@ -1,9 +1,15 @@
 import Link from "next/link";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus } from "lucide-react";
 import { api, HydrateClient } from "~/trpc/server";
 
-export default async function ProductsPage() {
-    const products = await api.inventory.listProducts();
+import { ProductActions } from "./product-actions";
+import { ProductSearch } from "./product-search";
+
+export default async function ProductsPage(props: {
+    searchParams: Promise<{ search?: string }>;
+}) {
+    const searchParams = await props.searchParams;
+    const products = await api.inventory.listProducts({ search: searchParams.search });
 
     return (
         <HydrateClient>
@@ -21,20 +27,7 @@ export default async function ProductsPage() {
                     </Link>
                 </div>
 
-                <div className="flex items-center gap-4 rounded-lg border bg-white p-4 dark:bg-gray-800">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search products..."
-                            className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-purple-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                        />
-                    </div>
-                    <button className="flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
-                        <Filter className="h-4 w-4" />
-                        Filter
-                    </button>
-                </div>
+                <ProductSearch />
 
                 <div className="overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -67,7 +60,9 @@ export default async function ProductsPage() {
                                         colSpan={6}
                                         className="px-6 py-10 text-center text-gray-500 dark:text-gray-400"
                                     >
-                                        No products found. Add your first product to get started.
+                                        {searchParams.search
+                                            ? "No products found matching your search."
+                                            : "No products found. Add your first product to get started."}
                                     </td>
                                 </tr>
                             ) : (
@@ -101,12 +96,7 @@ export default async function ProductsPage() {
                                             </span>
                                         </td>
                                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                                            <Link
-                                                href={`/inventory/products/${product.id}`}
-                                                className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
-                                            >
-                                                Edit
-                                            </Link>
+                                            <ProductActions id={product.id} />
                                         </td>
                                     </tr>
                                 ))
