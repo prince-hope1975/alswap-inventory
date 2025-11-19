@@ -15,3 +15,4 @@ export default async function ReceiptPage(props: {
     return <Receipt order={order} />;
 }
 
+

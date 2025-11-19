@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { CheckCircle, Printer, Share2, X } from "lucide-react";
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { useRef } from "react";
+import { CheckCircle, Printer, X } from "lucide-react";
 import { api } from "~/trpc/react";
+import { ReceiptPreview } from "./receipt-preview";
 
 interface ReceiptModalProps {
     isOpen: boolean;
@@ -29,11 +29,10 @@ interface ReceiptModalProps {
 }
 
 export function ReceiptModal({ isOpen, onClose, order }: ReceiptModalProps) {
-    const { formatCurrency } = useCurrency();
     const receiptRef = useRef<HTMLDivElement>(null);
     const { data: settings } = api.settings.getTenantSettings.useQuery(undefined, {
         enabled: isOpen,
-        staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+        staleTime: 1000 * 60 * 5,
     });
 
     const handlePrint = () => {
@@ -44,32 +43,98 @@ export function ReceiptModal({ isOpen, onClose, order }: ReceiptModalProps) {
              if (printWindow) {
                  printWindow.document.write('<html><head><title>Receipt</title>');
                  printWindow.document.write('<style>');
-                 // Base styles for all templates
                  printWindow.document.write(`
                     @page { margin: 0; }
-                    body { font-family: 'Courier New', monospace; padding: 20px; margin: 0; font-size: 12px; }
+                    body { font-family: sans-serif; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    * { box-sizing: border-box; }
                     .text-center { text-align: center; }
                     .text-right { text-align: right; }
+                    .text-left { text-align: left; }
                     .font-bold { font-weight: bold; }
-                    .text-xl { font-size: 16px; }
+                    .font-mono { font-family: 'Courier New', monospace; }
+                    .font-serif { font-family: serif; }
+                    .font-sans { font-family: sans-serif; }
                     .text-xs { font-size: 10px; }
-                    .my-2 { margin-top: 8px; margin-bottom: 8px; }
-                    .py-2 { padding-top: 8px; padding-bottom: 8px; }
+                    .text-sm { font-size: 12px; }
+                    .text-base { font-size: 14px; }
+                    .text-lg { font-size: 16px; }
+                    .text-xl { font-size: 20px; }
+                    .text-2xl { font-size: 24px; }
+                    .text-3xl { font-size: 30px; }
+                    .uppercase { text-transform: uppercase; }
+                    .lowercase { text-transform: lowercase; }
+                    .italic { font-style: italic; }
+                    .flex { display: flex; }
+                    .justify-between { justify-content: space-between; }
+                    .items-center { align-items: center; }
+                    .mb-2 { margin-bottom: 8px; }
                     .mb-4 { margin-bottom: 16px; }
-                    table { width: 100%; border-collapse: collapse; }
-                    th, td { padding: 4px 0; }
-                    
-                    /* Thermal Printer Specifics */
-                    .thermal-mode body { padding: 0; width: 58mm; }
-                    .thermal-mode .container { padding: 10px; }
+                    .mb-6 { margin-bottom: 24px; }
+                    .mb-8 { margin-bottom: 32px; }
+                    .mt-1 { margin-top: 4px; }
+                    .mt-2 { margin-top: 8px; }
+                    .mt-4 { margin-top: 16px; }
+                    .mt-6 { margin-top: 24px; }
+                    .mt-8 { margin-top: 32px; }
+                    .mt-12 { margin-top: 48px; }
+                    .p-4 { padding: 16px; }
+                    .p-6 { padding: 24px; }
+                    .p-8 { padding: 32px; }
+                    .px-2 { padding-left: 8px; padding-right: 8px; }
+                    .py-1 { padding-top: 4px; padding-bottom: 4px; }
+                    .py-2 { padding-top: 8px; padding-bottom: 8px; }
+                    .py-3 { padding-top: 12px; padding-bottom: 12px; }
+                    .border-b { border-bottom: 1px solid #e5e7eb; }
+                    .border-t { border-top: 1px solid #e5e7eb; }
+                    .border-t-2 { border-top: 2px solid #000; }
+                    .border-b-2 { border-bottom: 2px solid #000; }
+                    .border-dashed { border-style: dashed; }
+                    .border-dotted { border-style: dotted; }
+                    .border-double { border-style: double; }
+                    .rounded { border-radius: 4px; }
+                    .rounded-lg { border-radius: 8px; }
+                    .rounded-xl { border-radius: 12px; }
+                    .bg-white { background-color: white; }
+                    .bg-gray-50 { background-color: #f9fafb; }
+                    .bg-gray-100 { background-color: #f3f4f6; }
+                    .bg-gray-900 { background-color: #111827; }
+                    .text-black { color: #000; }
+                    .text-gray-400 { color: #9ca3af; }
+                    .text-gray-500 { color: #6b7280; }
+                    .text-gray-600 { color: #4b5563; }
+                    .text-gray-700 { color: #374151; }
+                    .text-gray-800 { color: #1f2937; }
+                    .text-green-600 { color: #16a34a; }
+                    .text-green-700 { color: #15803d; }
+                    .text-green-800 { color: #166534; }
+                    .text-green-900 { color: #14532d; }
+                    .opacity-60 { opacity: 0.6; }
+                    .opacity-70 { opacity: 0.7; }
+                    .opacity-80 { opacity: 0.8; }
+                    .grayscale { filter: grayscale(100%); }
+                    .space-y-1 > * + * { margin-top: 4px; }
+                    .space-y-2 > * + * { margin-top: 8px; }
+                    .space-y-3 > * + * { margin-top: 12px; }
+                    .w-full { width: 100%; }
+                    .h-8 { height: 32px; }
+                    .h-10 { height: 40px; }
+                    .h-12 { height: 48px; }
+                    .h-14 { height: 56px; }
+                    .h-16 { height: 64px; }
+                    .object-contain { object-fit: contain; }
+                    .mx-auto { margin-left: auto; margin-right: auto; }
+                    .tracking-wide { letter-spacing: 0.025em; }
+                    .tracking-widest { letter-spacing: 0.1em; }
+                    .tracking-tighter { letter-spacing: -0.05em; }
+                    img { max-width: 100%; height: auto; }
                  `);
                  printWindow.document.write('</style></head><body>');
                  printWindow.document.write(printContent);
                  printWindow.document.write('</body></html>');
                  printWindow.document.close();
+                 
                  setTimeout(() => {
                      printWindow.print();
-                     // printWindow.close(); // Optional: close after printing
                  }, 500);
              }
         }
@@ -77,194 +142,7 @@ export function ReceiptModal({ isOpen, onClose, order }: ReceiptModalProps) {
 
     if (!isOpen) return null;
 
-    const template = settings?.receiptTemplate || "classic";
-    const storeName = settings?.name || "STORE NAME";
-    const address = settings?.address;
-    const phone = settings?.phone;
-    const footer = settings?.receiptFooter || "Thank you for your business!";
-    const logo = settings?.logo;
-
-    // Render different templates
-    const renderReceiptContent = () => {
-        if (template === "modern") {
-            return (
-                <div className="p-6 font-sans text-sm text-gray-800">
-                     <div className="mb-6 text-center">
-                        {logo && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={logo} alt="Logo" className="mx-auto mb-3 h-16 object-contain" />
-                        )}
-                        <h1 className="text-xl font-bold uppercase tracking-wide">{storeName}</h1>
-                        {address && <p className="mt-1 text-gray-600">{address}</p>}
-                        {phone && <p className="text-gray-600">{phone}</p>}
-                    </div>
-
-                    <div className="mb-6 rounded-lg bg-gray-50 p-4">
-                        <div className="flex justify-between text-xs text-gray-500">
-                            <span>{new Date(order.createdAt).toLocaleDateString()}</span>
-                            <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
-                        </div>
-                        <p className="mt-1 text-center font-mono text-xs text-gray-400">Order #{order.id.slice(0, 8)}</p>
-                    </div>
-
-                    <div className="mb-6 space-y-3">
-                        {order.items.map((item, i) => (
-                            <div key={i} className="flex justify-between border-b border-gray-100 pb-2 last:border-0">
-                                <div>
-                                    <p className="font-medium">{item.product.name}</p>
-                                    <p className="text-xs text-gray-500">{item.quantity} x {formatCurrency(item.price)}</p>
-                                </div>
-                                <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="space-y-2 border-t border-gray-200 pt-4">
-                        <div className="flex justify-between text-lg font-bold">
-                            <span>Total</span>
-                            <span>{formatCurrency(order.totalAmount)}</span>
-                        </div>
-                        {order.amountPaid !== undefined && (
-                            <div className="flex justify-between text-gray-600">
-                                <span>Paid ({order.paymentMethod})</span>
-                                <span>{formatCurrency(order.amountPaid)}</span>
-                            </div>
-                        )}
-                        {order.change !== undefined && (
-                            <div className="flex justify-between text-gray-600">
-                                <span>Change</span>
-                                <span>{formatCurrency(order.change)}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    {order.customer && (
-                         <div className="mt-6 rounded-lg bg-gray-50 p-3 text-center text-sm">
-                            <p className="font-medium text-gray-900">Customer</p>
-                            <p className="text-gray-600">{order.customer.name}</p>
-                        </div>
-                    )}
-
-                    <div className="mt-8 text-center">
-                        <p className="text-sm font-medium italic text-gray-600">{footer}</p>
-                    </div>
-                </div>
-            );
-        }
-        
-        if (template === "thermal") {
-            return (
-                <div className="thermal-mode font-mono text-xs">
-                    <div className="text-center">
-                        <h1 className="text-xl font-bold">{storeName}</h1>
-                        {address && <p>{address}</p>}
-                        {phone && <p>{phone}</p>}
-                        <div className="my-2 border-b border-dashed border-black"></div>
-                        <p>{new Date(order.createdAt).toLocaleString()}</p>
-                        <p>Order: #{order.id.slice(0, 8)}</p>
-                        <div className="my-2 border-b border-dashed border-black"></div>
-                    </div>
-
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr>
-                                <th>Item</th>
-                                <th className="text-right">Amt</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {order.items.map((item, i) => (
-                                <tr key={i}>
-                                    <td className="pr-2">
-                                        <div>{item.product.name}</div>
-                                        <div className="text-[10px]">{item.quantity} x {formatCurrency(item.price)}</div>
-                                    </td>
-                                    <td className="text-right align-top">{formatCurrency(item.price * item.quantity)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-
-                    <div className="my-2 border-b border-dashed border-black"></div>
-
-                    <div className="text-right">
-                        <div className="flex justify-between font-bold text-sm">
-                            <span>TOTAL</span>
-                            <span>{formatCurrency(order.totalAmount)}</span>
-                        </div>
-                        {order.amountPaid !== undefined && (
-                            <div className="flex justify-between">
-                                <span>PAID ({order.paymentMethod})</span>
-                                <span>{formatCurrency(order.amountPaid)}</span>
-                            </div>
-                        )}
-                        {order.change !== undefined && (
-                            <div className="flex justify-between">
-                                <span>CHANGE</span>
-                                <span>{formatCurrency(order.change)}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="mt-4 text-center text-[10px]">
-                         {order.customer && <p className="mb-2">Customer: {order.customer.name}</p>}
-                        <p>{footer}</p>
-                    </div>
-                </div>
-            );
-        }
-
-        // Classic (Default)
-        return (
-            <div className="p-6 font-mono text-sm text-gray-700 dark:text-gray-300">
-                <div className="mb-4 text-center">
-                    <p className="text-lg font-bold">{storeName}</p>
-                    {address && <p className="text-xs">{address}</p>}
-                    {phone && <p className="text-xs">{phone}</p>}
-                    <p className="mt-2 text-xs">{new Date(order.createdAt).toLocaleString()}</p>
-                    <p className="text-xs">Order #{order.id.slice(0, 8)}</p>
-                </div>
-
-                <div className="mb-4 border-b border-dashed border-gray-300 pb-2 dark:border-gray-600">
-                    {order.items.map((item, i) => (
-                        <div key={i} className="flex justify-between py-1">
-                            <span>{item.quantity}x {item.product.name}</span>
-                            <span>{formatCurrency(item.price * item.quantity)}</span>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="space-y-1 text-right">
-                    <div className="flex justify-between font-bold">
-                        <span>Total</span>
-                        <span>{formatCurrency(order.totalAmount)}</span>
-                    </div>
-                    {order.amountPaid !== undefined && (
-                        <div className="flex justify-between">
-                            <span>Paid ({order.paymentMethod})</span>
-                            <span>{formatCurrency(order.amountPaid)}</span>
-                        </div>
-                    )}
-                    {order.change !== undefined && (
-                        <div className="flex justify-between">
-                            <span>Change</span>
-                            <span>{formatCurrency(order.change)}</span>
-                        </div>
-                    )}
-                </div>
-
-                {order.customer && (
-                    <div className="mt-4 border-t border-dashed border-gray-300 pt-2 text-center dark:border-gray-600">
-                        <p>Customer: {order.customer.name}</p>
-                    </div>
-                )}
-                
-                <div className="mt-6 text-center text-xs">
-                    <p>{footer}</p>
-                </div>
-            </div>
-        );
-    };
+    const templateId = settings?.receiptTemplate || "classic";
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -282,10 +160,19 @@ export function ReceiptModal({ isOpen, onClose, order }: ReceiptModalProps) {
                         <h2 className="mt-2 text-xl font-bold text-gray-900 dark:text-white">Payment Successful</h2>
                     </div>
 
-                    {/* Receipt Preview Container */}
                     <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-white">
                          <div ref={receiptRef}>
-                             {renderReceiptContent()}
+                             <ReceiptPreview 
+                                template={templateId}
+                                settings={{
+                                    name: settings?.name || "STORE NAME",
+                                    logo: settings?.logo,
+                                    address: settings?.address,
+                                    phone: settings?.phone,
+                                    receiptFooter: settings?.receiptFooter,
+                                }}
+                                order={order}
+                             />
                          </div>
                     </div>
                 </div>

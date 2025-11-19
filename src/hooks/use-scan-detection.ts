@@ -54,3 +54,4 @@ export function useScanDetection({
     }, [onScan, minLength, timeLimit]);
 }
 
+

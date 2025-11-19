@@ -6,8 +6,11 @@ import { z } from "zod";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Image as ImageIcon, CheckCircle, RefreshCw, Building2, Palette, Globe, Receipt, Phone, MapPin } from "lucide-react";
+import { Image as ImageIcon, CheckCircle, RefreshCw, Building2, Palette, Globe, Receipt, Phone, MapPin, Grid3x3 } from "lucide-react";
 import { generateColorVariants } from "~/lib/color-utils";
+import { ReceiptPreview } from "~/app/_components/pos/receipt-preview";
+import { TemplateGalleryModal } from "./template-gallery-modal";
+import { TEMPLATE_LIST } from "~/lib/receipt-templates";
 
 const settingsSchema = z.object({
     name: z.string().min(1, "Company name is required"),
@@ -49,6 +52,7 @@ export default function SettingsPage() {
     const router = useRouter();
     const [isSaved, setIsSaved] = useState(false);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
     const { data: settings, isLoading } = api.settings.getTenantSettings.useQuery();
     const utils = api.useUtils();
@@ -250,7 +254,7 @@ export default function SettingsPage() {
                                                 value={template.id}
                                                 className="sr-only"
                                             />
-                                            <span className="flex flex-1">
+                                            <span className="flex">
                                                 <span className="flex flex-col">
                                                     <span className="block text-sm font-medium text-gray-900 dark:text-white">
                                                         {template.name}
@@ -260,15 +264,43 @@ export default function SettingsPage() {
                                                     </span>
                                                 </span>
                                             </span>
-                                            <CheckCircle
-                                                className={`absolute right-4 top-4 h-5 w-5 ${
-                                                    watch("receiptTemplate") === template.id
-                                                        ? "text-[var(--brand-primary-600)]"
-                                                        : "invisible"
-                                                }`}
+                                    <CheckCircle
+                                        className={`absolute right-4 top-4 h-5 w-5 ${
+                                            watch("receiptTemplate") === template.id
+                                                ? "text-[var(--brand-primary-600)]"
+                                                : "invisible"
+                                        }`}
+                                    />
+                                    
+                                    <div className="mt-1 flex-1 overflow-hidden rounded bg-gray-50 dark:bg-gray-900 pt-0 pb-1">
+                                        <div className="scale-75 origin-top transform">
+                                            <ReceiptPreview 
+                                                template={template.id} 
+                                                settings={{
+                                                    name: watch("name"),
+                                                    logo: watch("logo"),
+                                                    address: watch("address"),
+                                                    phone: watch("phone"),
+                                                    receiptFooter: watch("receiptFooter")
+                                                }}
+                                                className="-mt-4 -mb-2"
                                             />
-                                        </label>
-                                    ))}
+                                        </div>
+                                    </div>
+                                </label>
+                            ))}
+                                </div>
+                                
+                                {/* See More Templates Button */}
+                                <div className="mt-4 flex justify-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTemplateGallery(true)}
+                                        className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    >
+                                        <Grid3x3 className="h-4 w-4" />
+                                        See More Templates ({TEMPLATE_LIST.length - 3} more)
+                                    </button>
                                 </div>
                             </div>
 
@@ -540,6 +572,23 @@ export default function SettingsPage() {
                     </div>
                 </form>
             </div>
+
+            {/* Template Gallery Modal */}
+            <TemplateGalleryModal
+                isOpen={showTemplateGallery}
+                onClose={() => setShowTemplateGallery(false)}
+                currentTemplate={watch("receiptTemplate") || "classic"}
+                onSelectTemplate={(templateId) => {
+                    setValue("receiptTemplate", templateId, { shouldDirty: true });
+                }}
+                settings={{
+                    name: watch("name"),
+                    logo: watch("logo"),
+                    address: watch("address"),
+                    phone: watch("phone"),
+                    receiptFooter: watch("receiptFooter"),
+                }}
+            />
         </div>
     );
 }
