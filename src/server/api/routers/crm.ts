@@ -85,6 +85,66 @@ export const crmRouter = createTRPCRouter({
                     }
                 }
             });
+        }),
+
+    redeemLoyaltyPoints: tenantProcedure
+        .input(
+            z.object({
+                customerId: z.string(),
+                points: z.number().int().min(1),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const customer = await ctx.db.query.customers.findFirst({
+                where: and(eq(customers.id, input.customerId), eq(customers.tenantId, ctx.tenantId)),
+            });
+
+            if (!customer) {
+                throw new Error("Customer not found");
+            }
+
+            const currentPoints = customer.loyaltyPoints ?? 0;
+            if (currentPoints < input.points) {
+                throw new Error("Insufficient loyalty points");
+            }
+
+            await ctx.db
+                .update(customers)
+                .set({
+                    loyaltyPoints: currentPoints - input.points,
+                })
+                .where(and(eq(customers.id, input.customerId), eq(customers.tenantId, ctx.tenantId)));
+
+            return { success: true, remainingPoints: currentPoints - input.points };
+        }),
+
+    adjustLoyaltyPoints: tenantProcedure
+        .input(
+            z.object({
+                customerId: z.string(),
+                points: z.number().int(), // Can be positive or negative
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const customer = await ctx.db.query.customers.findFirst({
+                where: and(eq(customers.id, input.customerId), eq(customers.tenantId, ctx.tenantId)),
+            });
+
+            if (!customer) {
+                throw new Error("Customer not found");
+            }
+
+            const currentPoints = customer.loyaltyPoints ?? 0;
+            const newPoints = Math.max(0, currentPoints + input.points); // Don't allow negative points
+
+            await ctx.db
+                .update(customers)
+                .set({
+                    loyaltyPoints: newPoints,
+                })
+                .where(and(eq(customers.id, input.customerId), eq(customers.tenantId, ctx.tenantId)));
+
+            return { success: true, newPoints };
         })
 });
 

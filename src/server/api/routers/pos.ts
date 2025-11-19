@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
-import { shifts, orders, orderItems, products } from "~/server/db/schema";
+import { shifts, orders, orderItems, products, customers } from "~/server/db/schema";
 import { eq, and, desc, or, ilike } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
@@ -190,6 +190,23 @@ export const posRouter = createTRPCRouter({
                 }
             }
 
+            // Award loyalty points if customer exists (1 point per dollar spent, rounded)
+            if (input.customerId) {
+                const customer = await ctx.db.query.customers.findFirst({
+                    where: and(eq(customers.id, input.customerId), eq(customers.tenantId, tenantId)),
+                });
+
+                if (customer) {
+                    const pointsToAward = Math.floor(totalAmount);
+                    await ctx.db
+                        .update(customers)
+                        .set({
+                            loyaltyPoints: (customer.loyaltyPoints ?? 0) + pointsToAward,
+                        })
+                        .where(eq(customers.id, input.customerId));
+                }
+            }
+
             return order;
         }),
 
@@ -227,13 +244,56 @@ export const posRouter = createTRPCRouter({
                             product: true,
                         },
                     },
-                    // customer: true, // Customer module not fully implemented yet?
+                    customer: true,
                     shift: {
                         with: {
                             user: true,
                         },
                     },
                 },
+            });
+        }),
+
+    listOrders: tenantProcedure
+        .input(
+            z.object({
+                limit: z.number().default(50),
+                offset: z.number().default(0),
+            }).optional()
+        )
+        .query(async ({ ctx, input }) => {
+            return ctx.db.query.orders.findMany({
+                where: eq(orders.tenantId, ctx.tenantId),
+                with: {
+                    customer: true,
+                    items: {
+                        with: {
+                            product: true,
+                        },
+                    },
+                },
+                orderBy: desc(orders.createdAt),
+                limit: input?.limit ?? 50,
+                offset: input?.offset ?? 0,
+            });
+        }),
+
+    searchCustomers: tenantProcedure
+        .input(z.object({ query: z.string() }))
+        .query(async ({ ctx, input }) => {
+            const tenantId = ctx.session.user.tenantId;
+            if (!tenantId) return [];
+
+            return ctx.db.query.customers.findMany({
+                where: and(
+                    eq(customers.tenantId, tenantId),
+                    or(
+                        ilike(customers.name, `%${input.query}%`),
+                        ilike(customers.email, `%${input.query}%`),
+                        ilike(customers.phone, `%${input.query}%`)
+                    )
+                ),
+                limit: 10,
             });
         }),
 });

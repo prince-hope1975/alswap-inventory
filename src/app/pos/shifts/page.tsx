@@ -2,14 +2,32 @@
 
 import { useState } from "react";
 import { api } from "~/trpc/react";
-import { DollarSign, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Clock, CheckCircle, XCircle, LayoutDashboard, Package, Layers, Users, ShoppingCart, Settings, BarChart3, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useCurrency } from "~/hooks/use-tenant-settings";
+import Link from "next/link";
+import { cn } from "~/lib/utils";
+import { usePathname } from "next/navigation";
+import { ThemeToggle } from "~/components/theme-toggle";
 
 export default function ShiftsPage() {
     const router = useRouter();
+    const pathname = usePathname();
     const [startCash, setStartCash] = useState("0");
     const [endCash, setEndCash] = useState("0");
     const [showCloseModal, setShowCloseModal] = useState(false);
+    const { formatCurrency, currency } = useCurrency();
+
+    const navItems = [
+        { href: "/inventory", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/inventory/products", label: "Products", icon: Package },
+        { href: "/inventory/categories", label: "Categories", icon: Layers },
+        { href: "/inventory/customers", label: "Customers", icon: Users },
+        { href: "/inventory/analytics", label: "Analytics", icon: BarChart3 },
+        { href: "/pos", label: "POS Terminal", icon: ShoppingCart },
+        { href: "/pos/shifts", label: "Shifts", icon: Clock },
+        { href: "/inventory/settings", label: "Settings", icon: Settings },
+    ];
 
     const { data: currentShift, refetch } = api.pos.getCurrentShift.useQuery();
     const { data: shifts } = api.pos.listShifts.useQuery();
@@ -51,16 +69,43 @@ export default function ShiftsPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 dark:from-gray-900 dark:to-gray-950">
             <div className="mx-auto max-w-6xl space-y-6">
+                {/* Navigation Bar */}
+                <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <nav className="flex flex-wrap items-center gap-2">
+                        {navItems.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    className={cn(
+                                        "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
+                                        isActive
+                                            ? "bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] text-white shadow-md"
+                                            : "text-gray-700 hover:bg-gradient-to-r hover:from-[var(--brand-primary-50)] hover:to-[var(--brand-primary-100)] hover:text-[var(--brand-primary-700)] dark:text-gray-300 dark:hover:bg-gradient-to-r dark:hover:from-[var(--brand-primary-900)]/20 dark:hover:to-[var(--brand-primary-800)]/20 dark:hover:text-[var(--brand-primary-400)]"
+                                    )}
+                                >
+                                    <item.icon className="h-4 w-4" />
+                                    <span className="hidden sm:inline">{item.label}</span>
+                                </Link>
+                            );
+                        })}
+                    </nav>
+                </div>
+
                 <div className="flex items-center justify-between">
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                         Shift Management
                     </h1>
-                    <button
-                        onClick={() => router.push("/pos")}
-                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                        Back to POS
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <ThemeToggle />
+                        <button
+                            onClick={() => router.push("/pos")}
+                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                        >
+                            Back to POS
+                        </button>
+                    </div>
                 </div>
 
                 {/* Current Shift */}
@@ -88,7 +133,7 @@ export default function ShiftsPage() {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Starting Cash</p>
                                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    ${Number(currentShift.startCash).toFixed(2)}
+                                    {formatCurrency(currentShift.startCash)}
                                 </p>
                             </div>
                         </div>
@@ -110,13 +155,15 @@ export default function ShiftsPage() {
                                     Starting Cash Amount
                                 </label>
                                 <div className="relative">
-                                    <DollarSign className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-400 font-medium">
+                                        {currency}
+                                    </span>
                                     <input
                                         type="number"
                                         step="0.01"
                                         value={startCash}
                                         onChange={(e) => setStartCash(e.target.value)}
-                                        className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                        className="w-full rounded-lg border border-gray-300 py-2 pl-8 pr-4 focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                         placeholder="0.00"
                                     />
                                 </div>
@@ -125,7 +172,7 @@ export default function ShiftsPage() {
                                 <button
                                     onClick={handleOpenShift}
                                     disabled={openShift.isPending}
-                                    className="rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-2 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50"
+                                    className="rounded-lg bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] px-6 py-2 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50"
                                 >
                                     {openShift.isPending ? "Opening..." : "Open Shift"}
                                 </button>
@@ -143,9 +190,19 @@ export default function ShiftsPage() {
                         {shifts?.map((shift) => (
                             <div
                                 key={shift.id}
-                                className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/50"
+                                className={cn(
+                                    "flex items-center justify-between rounded-lg border p-4 transition-all",
+                                    shift.status === "OPEN"
+                                        ? "border-green-200 bg-green-50 cursor-pointer hover:bg-green-100 hover:shadow-md dark:border-green-800 dark:bg-green-900/20 dark:hover:bg-green-900/30"
+                                        : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700/50"
+                                )}
+                                onClick={() => {
+                                    if (shift.status === "OPEN") {
+                                        router.push("/pos");
+                                    }
+                                }}
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-4 flex-1">
                                     {shift.status === "OPEN" ? (
                                         <Clock className="h-5 w-5 text-green-600" />
                                     ) : (
@@ -160,30 +217,44 @@ export default function ShiftsPage() {
                                         </p>
                                     </div>
                                 </div>
-                                <div className="flex gap-6 text-right">
+                                <div className="flex items-center gap-6 text-right">
                                     <div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400">Start</p>
                                         <p className="font-semibold text-gray-900 dark:text-white">
-                                            ${Number(shift.startCash).toFixed(2)}
+                                            {formatCurrency(shift.startCash)}
                                         </p>
                                     </div>
                                     {shift.endCash && (
                                         <div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">End</p>
                                             <p className="font-semibold text-gray-900 dark:text-white">
-                                                ${Number(shift.endCash).toFixed(2)}
+                                                {formatCurrency(shift.endCash)}
                                             </p>
                                         </div>
                                     )}
-                                    <div>
+                                    <div className="flex items-center gap-3">
                                         <span
-                                            className={`rounded-full px-3 py-1 text-xs font-semibold ${shift.status === "OPEN"
-                                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
-                                                }`}
+                                            className={cn(
+                                                "rounded-full px-3 py-1 text-xs font-semibold",
+                                                shift.status === "OPEN"
+                                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                                    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                                            )}
                                         >
                                             {shift.status}
                                         </span>
+                                        {shift.status === "OPEN" && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    router.push("/pos");
+                                                }}
+                                                className="flex items-center gap-1 rounded-lg bg-[var(--brand-primary-600)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
+                                            >
+                                                Go to POS
+                                                <ArrowRight className="h-3 w-3" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -204,13 +275,15 @@ export default function ShiftsPage() {
                                 Ending Cash Amount
                             </label>
                             <div className="relative">
-                                <DollarSign className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 dark:text-gray-400 font-medium">
+                                    {currency}
+                                </span>
                                 <input
                                     type="number"
                                     step="0.01"
                                     value={endCash}
                                     onChange={(e) => setEndCash(e.target.value)}
-                                    className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                    className="w-full rounded-lg border border-gray-300 py-2 pl-8 pr-4 focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                     placeholder="0.00"
                                 />
                             </div>

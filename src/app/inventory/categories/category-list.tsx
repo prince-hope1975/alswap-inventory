@@ -80,7 +80,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
         </h1>
         <button
           onClick={openCreateModal}
-          className="flex items-center justify-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+          className="flex items-center justify-center gap-2 rounded-md bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)]"
         >
           <Plus className="h-4 w-4" />
           Add Category
@@ -119,7 +119,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => openEditModal(category)}
-                        className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
+                        className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -164,7 +164,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
@@ -179,7 +179,7 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                  className="rounded-md bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                 >
                   {isSubmitting ? "Saving..." : "Save"}
                 </button>

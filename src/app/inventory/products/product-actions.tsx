@@ -23,7 +23,7 @@ export function ProductActions({ id }: { id: string }) {
         <div className="flex justify-end gap-2">
             <Link
                 href={`/inventory/products/${id}`}
-                className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
+                className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
             >
                 <Pencil className="h-4 w-4" />
             </Link>

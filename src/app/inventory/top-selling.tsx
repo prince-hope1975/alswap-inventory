@@ -1,3 +1,5 @@
+import { useCurrency } from "~/hooks/use-tenant-settings";
+
 interface TopSellingProps {
     products: {
         productId: string;
@@ -10,6 +12,8 @@ interface TopSellingProps {
 }
 
 export function TopSelling({ products, isLoading }: TopSellingProps) {
+    const { formatCurrency } = useCurrency();
+
     if (isLoading) {
         return (
             <div className="col-span-3 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -44,7 +48,7 @@ export function TopSelling({ products, isLoading }: TopSellingProps) {
                     {products.map((item, i) => (
                         <div key={item.productId} className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-sm font-bold text-white">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-primary-500)] to-[var(--brand-gradient-to)] text-sm font-bold text-white">
                                     {i + 1}
                                 </div>
                                 <div>
@@ -57,7 +61,7 @@ export function TopSelling({ products, isLoading }: TopSellingProps) {
                                 </div>
                             </div>
                             <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                                ${item.totalRevenue.toFixed(2)}
+                                {formatCurrency(item.totalRevenue)}
                             </div>
                         </div>
                     ))}

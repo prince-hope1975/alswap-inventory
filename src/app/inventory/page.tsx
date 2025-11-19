@@ -25,7 +25,7 @@ export default function InventoryDashboard() {
                 </div>
                 <Link
                     href="/inventory/products/new"
-                    className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
                 >
                     <Plus className="h-4 w-4" />
                     Add Product

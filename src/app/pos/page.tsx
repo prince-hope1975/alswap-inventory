@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { api } from "~/trpc/react";
-import { Search, ShoppingCart, X, Plus, Minus, DollarSign } from "lucide-react";
+import { Search, ShoppingCart, X, Plus, Minus, User, UserX } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useCurrency } from "~/hooks/use-tenant-settings";
+import { ThemeToggle } from "~/components/theme-toggle";
 
 type CartItem = {
     productId: string;
@@ -15,18 +17,27 @@ type CartItem = {
 export default function POSTerminal() {
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState("");
+    const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+    const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string; email: string | null } | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [shiftId, setShiftId] = useState<string | null>(null);
+    const { formatCurrency, currency } = useCurrency();
 
     const { data: currentShift } = api.pos.getCurrentShift.useQuery();
     const searchProducts = api.pos.searchProducts.useQuery(
         { query: searchQuery },
         { enabled: searchQuery.length > 0 }
     );
+    const searchCustomers = api.pos.searchCustomers.useQuery(
+        { query: customerSearchQuery },
+        { enabled: customerSearchQuery.length > 0 && showCustomerSearch }
+    );
     const createOrder = api.pos.createOrder.useMutation({
         onSuccess: (order) => {
             setCart([]);
             setSearchQuery("");
+            setSelectedCustomer(null);
             // Open receipt in a new window
             window.open(`/pos/receipt/${order.id}`, "_blank", "width=400,height=600");
         },
@@ -85,6 +96,7 @@ export default function POSTerminal() {
 
         createOrder.mutate({
             shiftId: shiftId ?? undefined,
+            customerId: selectedCustomer?.id,
             items: cart.map((item) => ({
                 productId: item.productId,
                 quantity: item.quantity,
@@ -106,7 +118,7 @@ export default function POSTerminal() {
                     </p>
                     <button
                         onClick={() => router.push("/pos/shifts")}
-                        className="rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+                        className="rounded-lg bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] px-6 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
                     >
                         Manage Shifts
                     </button>
@@ -128,12 +140,15 @@ export default function POSTerminal() {
                             Shift #{currentShift.id.slice(0, 8)}
                         </p>
                     </div>
-                    <button
-                        onClick={() => router.push("/pos/shifts")}
-                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                        Manage Shifts
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <ThemeToggle />
+                        <button
+                            onClick={() => router.push("/pos/shifts")}
+                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                        >
+                            Manage Shifts
+                        </button>
+                    </div>
                 </div>
 
                 {/* Search */}
@@ -144,7 +159,7 @@ export default function POSTerminal() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search products by name, SKU, or barcode..."
-                        className="w-full rounded-xl border border-gray-200 bg-white py-4 pl-12 pr-4 text-lg shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                        className="w-full rounded-xl border border-gray-200 bg-white py-4 pl-12 pr-4 text-lg shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                     />
                     {searchProducts.data && searchProducts.data.length > 0 && (
                         <div className="absolute z-10 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
@@ -163,7 +178,7 @@ export default function POSTerminal() {
                                         </p>
                                     </div>
                                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                                        ${Number(product.price).toFixed(2)}
+                                        {formatCurrency(product.price)}
                                     </p>
                                 </button>
                             ))}
@@ -193,7 +208,7 @@ export default function POSTerminal() {
                                         {item.name}
                                     </p>
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        ${item.price.toFixed(2)} each
+                                        {formatCurrency(item.price)} each
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -234,16 +249,16 @@ export default function POSTerminal() {
                 <div className="mb-6 space-y-2">
                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
                         <span>Subtotal</span>
-                        <span>${total.toFixed(2)}</span>
+                        <span>{formatCurrency(total)}</span>
                     </div>
                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
                         <span>Tax (0%)</span>
-                        <span>$0.00</span>
+                        <span>{formatCurrency(0)}</span>
                     </div>
                     <div className="border-t border-gray-200 pt-2 dark:border-gray-700">
                         <div className="flex justify-between text-2xl font-bold text-gray-900 dark:text-white">
                             <span>Total</span>
-                            <span>${total.toFixed(2)}</span>
+                            <span>{formatCurrency(total)}</span>
                         </div>
                     </div>
                 </div>
@@ -251,16 +266,86 @@ export default function POSTerminal() {
                 <button
                     onClick={handleCheckout}
                     disabled={cart.length === 0 || createOrder.isPending}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] py-4 text-lg font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                 >
-                    <DollarSign className="h-6 w-6" />
+                    <span className="text-xl font-bold">{currency}</span>
                     {createOrder.isPending ? "Processing..." : "Complete Sale"}
                 </button>
 
                 <div className="mt-4 space-y-2">
-                    <button className="w-full rounded-lg border border-gray-300 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                        Add Customer
-                    </button>
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowCustomerSearch(!showCustomerSearch)}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                            {selectedCustomer ? (
+                                <>
+                                    <User className="h-4 w-4" />
+                                    {selectedCustomer.name}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedCustomer(null);
+                                            setShowCustomerSearch(false);
+                                        }}
+                                        className="ml-auto rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <UserX className="h-4 w-4" />
+                                    Add Customer
+                                </>
+                            )}
+                        </button>
+                        {showCustomerSearch && (
+                            <div className="absolute bottom-full left-0 right-0 z-10 mb-2 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                <div className="p-2">
+                                    <input
+                                        type="text"
+                                        value={customerSearchQuery}
+                                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                                        placeholder="Search customers..."
+                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                        autoFocus
+                                    />
+                                </div>
+                                {searchCustomers.data && searchCustomers.data.length > 0 && (
+                                    <div className="max-h-48 overflow-y-auto">
+                                        {searchCustomers.data.map((customer) => (
+                                            <button
+                                                key={customer.id}
+                                                onClick={() => {
+                                                    setSelectedCustomer({
+                                                        id: customer.id,
+                                                        name: customer.name,
+                                                        email: customer.email,
+                                                    });
+                                                    setShowCustomerSearch(false);
+                                                    setCustomerSearchQuery("");
+                                                }}
+                                                className="flex w-full items-center gap-3 border-b border-gray-100 p-3 text-left transition-colors hover:bg-gray-50 last:border-0 dark:border-gray-700 dark:hover:bg-gray-700"
+                                            >
+                                                <User className="h-4 w-4 text-gray-400" />
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                                        {customer.name}
+                                                    </p>
+                                                    {customer.email && (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                            {customer.email}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <button className="w-full rounded-lg border border-gray-300 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
                         Apply Discount
                     </button>

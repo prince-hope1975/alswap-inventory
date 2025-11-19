@@ -1,4 +1,5 @@
 import { Package, AlertTriangle, DollarSign, TrendingUp, type LucideIcon } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 interface StatsGridProps {
     stats: {
@@ -11,6 +12,8 @@ interface StatsGridProps {
 }
 
 export function StatsGrid({ stats, isLoading }: StatsGridProps) {
+    const { formatCurrency } = useCurrency();
+
     return (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <StatsCard
@@ -31,7 +34,7 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
             />
             <StatsCard
                 title="Total Value"
-                value={`$${stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                value={formatCurrency(stats.totalValue)}
                 icon={DollarSign}
                 description="Inventory asset value"
                 gradient="from-green-500 to-emerald-500"
@@ -39,10 +42,10 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
             />
             <StatsCard
                 title="Sales Today"
-                value={`$${stats.salesToday.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                value={formatCurrency(stats.salesToday)}
                 icon={TrendingUp}
                 description="Revenue generated today"
-                gradient="from-purple-500 to-pink-500"
+                gradient="from-[var(--brand-primary-500)] to-[var(--brand-gradient-to)]"
                 isLoading={isLoading}
             />
         </div>

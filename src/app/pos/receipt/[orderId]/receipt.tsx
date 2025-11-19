@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 // Define types properly based on your schema/API return type
 interface ReceiptProps {
@@ -20,6 +21,8 @@ interface ReceiptProps {
 }
 
 export function Receipt({ order }: ReceiptProps) {
+    const { formatCurrency } = useCurrency();
+
     useEffect(() => {
         const timer = setTimeout(() => {
             window.print();
@@ -45,9 +48,9 @@ export function Receipt({ order }: ReceiptProps) {
                         </div>
                         <div className="flex justify-between text-xs">
                             <span>
-                                {item.quantity} x ${Number(item.price).toFixed(2)}
+                                {item.quantity} x {formatCurrency(item.price)}
                             </span>
-                            <span>${(Number(item.price) * item.quantity).toFixed(2)}</span>
+                            <span>{formatCurrency(Number(item.price) * item.quantity)}</span>
                         </div>
                     </div>
                 ))}
@@ -57,7 +60,7 @@ export function Receipt({ order }: ReceiptProps) {
 
             <div className="flex justify-between text-lg font-bold">
                 <span>TOTAL</span>
-                <span>${Number(order.totalAmount).toFixed(2)}</span>
+                <span>{formatCurrency(order.totalAmount)}</span>
             </div>
 
             <div className="mt-8 text-center text-xs">

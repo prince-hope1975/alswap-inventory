@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { Image as ImageIcon, Info } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -31,6 +32,7 @@ interface ProductFormProps {
 export function ProductForm({ initialData, isEditing = false, categories = [] }: ProductFormProps) {
     const router = useRouter();
     const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image || null);
+    const { currency } = useCurrency();
     
     const utils = api.useUtils();
 
@@ -119,7 +121,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                             <input
                                 {...register("name")}
                                 placeholder="e.g. Wireless Headphones"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
                             {errors.name && (
                                 <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
@@ -135,7 +137,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                             </label>
                             <select
                                 {...register("categoryId", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             >
                                 <option value="">Select a category</option>
                                 {categories.map((category) => (
@@ -161,7 +163,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                                     <input
                                         {...register("image")}
                                         placeholder="https://example.com/image.jpg"
-                                        className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                        className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                     />
                                     {errors.image && (
                                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
@@ -208,7 +210,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                             <input
                                 {...register("sku")}
                                 placeholder="e.g. HEAD-001"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 A unique code for internal tracking and inventory management.
@@ -223,7 +225,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                                 <input
                                     {...register("barcode")}
                                     placeholder="Scan or enter barcode"
-                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                 />
                                 {/* Hint: You could add a scan icon button here later if implementing direct camera scan */}
                             </div>
@@ -249,13 +251,13 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                     <div className="grid gap-6 md:grid-cols-2">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Selling Price ($) <span className="text-red-500">*</span>
+                                Selling Price ({currency}) <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="number"
                                 step="0.01"
                                 {...register("price", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
                             {errors.price && (
                                 <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
@@ -267,13 +269,13 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Cost Price ($)
+                                Cost Price ({currency})
                             </label>
                             <input
                                 type="number"
                                 step="0.01"
                                 {...register("costPrice", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Your cost to acquire the product. Used for profit calculation.
@@ -287,7 +289,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                             <input
                                 type="number"
                                 {...register("stockQuantity", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
                             {errors.stockQuantity && (
                                 <p className="mt-1 text-sm text-red-600">
@@ -306,7 +308,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                             <input
                                 type="number"
                                 {...register("lowStockThreshold", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Alert me when stock falls below this number.
@@ -327,7 +329,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                 <button
                     type="submit"
                     disabled={isPending}
-                    className="rounded-md bg-purple-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 dark:focus:ring-offset-gray-900"
+                    className="rounded-md bg-[var(--brand-primary-600)] px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[var(--brand-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)] focus:ring-offset-2 disabled:opacity-50 dark:focus:ring-offset-gray-900"
                 >
                     {isPending ? "Saving Product..." : isEditing ? "Update Product" : "Create Product"}
                 </button>

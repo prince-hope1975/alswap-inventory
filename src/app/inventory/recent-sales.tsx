@@ -1,4 +1,5 @@
 import { ShoppingBag, User } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 interface RecentSalesProps {
     sales: {
@@ -14,6 +15,8 @@ interface RecentSalesProps {
 }
 
 export function RecentSales({ sales, isLoading }: RecentSalesProps) {
+    const { formatCurrency } = useCurrency();
+
     if (isLoading) {
         return (
             <div className="col-span-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -49,7 +52,7 @@ export function RecentSales({ sales, isLoading }: RecentSalesProps) {
                     {sales.map((sale) => (
                         <div key={sale.id} className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary-100)] text-[var(--brand-primary-600)] dark:bg-[var(--brand-primary-900)]/30 dark:text-[var(--brand-primary-400)]">
                                     <User className="h-5 w-5" />
                                 </div>
                                 <div>
@@ -62,7 +65,7 @@ export function RecentSales({ sales, isLoading }: RecentSalesProps) {
                                 </div>
                             </div>
                             <div className="font-semibold text-gray-900 dark:text-white">
-                                +${Number(sale.totalAmount).toFixed(2)}
+                                +{formatCurrency(sale.totalAmount)}
                             </div>
                         </div>
                     ))}

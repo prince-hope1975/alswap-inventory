@@ -9,7 +9,11 @@ export default async function ProductsPage(props: {
     searchParams: Promise<{ search?: string }>;
 }) {
     const searchParams = await props.searchParams;
-    const products = await api.inventory.listProducts({ search: searchParams.search });
+    const [products, settings] = await Promise.all([
+        api.inventory.listProducts({ search: searchParams.search }),
+        api.settings.getTenantSettings(),
+    ]);
+    const currency = settings.currency ?? "USD";
 
     return (
         <HydrateClient>
@@ -20,7 +24,7 @@ export default async function ProductsPage(props: {
                     </h1>
                     <Link
                         href="/inventory/products/new"
-                        className="flex items-center justify-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                        className="flex items-center justify-center gap-2 rounded-md bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)]"
                     >
                         <Plus className="h-4 w-4" />
                         Add Product
@@ -83,7 +87,7 @@ export default async function ProductsPage(props: {
                                             {product.category?.name ?? "Uncategorized"}
                                         </td>
                                         <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                                            ${Number(product.price).toFixed(2)}
+                                            {currency}{Number(product.price).toFixed(2)}
                                         </td>
                                         <td className="whitespace-nowrap px-6 py-4">
                                             <span
