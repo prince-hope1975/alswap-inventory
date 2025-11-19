@@ -1,13 +1,14 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
-import { Image as ImageIcon, Info } from "lucide-react";
-import { useState, useEffect } from "react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { ImageUpload } from "~/app/_components/image-upload";
+import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -16,25 +17,40 @@ const productSchema = z.object({
     sku: z.string().optional(),
     barcode: z.string().optional(),
     price: z.number().min(0, "Price must be positive"),
-    costPrice: z.number().min(0, "Cost price must be positive").optional(),
+    costPrice: z.number().min(0, "Cost price is required and must be positive"),
     stockQuantity: z.number().int().min(0, "Stock must be non-negative"),
-    lowStockThreshold: z.number().int().min(0).default(5),
-});
+    lowStockThreshold: z.number().int().min(0),
+}).refine(
+    (data) => {
+        // If stockQuantity is 0, allow any threshold >= 0
+        // Otherwise, threshold must be less than stockQuantity
+        if (data.stockQuantity === 0) {
+            return data.lowStockThreshold >= 0;
+        }
+        return data.lowStockThreshold < data.stockQuantity;
+    },
+    {
+        message: "Low stock threshold must be less than current stock quantity",
+        path: ["lowStockThreshold"],
+    }
+);
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
 interface ProductFormProps {
     initialData?: ProductFormValues & { id: string };
     isEditing?: boolean;
-    categories?: { id: number; name: string }[];
+    categories?: { id: number; name: string }[]; // Kept for backward compatibility but not used
 }
 
-export function ProductForm({ initialData, isEditing = false, categories = [] }: ProductFormProps) {
+export function ProductForm({ initialData, isEditing = false, categories: _categories }: ProductFormProps) {
     const router = useRouter();
-    const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image || null);
     const { currency } = useCurrency();
     
     const utils = api.useUtils();
+    
+    // Fetch categories on the fly
+    const { data: categoryList = [], isLoading: categoriesLoading, error: categoriesError } = api.inventory.listCategories.useQuery();
 
     const createProduct = api.inventory.createProduct.useMutation({
         onSuccess: () => {
@@ -54,7 +70,9 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
     const {
         register,
         handleSubmit,
+        setValue,
         watch,
+        trigger,
         formState: { errors },
     } = useForm<ProductFormValues>({
         resolver: zodResolver(productSchema),
@@ -65,28 +83,32 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                   image: initialData.image ?? "",
               }
             : {
+                  name: "",
+                  price: 0,
+                  costPrice: 0,
                   stockQuantity: 0,
                   lowStockThreshold: 5,
                   image: "",
               },
     });
 
-    // Watch image field to update preview
-    const imageUrl = watch("image");
+    // Watch stockQuantity and lowStockThreshold to trigger validation
+    const stockQuantity = watch("stockQuantity");
+    const lowStockThreshold = watch("lowStockThreshold");
+    
+    // Trigger validation when stockQuantity or lowStockThreshold changes
     useEffect(() => {
-        if (imageUrl && !errors.image) {
-            setImagePreview(imageUrl);
-        } else if (!imageUrl) {
-            setImagePreview(null);
+        if (stockQuantity !== undefined && lowStockThreshold !== undefined) {
+            trigger("lowStockThreshold");
         }
-    }, [imageUrl, errors.image]);
+    }, [stockQuantity, lowStockThreshold, trigger]);
 
     const onSubmit = (data: ProductFormValues) => {
         const formattedData = {
             ...data,
             categoryId: data.categoryId ? Number(data.categoryId) : undefined,
             price: Number(data.price),
-            costPrice: data.costPrice ? Number(data.costPrice) : undefined,
+            costPrice: Number(data.costPrice),
             image: data.image || undefined,
         };
 
@@ -98,6 +120,12 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
         } else {
             createProduct.mutate(formattedData);
         }
+    };
+
+    const handleCategoryCreated = async (newCategory: { id: number; name: string }) => {
+        // Refetch categories to get the latest list
+        await utils.inventory.listCategories.refetch();
+        setValue("categoryId", newCategory.id);
     };
 
     const isPending = createProduct.isPending || updateProduct.isPending;
@@ -135,17 +163,36 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Category
                             </label>
-                            <select
-                                {...register("categoryId", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            >
-                                <option value="">Select a category</option>
-                                {categories.map((category) => (
-                                    <option key={category.id} value={category.id}>
-                                        {category.name}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="flex items-center gap-2">
+                                <select
+                                    {...register("categoryId", { valueAsNumber: true })}
+                                    disabled={categoriesLoading}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                >
+                                    <option value="">Select a category</option>
+                                    {categoriesLoading && (
+                                        <option value="" disabled>
+                                            Loading categories...
+                                        </option>
+                                    )}
+                                    {!categoriesLoading && categoryList.length === 0 && (
+                                        <option value="" disabled>
+                                            No categories found - please create one
+                                        </option>
+                                    )}
+                                    {categoryList.map((category) => (
+                                        <option key={category.id} value={category.id}>
+                                            {category.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <CreateCategoryDialog onCategoryCreated={handleCategoryCreated} />
+                            </div>
+                            {categoriesError && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    Error loading categories: {categoriesError.message}
+                                </p>
+                            )}
                             {errors.categoryId && (
                                 <p className="mt-1 text-sm text-red-600">{errors.categoryId.message}</p>
                             )}
@@ -156,35 +203,19 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
 
                         <div className="col-span-2">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Product Image URL
+                                Product Image
                             </label>
-                            <div className="mt-1 flex gap-4">
-                                <div className="flex-1">
-                                    <input
-                                        {...register("image")}
-                                        placeholder="https://example.com/image.jpg"
-                                        className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                    />
-                                    {errors.image && (
-                                        <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
-                                    )}
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        Provide a direct link to an image of the product.
-                                    </p>
-                                </div>
-                                <div className="flex h-20 w-20 flex-none items-center justify-center rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                                    {imagePreview ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={imagePreview}
-                                            alt="Preview"
-                                            className="h-full w-full rounded-md object-cover"
-                                            onError={() => setImagePreview(null)}
-                                        />
-                                    ) : (
-                                        <ImageIcon className="h-8 w-8 text-gray-300 dark:text-gray-600" />
-                                    )}
-                                </div>
+                            <div className="mt-1">
+                                <ImageUpload
+                                    value={watch("image") || ""}
+                                    onChange={(url) => setValue("image", url)}
+                                />
+                                {errors.image && (
+                                    <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Upload an image or provide a URL. You can crop uploaded images.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -227,7 +258,6 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                                     placeholder="Scan or enter barcode"
                                     className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                 />
-                                {/* Hint: You could add a scan icon button here later if implementing direct camera scan */}
                             </div>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 The Universal Product Code or barcode number for scanning at POS.
@@ -269,7 +299,7 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Cost Price ({currency})
+                                Cost Price ({currency}) <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="number"
@@ -277,6 +307,9 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                                 {...register("costPrice", { valueAsNumber: true })}
                                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
+                            {errors.costPrice && (
+                                <p className="mt-1 text-sm text-red-600">{errors.costPrice.message}</p>
+                            )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Your cost to acquire the product. Used for profit calculation.
                             </p>
@@ -310,8 +343,13 @@ export function ProductForm({ initialData, isEditing = false, categories = [] }:
                                 {...register("lowStockThreshold", { valueAsNumber: true })}
                                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
+                            {errors.lowStockThreshold && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.lowStockThreshold.message}
+                                </p>
+                            )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Alert me when stock falls below this number.
+                                Alert me when stock falls below this number. Must be less than current stock.
                             </p>
                         </div>
                     </div>

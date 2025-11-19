@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
-import { products, categories } from "~/server/db/schema";
-import { eq, and, desc, or, ilike } from "drizzle-orm";
+import { products, categories, orders, orderItems } from "~/server/db/schema";
+import { eq, and, desc, or, ilike, lte, sql, gte } from "drizzle-orm";
 
 export const inventoryRouter = createTRPCRouter({
     // --- Categories ---
@@ -13,7 +13,7 @@ export const inventoryRouter = createTRPCRouter({
             return ctx.db.insert(categories).values({
                 name: input.name,
                 tenantId: ctx.tenantId,
-            });
+            }).returning();
         }),
 
     listCategories: tenantProcedure.query(async ({ ctx }) => {
@@ -42,6 +42,27 @@ export const inventoryRouter = createTRPCRouter({
 
     // --- Products ---
 
+    validateImageUrl: tenantProcedure
+        .input(z.object({ url: z.string().url() }))
+        .mutation(async ({ input }) => {
+            try {
+                const response = await fetch(input.url, { method: "HEAD" });
+                const contentType = response.headers.get("content-type");
+
+                if (!response.ok) {
+                    return { isValid: false, error: "URL is not reachable" };
+                }
+
+                if (!contentType?.startsWith("image/")) {
+                    return { isValid: false, error: "URL does not point to an image" };
+                }
+
+                return { isValid: true, contentType };
+            } catch (error) {
+                return { isValid: false, error: "Failed to validate URL" };
+            }
+        }),
+
     createProduct: tenantProcedure
         .input(
             z.object({
@@ -51,10 +72,23 @@ export const inventoryRouter = createTRPCRouter({
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
                 price: z.number().min(0),
-                costPrice: z.number().min(0).optional(),
+                costPrice: z.number().min(0),
                 stockQuantity: z.number().int().default(0),
                 lowStockThreshold: z.number().int().default(5),
-            }),
+            }).refine(
+                (data) => {
+                    // If stockQuantity is 0, allow any threshold >= 0
+                    // Otherwise, threshold must be less than stockQuantity
+                    if (data.stockQuantity === 0) {
+                        return data.lowStockThreshold >= 0;
+                    }
+                    return data.lowStockThreshold < data.stockQuantity;
+                },
+                {
+                    message: "Low stock threshold must be less than current stock quantity",
+                    path: ["lowStockThreshold"],
+                }
+            ),
         )
         .mutation(async ({ ctx, input }) => {
             return ctx.db.insert(products).values({
@@ -64,7 +98,7 @@ export const inventoryRouter = createTRPCRouter({
                 barcode: input.barcode,
                 sku: input.sku,
                 price: input.price.toString(), // Decimal handling
-                costPrice: input.costPrice?.toString(),
+                costPrice: input.costPrice.toString(),
                 stockQuantity: input.stockQuantity,
                 lowStockThreshold: input.lowStockThreshold,
                 tenantId: ctx.tenantId,
@@ -120,7 +154,24 @@ export const inventoryRouter = createTRPCRouter({
                 costPrice: z.number().min(0).optional(),
                 stockQuantity: z.number().int().optional(),
                 lowStockThreshold: z.number().int().optional(),
-            }),
+            }).refine(
+                (data) => {
+                    // Only validate if both fields are provided
+                    if (data.stockQuantity !== undefined && data.lowStockThreshold !== undefined) {
+                        // If stockQuantity is 0, allow any threshold >= 0
+                        // Otherwise, threshold must be less than stockQuantity
+                        if (data.stockQuantity === 0) {
+                            return data.lowStockThreshold >= 0;
+                        }
+                        return data.lowStockThreshold < data.stockQuantity;
+                    }
+                    return true;
+                },
+                {
+                    message: "Low stock threshold must be less than current stock quantity",
+                    path: ["lowStockThreshold"],
+                }
+            ),
         )
         .mutation(async ({ ctx, input }) => {
             const updateData: any = { ...input };
@@ -219,9 +270,9 @@ export const inventoryRouter = createTRPCRouter({
             .select({
                 amount: sql<number>`sum(${orders.totalAmount})`
             })
-            .from(orders)
-            .where(
-                and(
+                .from(orders)
+                .where(
+                    and(
                     eq(orders.tenantId, tenantId),
                     gte(orders.createdAt, today)
                 )

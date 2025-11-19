@@ -16,6 +16,7 @@ import { auth } from "~/server/auth";
 import { cn } from "~/lib/utils";
 import { LowStockAlerts } from "./low-stock-alerts";
 import { ThemeToggle } from "~/components/theme-toggle";
+import { api } from "~/trpc/server";
 
 export default async function InventoryLayout({
     children,
@@ -23,6 +24,17 @@ export default async function InventoryLayout({
     children: React.ReactNode;
 }) {
     const session = await auth();
+    
+    // Get tenant settings for company name
+    let companyName = "Alswap";
+    let companyInitial = "A";
+    try {
+        const settings = await api.settings.getTenantSettings();
+        companyName = settings.name ?? "Alswap";
+        companyInitial = companyName[0]?.toUpperCase() ?? "A";
+    } catch {
+        // Fallback to default if settings not available
+    }
 
     const navItems = [
         { href: "/inventory", label: "Dashboard", icon: LayoutDashboard },
@@ -44,10 +56,10 @@ export default async function InventoryLayout({
                 <div className="flex h-16 items-center border-b border-gray-200 px-6 dark:border-gray-800">
                     <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)]">
-                            <span className="text-lg font-bold text-white">A</span>
+                            <span className="text-lg font-bold text-white">{companyInitial}</span>
                         </div>
                         <span className="bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] bg-clip-text text-xl font-bold text-transparent">
-                            Alswap
+                            {companyName}
                         </span>
                     </div>
                 </div>
@@ -96,10 +108,10 @@ export default async function InventoryLayout({
                 <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 md:hidden">
                     <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)]">
-                            <span className="text-lg font-bold text-white">A</span>
+                            <span className="text-lg font-bold text-white">{companyInitial}</span>
                         </div>
                         <span className="bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] bg-clip-text text-xl font-bold text-transparent">
-                            Alswap
+                            {companyName}
                         </span>
                     </div>
                     <div className="flex items-center gap-2">

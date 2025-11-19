@@ -7,6 +7,7 @@ import {
   timestamp,
   varchar,
   decimal,
+  text,
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
@@ -21,6 +22,7 @@ export const createTable = pgTableCreator((name) => `alswap-inventory_${name}`);
 export const userRoles = pgEnum("user_role", ["ADMIN", "MANAGER", "CASHIER"]);
 export const shiftStatus = pgEnum("shift_status", ["OPEN", "CLOSED"]);
 export const orderStatus = pgEnum("order_status", ["PENDING", "COMPLETED", "CANCELLED"]);
+export const purchaseOrderStatus = pgEnum("purchase_order_status", ["DRAFT", "ORDERED", "RECEIVED", "CANCELLED"]);
 
 // --- Multi-tenancy Core ---
 
@@ -36,6 +38,10 @@ export const tenants = createTable(
     primaryColorDark: d.varchar("primary_color_dark", { length: 50 }).default("#A855F7"),
     currency: d.varchar("currency", { length: 10 }).default("₦"),
     location: d.varchar("location", { length: 255 }),
+    address: d.text(),
+    phone: d.varchar({ length: 50 }),
+    receiptTemplate: d.varchar("receipt_template", { length: 50 }).default("classic"),
+    receiptFooter: d.text("receipt_footer"),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
@@ -125,12 +131,34 @@ export const categories = createTable(
   (t) => [index("category_tenant_idx").on(t.tenantId)],
 );
 
+export const suppliers = createTable(
+  "supplier",
+  (d) => ({
+    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    name: d.varchar({ length: 255 }).notNull(),
+    contactPerson: d.varchar({ length: 255 }),
+    email: d.varchar({ length: 255 }),
+    phone: d.varchar({ length: 255 }),
+    address: d.text(),
+    createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [index("supplier_tenant_idx").on(t.tenantId)],
+);
+
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
+  products: many(products),
+  purchaseOrders: many(purchaseOrders),
+}));
+
 export const products = createTable(
   "product",
   (d) => ({
     id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
     tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
     categoryId: d.integer().references(() => categories.id),
+    supplierId: d.varchar({ length: 255 }).references(() => suppliers.id),
     name: d.varchar({ length: 255 }).notNull(),
     image: d.varchar({ length: 255 }),
     barcode: d.varchar({ length: 255 }), // Scannable code
@@ -148,9 +176,50 @@ export const products = createTable(
   ],
 );
 
-export const productsRelations = relations(products, ({ one }) => ({
+export const productsRelations = relations(products, ({ one, many }) => ({
   tenant: one(tenants, { fields: [products.tenantId], references: [tenants.id] }),
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
+  supplier: one(suppliers, { fields: [products.supplierId], references: [suppliers.id] }),
+  purchaseOrderItems: many(purchaseOrderItems),
+}));
+
+export const purchaseOrders = createTable(
+  "purchase_order",
+  (d) => ({
+    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    supplierId: d.varchar({ length: 255 }).references(() => suppliers.id),
+    status: purchaseOrderStatus("status").default("DRAFT").notNull(),
+    totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default("0"),
+    expectedDate: d.timestamp({ withTimezone: true }),
+    receivedDate: d.timestamp({ withTimezone: true }),
+    notes: d.text(),
+    createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
+    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+  }),
+  (t) => [index("po_tenant_idx").on(t.tenantId)],
+);
+
+export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
+  supplier: one(suppliers, { fields: [purchaseOrders.supplierId], references: [suppliers.id] }),
+  items: many(purchaseOrderItems),
+}));
+
+export const purchaseOrderItems = createTable(
+  "purchase_order_item",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    purchaseOrderId: d.varchar({ length: 255 }).notNull().references(() => purchaseOrders.id),
+    productId: d.varchar({ length: 255 }).notNull().references(() => products.id),
+    quantity: d.integer().notNull(),
+    unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+    receivedQuantity: d.integer().default(0),
+  }),
+);
+
+export const purchaseOrderItemsRelations = relations(purchaseOrderItems, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderItems.purchaseOrderId], references: [purchaseOrders.id] }),
+  product: one(products, { fields: [purchaseOrderItems.productId], references: [products.id] }),
 }));
 
 // --- CRM Module ---

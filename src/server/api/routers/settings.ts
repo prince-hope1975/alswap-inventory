@@ -40,6 +40,10 @@ export const settingsRouter = createTRPCRouter({
                 logo: z.string().url().optional().or(z.literal("")),
                 currency: z.string().max(10).optional(),
                 location: z.string().max(255).optional(),
+                address: z.string().optional(),
+                phone: z.string().max(50).optional(),
+                receiptTemplate: z.string().max(50).optional(),
+                receiptFooter: z.string().optional(),
             }),
         )
         .mutation(async ({ ctx, input }) => {
@@ -51,28 +55,24 @@ export const settingsRouter = createTRPCRouter({
                 logo?: string | null;
                 currency?: string | null;
                 location?: string | null;
+                address?: string | null;
+                phone?: string | null;
+                receiptTemplate?: string | null;
+                receiptFooter?: string | null;
             } = {
                 name: input.name,
             };
 
-            if (input.brandColor !== undefined) {
-                updateData.brandColor = input.brandColor;
-            }
-            if (input.primaryColorLight !== undefined) {
-                updateData.primaryColorLight = input.primaryColorLight || null;
-            }
-            if (input.primaryColorDark !== undefined) {
-                updateData.primaryColorDark = input.primaryColorDark || null;
-            }
-            if (input.logo !== undefined) {
-                updateData.logo = input.logo || null;
-            }
-            if (input.currency !== undefined) {
-                updateData.currency = input.currency || null;
-            }
-            if (input.location !== undefined) {
-                updateData.location = input.location || null;
-            }
+            if (input.brandColor !== undefined) updateData.brandColor = input.brandColor;
+            if (input.primaryColorLight !== undefined) updateData.primaryColorLight = input.primaryColorLight || null;
+            if (input.primaryColorDark !== undefined) updateData.primaryColorDark = input.primaryColorDark || null;
+            if (input.logo !== undefined) updateData.logo = input.logo || null;
+            if (input.currency !== undefined) updateData.currency = input.currency || null;
+            if (input.location !== undefined) updateData.location = input.location || null;
+            if (input.address !== undefined) updateData.address = input.address || null;
+            if (input.phone !== undefined) updateData.phone = input.phone || null;
+            if (input.receiptTemplate !== undefined) updateData.receiptTemplate = input.receiptTemplate || null;
+            if (input.receiptFooter !== undefined) updateData.receiptFooter = input.receiptFooter || null;
 
             await ctx.db
                 .update(tenants)

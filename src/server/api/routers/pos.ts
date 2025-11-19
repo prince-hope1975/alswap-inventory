@@ -3,6 +3,7 @@ import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
 import { shifts, orders, orderItems, products, customers } from "~/server/db/schema";
 import { eq, and, desc, or, ilike } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { PAYMENT_METHODS } from "~/lib/constants";
 
 export const posRouter = createTRPCRouter({
     // Shift Management
@@ -128,7 +129,13 @@ export const posRouter = createTRPCRouter({
                         price: z.number().min(0),
                     }),
                 ),
-                paymentMethod: z.string().default("CASH"),
+                paymentMethod: z.enum([
+                    PAYMENT_METHODS.CASH,
+                    PAYMENT_METHODS.CARD,
+                    PAYMENT_METHODS.TRANSFER,
+                    PAYMENT_METHODS.OTHER
+                ]).default(PAYMENT_METHODS.CASH),
+                amountPaid: z.number().min(0).optional(),
             }),
         )
         .mutation(async ({ ctx, input }) => {
