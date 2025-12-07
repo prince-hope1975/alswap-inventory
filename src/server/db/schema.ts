@@ -76,6 +76,8 @@ export const users = createTable("user", (d) => ({
   password: varchar("password", { length: 255 }),
   image: varchar("image", { length: 255 }),
   role: userRoles("role").default("CASHIER"),
+  createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
