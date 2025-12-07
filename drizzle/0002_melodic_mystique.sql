@@ -1,0 +1,1 @@
+ALTER TABLE "alswap-inventory_tenant" ADD COLUMN "store_config" json DEFAULT '{"template":"modern","themeMode":"system","showHero":true,"showArticles":false}'::json;
