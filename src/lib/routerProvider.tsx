@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { api } from "~/trpc/react";
-import { generateBrandColorCSS } from "./color-utils";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -10,7 +8,7 @@ import { useSession } from "next-auth/react";
  * Client component that injects CSS variables for brand colors
  * Updates dynamically when settings change
  */
-export function BrandColorProvider({ children }: { children: React.ReactNode }) {
+export function RouterProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const { data: session, status } = useSession();
     useEffect(() => {

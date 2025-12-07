@@ -8,7 +8,10 @@ export const shopRouter = createTRPCRouter({
     getShopDetails: publicProcedure.query(async ({ ctx }) => {
         // For now, we'll just get the first tenant as the "main" store
         // In a real multi-tenant app, this might depend on the domain
-        const tenant = await ctx.db.query.tenants.findFirst();
+        // We prioritize the most recently updated tenant for development purposes
+        const tenant = await ctx.db.query.tenants.findFirst({
+            orderBy: desc(tenants.updatedAt),
+        });
 
         // Check if any user exists to determine if setup is needed
         const userCount = await ctx.db.select({ count: sql<number>`count(*)` }).from(users);
@@ -30,7 +33,9 @@ export const shopRouter = createTRPCRouter({
             })
         )
         .query(async ({ ctx, input }) => {
-            const tenant = await ctx.db.query.tenants.findFirst();
+            const tenant = await ctx.db.query.tenants.findFirst({
+                orderBy: desc(tenants.updatedAt),
+            });
             if (!tenant) return [];
 
             const whereConditions = [eq(products.tenantId, tenant.id)];
@@ -61,7 +66,9 @@ export const shopRouter = createTRPCRouter({
         }),
 
     getCategories: publicProcedure.query(async ({ ctx }) => {
-        const tenant = await ctx.db.query.tenants.findFirst();
+        const tenant = await ctx.db.query.tenants.findFirst({
+            orderBy: desc(tenants.updatedAt),
+        });
         if (!tenant) return [];
 
         return ctx.db.query.categories.findMany({
@@ -99,7 +106,9 @@ export const shopRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ ctx, input }) => {
-            const tenant = await ctx.db.query.tenants.findFirst();
+            const tenant = await ctx.db.query.tenants.findFirst({
+                orderBy: desc(tenants.updatedAt),
+            });
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
             // In a real app, verify Paystack transaction here using the reference

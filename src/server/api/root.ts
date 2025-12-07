@@ -21,7 +21,7 @@ export const appRouter = createTRPCRouter({
   crm: crmRouter,
   analytics: analyticsRouter,
   settings: settingsRouter,
-  userManagement: userManagementRouter,
+  users: userManagementRouter,
   shop: shopRouter,
 });
 
