@@ -5,11 +5,12 @@ import { Receipt, Calendar, DollarSign, User, Search, Download, FileDown } from 
 import Link from "next/link";
 import { useState } from "react";
 import { exportToPDF, exportToExcel } from "~/lib/export-utils";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 export default function SalesHistoryPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const { data: orders, isLoading } = api.pos.listOrders.useQuery({ limit: 100 });
-
+    const { formatCurrency } = useCurrency();
     const filteredOrders = orders?.filter((order) => {
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
@@ -45,7 +46,7 @@ export default function SalesHistoryPage() {
                     <div className="rounded-lg border bg-white p-3 dark:bg-gray-800">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Total Revenue</p>
                         <p className="text-xl font-bold text-gray-900 dark:text-white">
-                            ${totalRevenue.toFixed(2)}
+                            {formatCurrency(totalRevenue.toFixed(2))}
                         </p>
                     </div>
                     <div className="flex gap-2">
@@ -60,7 +61,7 @@ export default function SalesHistoryPage() {
                                             Items: order.items.length,
                                             "Payment Method": order.paymentMethod,
                                             Date: new Date(order.createdAt).toLocaleDateString(),
-                                            Total: `$${Number(order.totalAmount).toFixed(2)}`,
+                                            Total: `${formatCurrency(Number(order.totalAmount).toFixed(2))}`,
                                         })),
                                         ["Order ID", "Customer", "Items", "Payment Method", "Date", "Total"]
                                     );
@@ -187,7 +188,7 @@ export default function SalesHistoryPage() {
                                         </span>
                                     </td>
                                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">
-                                        ${Number(order.totalAmount).toFixed(2)}
+                                        {formatCurrency(Number(order.totalAmount))}
                                     </td>
                                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                                         <Link

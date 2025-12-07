@@ -42,6 +42,18 @@ export const tenants = createTable(
     phone: d.varchar({ length: 50 }),
     receiptTemplate: d.varchar("receipt_template", { length: 50 }).default("classic"),
     receiptFooter: d.text("receipt_footer"),
+    storeConfig: d.json("store_config").$type<{
+      template: "modern" | "classic" | "marketplace";
+      themeMode: "system" | "light" | "dark";
+      showHero: boolean;
+      showArticles: boolean;
+      primaryColor?: string;
+    }>().default({
+      template: "modern",
+      themeMode: "system",
+      showHero: true,
+      showArticles: false,
+    }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
@@ -160,6 +172,7 @@ export const products = createTable(
     categoryId: d.integer().references(() => categories.id),
     supplierId: d.varchar({ length: 255 }).references(() => suppliers.id),
     name: d.varchar({ length: 255 }).notNull(),
+    description: d.text(),
     image: d.varchar({ length: 255 }),
     barcode: d.varchar({ length: 255 }), // Scannable code
     sku: d.varchar({ length: 255 }),

@@ -14,7 +14,7 @@ Build a robust, multi-tenant Inventory Management and Point of Sale (POS) system
 
 ### 2. Authentication
 - **Method**: Email and Password (Credentials Provider with NextAuth)
-- **Sign-up Flow**: First user creates tenant and becomes ADMIN
+- **Sign-up Flow**: First  user creates tenant and becomes ADMIN
 - **Password Storage**: Hashed with bcryptjs
 - **Session**: JWT-based strategy
 

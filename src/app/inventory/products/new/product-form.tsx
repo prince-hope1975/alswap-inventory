@@ -12,6 +12,7 @@ import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
+    description: z.string().optional(),
     image: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     categoryId: z.number().optional(),
     sku: z.string().optional(),
@@ -84,6 +85,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
               }
             : {
                   name: "",
+                  description: "",
                   price: 0,
                   costPrice: 0,
                   stockQuantity: 0,
@@ -110,6 +112,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
             price: Number(data.price),
             costPrice: Number(data.costPrice),
             image: data.image || undefined,
+            description: data.description || undefined,
         };
 
         if (isEditing && initialData) {
@@ -156,6 +159,24 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 The primary name of the product as it will appear in the catalog.
+                            </p>
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Description
+                            </label>
+                            <textarea
+                                {...register("description")}
+                                placeholder="e.g. High-quality wireless headphones with noise cancellation and 30-hour battery life"
+                                rows={4}
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            />
+                            {errors.description && (
+                                <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                A detailed description of the product features and specifications.
                             </p>
                         </div>
 

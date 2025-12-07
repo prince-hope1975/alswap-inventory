@@ -4,9 +4,12 @@ import { api } from "~/trpc/react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { DollarSign, ShoppingBag, CreditCard, TrendingUp, Download, FileDown } from "lucide-react";
 import { exportToPDF, exportToExcel } from "~/lib/export-utils";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 // Helper for KPIs
 function KpiCard({ title, value, icon: Icon, subtext }: { title: string; value: string; icon: any; subtext?: string }) {
+    const { formatCurrency } = useCurrency();
+
     return (
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-center justify-between">
@@ -25,16 +28,12 @@ function KpiCard({ title, value, icon: Icon, subtext }: { title: string; value: 
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#06b6d4", "#10b981", "#f59e0b"];
 
-function formatCurrency(value: number | undefined): string {
-    if (value === undefined || value === null) return "$0.00";
-    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default function AnalyticsPage() {
     const { data: kpi, isLoading: kpiLoading } = api.analytics.getKpiStats.useQuery();
     const { data: salesData, isLoading: salesLoading } = api.analytics.getSalesByDate.useQuery({ days: 30 });
     const { data: categoryData, isLoading: categoryLoading } = api.analytics.getTopCategories.useQuery();
-
+    const { formatCurrency } = useCurrency();
     // AI summary
     const { data: aiSummary, isLoading: aiLoading } = api.analytics.getAiSummary.useQuery();
 
@@ -155,20 +154,20 @@ export default function AnalyticsPage() {
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={salesData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                <XAxis 
-                                    dataKey="date" 
-                                    tick={{ fontSize: 12, fill: "#6B7280" }} 
+                                <XAxis
+                                    dataKey="date"
+                                    tick={{ fontSize: 12, fill: "#6B7280" }}
                                     tickLine={false}
                                     axisLine={false}
                                     minTickGap={30}
                                 />
-                                <YAxis 
-                                    tick={{ fontSize: 12, fill: "#6B7280" }} 
+                                <YAxis
+                                    tick={{ fontSize: 12, fill: "#6B7280" }}
                                     tickFormatter={(value) => formatCurrency(value)}
                                     tickLine={false}
                                     axisLine={false}
                                 />
-                                <Tooltip 
+                                <Tooltip
                                     cursor={{ fill: 'transparent' }}
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                     formatter={(value: number) => formatCurrency(value)}
@@ -198,7 +197,7 @@ export default function AnalyticsPage() {
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip 
+                                <Tooltip
                                     formatter={(value: number) => formatCurrency(value)}
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 />

@@ -67,6 +67,7 @@ export const inventoryRouter = createTRPCRouter({
         .input(
             z.object({
                 name: z.string().min(1),
+                description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
                 categoryId: z.number().optional(),
                 barcode: z.string().optional(),
@@ -93,6 +94,7 @@ export const inventoryRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             return ctx.db.insert(products).values({
                 name: input.name,
+                description: input.description || null,
                 image: input.image || null,
                 categoryId: input.categoryId,
                 barcode: input.barcode,
@@ -146,6 +148,7 @@ export const inventoryRouter = createTRPCRouter({
             z.object({
                 id: z.string(),
                 name: z.string().min(1).optional(),
+                description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
                 categoryId: z.number().optional(),
                 barcode: z.string().optional(),
@@ -178,6 +181,7 @@ export const inventoryRouter = createTRPCRouter({
             delete updateData.id;
             if (input.price !== undefined) updateData.price = input.price.toString();
             if (input.costPrice !== undefined) updateData.costPrice = input.costPrice.toString();
+            if (input.description !== undefined) updateData.description = input.description || null;
 
             return ctx.db
                 .update(products)

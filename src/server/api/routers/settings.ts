@@ -44,6 +44,13 @@ export const settingsRouter = createTRPCRouter({
                 phone: z.string().max(50).optional(),
                 receiptTemplate: z.string().max(50).optional(),
                 receiptFooter: z.string().optional(),
+                storeConfig: z.object({
+                    template: z.enum(["modern", "classic", "marketplace"]),
+                    themeMode: z.enum(["system", "light", "dark"]),
+                    showHero: z.boolean(),
+                    showArticles: z.boolean(),
+                    primaryColor: z.string().optional(),
+                }).optional(),
             }),
         )
         .mutation(async ({ ctx, input }) => {
@@ -59,6 +66,13 @@ export const settingsRouter = createTRPCRouter({
                 phone?: string | null;
                 receiptTemplate?: string | null;
                 receiptFooter?: string | null;
+                storeConfig?: {
+                    template: "modern" | "classic" | "marketplace";
+                    themeMode: "system" | "light" | "dark";
+                    showHero: boolean;
+                    showArticles: boolean;
+                    primaryColor?: string;
+                };
             } = {
                 name: input.name,
             };
@@ -73,6 +87,7 @@ export const settingsRouter = createTRPCRouter({
             if (input.phone !== undefined) updateData.phone = input.phone || null;
             if (input.receiptTemplate !== undefined) updateData.receiptTemplate = input.receiptTemplate || null;
             if (input.receiptFooter !== undefined) updateData.receiptFooter = input.receiptFooter || null;
+            if (input.storeConfig !== undefined) updateData.storeConfig = input.storeConfig;
 
             await ctx.db
                 .update(tenants)

@@ -17,6 +17,7 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
         sku: product.sku ?? undefined,
         barcode: product.barcode ?? undefined,
         categoryId: product.categoryId ?? undefined,
+        description: product.description ?? undefined,
         costPrice: product.costPrice ? Number(product.costPrice) : undefined,
         price: Number(product.price),
         stockQuantity: product.stockQuantity,

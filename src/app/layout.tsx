@@ -8,6 +8,7 @@ import { BrandColorProvider } from "~/lib/brand-colors";
 import { api } from "~/trpc/server";
 import { getBrandColorStyles } from "~/lib/brand-colors-server";
 import { ThemeScript } from "~/components/theme-script";
+import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
   title: "Create T3 App",
@@ -46,7 +47,9 @@ export default async function RootLayout({
       </head>
       <body className="bg-white dark:bg-gray-900">
         <TRPCReactProvider>
-          <BrandColorProvider>{children}</BrandColorProvider>
+          <SessionProvider>
+            <BrandColorProvider>{children}</BrandColorProvider>
+          </SessionProvider>
         </TRPCReactProvider>
       </body>
     </html>

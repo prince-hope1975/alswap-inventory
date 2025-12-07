@@ -11,13 +11,12 @@ import {
     UserPlus,
     Menu,
     LogOut,
-    Globe,
 } from "lucide-react";
 import { auth } from "~/server/auth";
 import { cn } from "~/lib/utils";
-import { LowStockAlerts } from "./low-stock-alerts";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { api } from "~/trpc/server";
+import { LowStockAlerts } from "../inventory/low-stock-alerts";
 
 export default async function InventoryLayout({
     children,
@@ -46,7 +45,6 @@ export default async function InventoryLayout({
         { href: "/inventory/analytics", label: "Analytics", icon: BarChart3 },
         { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
         { href: "/sales/history", label: "Sales History", icon: FileText },
-        { href: "/inventory/settings/store", label: "Online Store", icon: Globe },
         { href: "/inventory/settings", label: "Settings", icon: Settings },
     ];
 
