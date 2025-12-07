@@ -41,7 +41,7 @@ export function ProductCard({ product }: { product: Product }) {
                         price: price,
                         image: product.image,
                     })}
-                    className="absolute bottom-4 right-4 flex h-10 w-10 translate-y-14 items-center justify-center rounded-full bg-purple-600 text-white shadow-lg transition-all duration-300 hover:bg-purple-500 group-hover:translate-y-0"
+                    className="absolute bottom-4 right-4 flex h-10 w-10 translate-y-14 items-center justify-center rounded-full bg-[var(--brand-primary-600)] text-white shadow-lg transition-all duration-300 hover:bg-[var(--brand-primary-500)] group-hover:translate-y-0"
                     aria-label="Add to cart"
                 >
                     <ShoppingCart className="h-5 w-5" />
@@ -50,7 +50,7 @@ export function ProductCard({ product }: { product: Product }) {
 
             <div className="flex flex-1 flex-col p-4">
                 {product.category && (
-                    <span className="mb-1 text-xs font-medium text-purple-400">
+                    <span className="mb-1 text-xs font-medium text-[var(--brand-primary-400)]">
                         {product.category.name}
                     </span>
                 )}

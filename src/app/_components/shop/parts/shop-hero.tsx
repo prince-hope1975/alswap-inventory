@@ -2,11 +2,12 @@
 
 interface ShopHeroProps {
     tenantName?: string;
+    description?: string;
     onShopNow: () => void;
     className?: string;
 }
 
-export function ShopHero({ tenantName, onShopNow, className = "" }: ShopHeroProps) {
+export function ShopHero({ tenantName, description, onShopNow, className = "" }: ShopHeroProps) {
     return (
         <div className={`relative pt-32 pb-16 md:pt-48 md:pb-32 overflow-hidden ${className}`}>
             <div className="absolute inset-0 z-0">
@@ -16,14 +17,13 @@ export function ShopHero({ tenantName, onShopNow, className = "" }: ShopHeroProp
 
             <div className="container relative z-10 mx-auto px-4 text-center">
                 <span className="inline-block mb-4 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm font-medium text-purple-300 backdrop-blur-sm">
-                    New Collection Available
+                    {tenantName || "New Collection Available"}
                 </span>
                 <h1 className="mb-6 text-5xl font-extrabold tracking-tight text-white sm:text-7xl">
                     Discover <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Premium</span> Quality
                 </h1>
                 <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-400">
-                    Explore our curated selection of top-tier products designed to elevate your lifestyle.
-                    Shop with confidence and enjoy seamless delivery.
+                    {description || "Explore our curated selection of top-tier products designed to elevate your lifestyle. Shop with confidence and enjoy seamless delivery."}
                 </p>
                 <div className="flex justify-center gap-4">
                     <button

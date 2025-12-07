@@ -7,23 +7,43 @@ import { CheckoutModal } from "./checkout-modal";
 import type { StoreConfig } from "~/types/store-config";
 
 // Templates
+// Templates
 import { ModernTemplate } from "./templates/modern-template";
 import { ClassicTemplate } from "./templates/classic-template";
 import { MarketplaceTemplate } from "./templates/marketplace-template";
+import { MinimalTemplate } from "./templates/minimal-template";
+import { BoutiqueTemplate } from "./templates/boutique-template";
 import { ShoppingCart, X } from "lucide-react";
+import { type RouterOutputs } from "~/trpc/react";
 
-export function StoreLayout() {
+type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
+type Products = RouterOutputs["shop"]["getProducts"];
+type Categories = RouterOutputs["shop"]["getCategories"];
+
+interface StoreLayoutProps {
+    initialShopDetails?: ShopDetails;
+    initialProducts?: Products;
+    initialCategories?: Categories;
+}
+
+export function StoreLayout({ initialShopDetails, initialProducts, initialCategories }: StoreLayoutProps) {
     const { items, totalItems, isCartOpen, setIsCartOpen, removeItem, updateQuantity, totalAmount } = useCart();
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<number | undefined>(undefined);
 
-    // Fetch data
-    const { data: shopDetails, isLoading: isShopLoading } = api.shop.getShopDetails.useQuery();
-    const { data: categories } = api.shop.getCategories.useQuery();
+    // Fetch data with initial data from server
+    const { data: shopDetails, isLoading: isShopLoading } = api.shop.getShopDetails.useQuery(undefined, {
+        initialData: initialShopDetails
+    });
+    const { data: categories } = api.shop.getCategories.useQuery(undefined, {
+        initialData: initialCategories
+    });
     const { data: products, isLoading: isProductsLoading } = api.shop.getProducts.useQuery({
         search,
         categoryId: selectedCategory,
+    }, {
+        initialData: (search === "" && selectedCategory === undefined) ? initialProducts : undefined
     });
 
     const tenant = shopDetails?.tenant;
@@ -74,7 +94,9 @@ export function StoreLayout() {
             {config.template === "modern" && <ModernTemplate {...commonProps} />}
             {config.template === "classic" && <ClassicTemplate {...commonProps} />}
             {config.template === "marketplace" && <MarketplaceTemplate {...commonProps} />}
-            {!["modern", "classic", "marketplace"].includes(config.template) && <ModernTemplate {...commonProps} />}
+            {config.template === "minimal" && <MinimalTemplate {...commonProps} />}
+            {config.template === "boutique" && <BoutiqueTemplate {...commonProps} />}
+            {!["modern", "classic", "marketplace", "minimal", "boutique"].includes(config.template) && <ModernTemplate {...commonProps} />}
 
             {/* Global Cart Drawer */}
             {isCartOpen && (

@@ -3,6 +3,7 @@
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
+import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { ShoppingBag, Star, Zap } from "lucide-react";
 
@@ -34,6 +35,7 @@ export function MarketplaceTemplate({
     config,
 }: MarketplaceTemplateProps) {
     const tenant = shopDetails?.tenant;
+    const { addItem } = useCart();
 
     return (
         <div className="min-h-screen bg-[#f1f1f2] dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans">
@@ -42,7 +44,7 @@ export function MarketplaceTemplate({
                 tenant={tenant}
                 search={search}
                 setSearch={setSearch}
-                className="!bg-orange-600 !backdrop-blur-none !border-none !text-white shadow-md mb-4"
+                className="!bg-[var(--brand-primary-600)] !backdrop-blur-none !border-none !text-white shadow-md mb-4"
             />
 
             <main className="container mx-auto px-4 pt-24 pb-12">
@@ -57,7 +59,7 @@ export function MarketplaceTemplate({
                             <div className="py-2">
                                 <button
                                     onClick={() => setSelectedCategory(undefined)}
-                                    className={`text-left w-full px-4 py-2 text-xs hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-gray-700 ${selectedCategory === undefined ? 'text-orange-600 font-bold' : ''}`}
+                                    className={`text-left w-full px-4 py-2 text-xs hover:text-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-50)] dark:hover:bg-gray-700 ${selectedCategory === undefined ? 'text-[var(--brand-primary-600)] font-bold' : ''}`}
                                 >
                                     All Categories
                                 </button>
@@ -65,7 +67,7 @@ export function MarketplaceTemplate({
                                     <button
                                         key={c.id}
                                         onClick={() => setSelectedCategory(c.id)}
-                                        className={`text-left w-full px-4 py-2 text-xs hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-gray-700 truncate ${selectedCategory === c.id ? 'text-orange-600 font-bold' : ''}`}
+                                        className={`text-left w-full px-4 py-2 text-xs hover:text-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-50)] dark:hover:bg-gray-700 truncate ${selectedCategory === c.id ? 'text-[var(--brand-primary-600)] font-bold' : ''}`}
                                     >
                                         {c.name}
                                     </button>
@@ -76,13 +78,13 @@ export function MarketplaceTemplate({
                         {/* Middle - Slider (Static for now) */}
                         <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden relative group">
                             {/* Hero Image / Banner */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-purple-800 opacity-90" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-primary-900)] opacity-90" />
                             <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2070" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50" />
 
                             <div className="relative z-10 p-12 h-full flex flex-col justify-center text-white">
-                                <h2 className="text-4xl font-bold mb-4">Official Store</h2>
-                                <p className="text-lg mb-6 max-w-lg">Get the best deals on electronics, fashion, and more. Fast delivery nationwide.</p>
-                                <button className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded shadow-lg w-fit font-bold">
+                                <h2 className="text-4xl font-bold mb-4">{config.heroTitle || "Official Store"}</h2>
+                                <p className="text-lg mb-6 max-w-lg">{config.heroDescription || "Get the best deals on electronics, fashion, and more. Fast delivery nationwide."}</p>
+                                <button className="bg-[var(--brand-primary-500)] hover:bg-[var(--brand-primary-600)] text-white px-8 py-3 rounded shadow-lg w-fit font-bold">
                                     Shop Now
                                 </button>
                             </div>
@@ -91,7 +93,7 @@ export function MarketplaceTemplate({
                         {/* Right - Promo Boxes */}
                         <div className="hidden xl:flex w-52 flex-col gap-4">
                             <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col items-center justify-center text-center">
-                                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mb-2">
+                                <div className="w-10 h-10 rounded-full bg-[var(--brand-primary-50)] text-[var(--brand-primary-600)] flex items-center justify-center mb-2">
                                     <Zap size={20} />
                                 </div>
                                 <h4 className="font-bold text-sm uppercase">Flash Sales</h4>
@@ -111,8 +113,8 @@ export function MarketplaceTemplate({
                 {/* Main Product Section */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-4 border-b pb-2 dark:border-gray-700">
-                        <h3 className="text-xl font-bold text-orange-600">Top Picks For You</h3>
-                        <button className="text-sm text-orange-600 font-medium hover:underline">See All</button>
+                        <h3 className="text-xl font-bold text-[var(--brand-primary-600)]">Top Picks For You</h3>
+                        <button className="text-sm text-[var(--brand-primary-600)] font-medium hover:underline">See All</button>
                     </div>
 
                     {isLoading ? (
@@ -130,14 +132,22 @@ export function MarketplaceTemplate({
                                         {product.image && <img src={product.image} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />}
                                         {/* Classic Jumia styled discount tag could go here */}
                                     </div>
-                                    <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-orange-600">{product.name}</h4>
+                                    <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>
                                     <div className="font-bold text-sm sm:text-base">
                                         ₦ {Number(product.price).toLocaleString()}
                                     </div>
                                     <div className="text-xs text-gray-400 line-through">
                                         ₦ {(Number(product.price) * 1.2).toLocaleString()}
                                     </div>
-                                    <button className="w-full mt-2 bg-orange-600 text-white text-xs py-2 rounded font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => addItem({
+                                            productId: product.id,
+                                            name: product.name,
+                                            price: Number(product.price),
+                                            image: product.image
+                                        })}
+                                        className="w-full mt-2 bg-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-700)] text-white text-xs py-2 uppercase tracking-wide rounded-sm font-extrabold opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                    >
                                         ADD TO CART
                                     </button>
                                 </div>

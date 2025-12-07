@@ -5,7 +5,7 @@ import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { ShopHero } from "../parts/shop-hero";
 import { ShopSidebar } from "../parts/shop-sidebar";
-import { StoreConfig } from "~/types/store-config";
+import type { StoreConfig } from "~/types/store-config";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -37,7 +37,7 @@ export function ModernTemplate({
     const tenant = shopDetails?.tenant;
 
     return (
-        <div className="min-h-screen bg-[#0f1016] text-white font-sans selection:bg-purple-500/30">
+        <div className="min-h-screen bg-[#0f1016] text-white font-sans selection:bg-[var(--brand-primary-500)]/30">
             {/* Navbar */}
             <ShopNavbar
                 tenant={tenant}
@@ -49,7 +49,8 @@ export function ModernTemplate({
             {/* Hero Section */}
             {config.showHero && (
                 <ShopHero
-                    tenantName={tenant?.name}
+                    tenantName={config.heroTitle || tenant?.name}
+                    description={config.heroDescription}
                     onShopNow={() => {
                         const el = document.getElementById('products');
                         el?.scrollIntoView({ behavior: 'smooth' });
@@ -89,7 +90,7 @@ export function ModernTemplate({
                                         setSearch("");
                                         setSelectedCategory(undefined);
                                     }}
-                                    className="mt-2 text-sm text-purple-400 hover:text-purple-300"
+                                    className="mt-2 text-sm text-[var(--brand-primary-400)] hover:text-[var(--brand-primary-300)]"
                                 >
                                     Clear filters
                                 </button>

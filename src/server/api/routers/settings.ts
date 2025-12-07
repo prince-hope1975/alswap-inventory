@@ -45,12 +45,14 @@ export const settingsRouter = createTRPCRouter({
                 receiptTemplate: z.string().max(50).optional(),
                 receiptFooter: z.string().optional(),
                 storeConfig: z.object({
-                    template: z.enum(["modern", "classic", "marketplace"]),
+                    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique"]),
                     themeMode: z.enum(["system", "light", "dark"]),
                     showHero: z.boolean(),
                     showArticles: z.boolean(),
                     primaryColor: z.string().optional(),
-                }).optional(),
+                    heroTitle: z.string().optional(),
+                    heroDescription: z.string().optional(),
+                }).nullable().optional(),
             }),
         )
         .mutation(async ({ ctx, input }) => {
@@ -67,12 +69,14 @@ export const settingsRouter = createTRPCRouter({
                 receiptTemplate?: string | null;
                 receiptFooter?: string | null;
                 storeConfig?: {
-                    template: "modern" | "classic" | "marketplace";
+                    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique";
                     themeMode: "system" | "light" | "dark";
                     showHero: boolean;
                     showArticles: boolean;
                     primaryColor?: string;
-                };
+                    heroTitle?: string;
+                    heroDescription?: string;
+                } | null;
             } = {
                 name: input.name,
             };

@@ -43,11 +43,13 @@ export const tenants = createTable(
     receiptTemplate: d.varchar("receipt_template", { length: 50 }).default("classic"),
     receiptFooter: d.text("receipt_footer"),
     storeConfig: d.json("store_config").$type<{
-      template: "modern" | "classic" | "marketplace";
+      template: "modern" | "classic" | "marketplace" | "minimal" | "boutique";
       themeMode: "system" | "light" | "dark";
       showHero: boolean;
       showArticles: boolean;
       primaryColor?: string;
+      heroTitle?: string;
+      heroDescription?: string;
     }>().default({
       template: "modern",
       themeMode: "system",

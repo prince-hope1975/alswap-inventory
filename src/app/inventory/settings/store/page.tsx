@@ -12,11 +12,13 @@ import type { StoreConfig } from "~/types/store-config";
 
 // Schema matching the one in settings router
 const storeSettingsSchema = z.object({
-    template: z.enum(["modern", "classic", "marketplace"]),
+    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique"]),
     themeMode: z.enum(["system", "light", "dark"]),
     showHero: z.boolean(),
     showArticles: z.boolean(),
     primaryColor: z.string().optional(),
+    heroTitle: z.string().optional(),
+    heroDescription: z.string().optional(),
 });
 
 type StoreSettingsFormValues = z.infer<typeof storeSettingsSchema>;
@@ -65,6 +67,8 @@ export default function StoreSettingsPage() {
                     showHero: config.showHero ?? true,
                     showArticles: config.showArticles ?? false,
                     primaryColor: config.primaryColor || "",
+                    heroTitle: config.heroTitle || "",
+                    heroDescription: config.heroDescription || "",
                 });
             }
         }
@@ -127,7 +131,7 @@ export default function StoreSettingsPage() {
                         </div>
 
                         <div className="p-6 md:p-8">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {[
                                     {
                                         id: "modern",
@@ -146,6 +150,18 @@ export default function StoreSettingsPage() {
                                         name: "Marketplace",
                                         desc: "Bright, energetic layout with sliders and deal sections. Best for retail.",
                                         color: "bg-orange-600"
+                                    },
+                                    {
+                                        id: "minimal",
+                                        name: "Minimalist",
+                                        desc: "Clean, whitespace-driven design with large typography. Best for luxury.",
+                                        color: "bg-stone-100 border border-stone-300 !text-stone-800"
+                                    },
+                                    {
+                                        id: "boutique",
+                                        name: "Boutique",
+                                        desc: "Elegant, serif-focused masonry grid. Best for fashion and curated items.",
+                                        color: "bg-[#fcfbf9] border border-stone-200 !text-stone-800"
                                     },
                                 ].map((template) => (
                                     <label
@@ -233,30 +249,53 @@ export default function StoreSettingsPage() {
                                     </div>
                                 </div>
 
-                                {/* Custom Color Override (Optional) */}
+                                {/* Primary Color Picker */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Store Primary Color (Optional)
+                                    <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                                        Brand Color
                                     </label>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-3">
                                         <input
                                             type="color"
                                             {...register("primaryColor")}
-                                            className="h-10 w-14 rounded cursor-pointer border border-gray-300 p-1"
+                                            className="h-10 w-20 rounded border border-gray-300 p-1"
                                         />
-                                        <div className="flex-1">
-                                            <input
-                                                {...register("primaryColor")}
-                                                placeholder="Use default brand color"
-                                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                            />
-                                            <p className="mt-1 text-xs text-gray-500">Overrides the global brand color for the store only.</p>
+                                        <div className="text-xs text-gray-500 max-w-xs">
+                                            Select your brand's primary color. This will be used for buttons, highlights, and accents across your store.
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Hero Content Settings */}
+                                <div className="space-y-4 border-t pt-4 dark:border-gray-700">
+                                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">Hero Content</h3>
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Hero Title
+                                        </label>
+                                        <input
+                                            type="text"
+                                            {...register("heroTitle")}
+                                            placeholder="e.g., Essentials for modern living"
+                                            className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-purple-500 dark:focus:ring-purple-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Hero Description
+                                        </label>
+                                        <textarea
+                                            {...register("heroDescription")}
+                                            rows={3}
+                                            placeholder="e.g., Curated items for your everyday life. Simple, functional, and beautiful."
+                                            className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-purple-500 dark:focus:ring-purple-500"
+                                        />
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Features Section */}
                         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                             <div className="p-6 border-b border-gray-100 dark:border-gray-700">
                                 <div className="flex items-center gap-3">

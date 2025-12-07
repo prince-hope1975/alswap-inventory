@@ -3,6 +3,7 @@
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
+import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Menu } from "lucide-react";
 
@@ -34,6 +35,7 @@ export function ClassicTemplate({
     // config, // Using config for themes/toggles if needed
 }: ClassicTemplateProps) {
     const tenant = shopDetails?.tenant;
+    const { addItem } = useCart();
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
@@ -42,14 +44,14 @@ export function ClassicTemplate({
                 tenant={tenant}
                 search={search}
                 setSearch={setSearch}
-                className="!bg-[#232f3e] !backdrop-blur-none !border-none" // Amazon dark blue style override
+                className="!bg-[var(--brand-primary-900)] !backdrop-blur-none !border-none" // Amazon dark blue style override -> Brand Dark
             />
 
             {/* Sub-header / Category Bar */}
-            <div className="bg-[#37475a] text-white py-2 px-4 text-sm font-medium flex gap-6 overflow-x-auto pt-24">
+            <div className="bg-[var(--brand-primary-800)] text-white py-2 px-4 text-sm font-medium flex gap-6 overflow-x-auto pt-24">
                 <button
                     onClick={() => setSelectedCategory(undefined)}
-                    className={`hover:text-amber-400 whitespace-nowrap ${selectedCategory === undefined ? 'text-amber-400 font-bold' : ''}`}
+                    className={`hover:text-[var(--brand-primary-200)] whitespace-nowrap ${selectedCategory === undefined ? 'text-[var(--brand-primary-100)] font-bold' : ''}`}
                 >
                     <Menu className="inline-block h-4 w-4 mr-1" />
                     All
@@ -58,7 +60,7 @@ export function ClassicTemplate({
                     <button
                         key={c.id}
                         onClick={() => setSelectedCategory(c.id)}
-                        className={`hover:text-amber-400 whitespace-nowrap ${selectedCategory === c.id ? 'text-amber-400 font-bold' : ''}`}
+                        className={`hover:text-[var(--brand-primary-200)] whitespace-nowrap ${selectedCategory === c.id ? 'text-[var(--brand-primary-100)] font-bold' : ''}`}
                     >
                         {c.name}
                     </button>
@@ -116,7 +118,15 @@ export function ClassicTemplate({
                                             {Number(product.price).toLocaleString()}
                                         </div>
                                         <p className="text-xs text-gray-500 mb-3">Ships to Nigeria</p>
-                                        <button className="w-full bg-[#ffd814] hover:bg-[#f7ca00] text-black border border-[#fcd200] rounded-full py-1.5 text-sm shadow-sm">
+                                        <button
+                                            onClick={() => addItem({
+                                                productId: product.id,
+                                                name: product.name,
+                                                price: Number(product.price),
+                                                image: product.image
+                                            })}
+                                            className="w-full bg-[#fa8900] hover:bg-[#e67e00] text-white border border-transparent rounded-full py-1.5 text-sm shadow-sm font-bold transition-colors"
+                                        >
                                             Add to Cart
                                         </button>
                                     </div>

@@ -4,4 +4,6 @@ export type StoreConfig = {
     showHero: boolean;
     showArticles: boolean;
     primaryColor?: string;
+    heroTitle?: string;
+    heroDescription?: string;
 };
