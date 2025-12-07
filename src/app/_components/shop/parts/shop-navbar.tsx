@@ -54,7 +54,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                 {/* Actions */}
                 <div className="flex items-center gap-4">
                     {/* User Menu */}
-                    {session ? (
+                    {session?.user?.role === "ADMIN" ? (
                         <div className="hidden md:flex items-center gap-4">
                             <Link
                                 href="/inventory"

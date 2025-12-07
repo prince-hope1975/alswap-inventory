@@ -135,13 +135,19 @@ export const protectedProcedure = t.procedure
 /**
  * Tenant protected procedure
  *
- * Enforces that the user is logged in AND belongs to a tenant.
+ * Enforces that the user is logged in AND belongs to a tenant AND is an admin.
  */
 export const tenantProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (!ctx.session.user.tenantId) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "User does not belong to a tenant",
+    });
+  }
+  if (ctx.session.user.role !== "ADMIN") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only admins can perform tenant actions",
     });
   }
   return next({
@@ -151,9 +157,11 @@ export const tenantProcedure = protectedProcedure.use(({ ctx, next }) => {
         user: {
           ...ctx.session.user,
           tenantId: ctx.session.user.tenantId, // Non-nullable
+          role: ctx.session.user.role, // Non-nullable
         },
       },
       tenantId: ctx.session.user.tenantId,
+      isAdmin: ctx.session.user.role === "ADMIN",
     },
   });
 });

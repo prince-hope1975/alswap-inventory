@@ -1,5 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "~/server/auth";
+import { NextResponse } from "next/server";
+import NextAuth from "next-auth";
+import { authConfig } from "~/server/auth/auth.config";
+
+const { auth } = NextAuth(authConfig);
 
 /**
  * Public routes that don't require authentication
@@ -30,8 +33,13 @@ const publicAssetPatterns = [
   /^\/favicon\.ico$/,
 ];
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  const session = req.auth;
+
+  // Using console.error to ensure it bypasses some stdout buffering in certain dev environments
+  console.error(`[Middleware] Processing ${pathname}`);
+  console.error(`[Middleware] Session user:`, session?.user);
 
   // Allow public assets
   if (
@@ -52,22 +60,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get the session
-  const session = await auth();
-
   // If not authenticated, redirect to home page
   if (!session?.user) {
-    return NextResponse.redirect(new URL("/", request.url));
+    console.error(`[Middleware] Unauthorized access to ${pathname}, redirecting to /`);
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // If authenticated but not admin, redirect to home page
+  // Allow authenticated users (including non-admin) to access home page
+  if (pathname === "/") {
+    return NextResponse.next();
+  }
+
+  // For all other routes, only admin users are allowed
   if (session.user.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/", request.url));
+    console.error(`[Middleware] Non-admin access to ${pathname}, role: ${session.user.role}`);
+    // Check if the user is trying to access a route they shouldn't
+    // For now, redirecting to home
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   // Admin users can access all routes
   return NextResponse.next();
-}
+});
 
 /**
  * Configure which routes the middleware should run on
@@ -84,4 +98,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)).*)",
   ],
 };
-

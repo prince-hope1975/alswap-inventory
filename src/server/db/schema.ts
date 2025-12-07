@@ -19,7 +19,7 @@ import { type AdapterAccount } from "next-auth/adapters";
  */
 export const createTable = pgTableCreator((name) => `alswap-inventory_${name}`);
 
-export const userRoles = pgEnum("user_role", ["ADMIN", "MANAGER", "CASHIER"]);
+export const userRoles = pgEnum("user_role", ["ADMIN", "MANAGER", "CASHIER", "USER"]);
 export const shiftStatus = pgEnum("shift_status", ["OPEN", "CLOSED"]);
 export const orderStatus = pgEnum("order_status", ["PENDING", "COMPLETED", "CANCELLED"]);
 export const purchaseOrderStatus = pgEnum("purchase_order_status", ["DRAFT", "ORDERED", "RECEIVED", "CANCELLED"]);

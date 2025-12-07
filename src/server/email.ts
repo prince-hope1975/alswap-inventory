@@ -4,6 +4,9 @@ import { env } from "~/env";
 export const resend = new Resend(env.RESEND_API_KEY);
 
 export const sendPasswordResetEmail = async (email: string, token: string) => {
+  // console.log("Sending password reset email to:", email);
+  // console.log("Token:", token); 
+  // console.log("RESEND_API_KEY:", env.RESEND_API_KEY);
   if (!env.RESEND_API_KEY) {
     console.log("RESEND_API_KEY is not set. Skipping email sending.");
     console.log(`Reset Link: ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/reset-password?token=${token}`);

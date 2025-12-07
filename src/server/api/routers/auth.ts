@@ -47,6 +47,14 @@ export const authRouter = createTRPCRouter({
                 });
             }
 
+            // Check if this is the first user for this tenant
+            const existingUsersForTenant = await ctx.db.query.users.findFirst({
+                where: eq(users.tenantId, tenant.id),
+            });
+
+            // Only the first user gets admin privileges
+            const userRole = existingUsersForTenant ? "USER" : "ADMIN";
+
             // Hash password
             const hashedPassword = await hash(input.password, 10);
 
@@ -56,7 +64,7 @@ export const authRouter = createTRPCRouter({
                 email: input.email,
                 password: hashedPassword,
                 tenantId: tenant.id,
-                role: "ADMIN",
+                role: userRole,
             });
 
             return { success: true };
