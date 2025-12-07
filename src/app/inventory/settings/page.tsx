@@ -6,7 +6,8 @@ import { z } from "zod";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Image as ImageIcon, CheckCircle, RefreshCw, Building2, Palette, Globe, Receipt, Phone, MapPin, Grid3x3 } from "lucide-react";
+import { CheckCircle, RefreshCw, Building2, Palette, Globe, Receipt, Phone, MapPin, Grid3x3 } from "lucide-react";
+import { ImageUpload } from "~/app/_components/image-upload";
 import { generateColorVariants } from "~/lib/color-utils";
 import { ReceiptPreview } from "~/app/_components/pos/receipt-preview";
 import { TemplateGalleryModal } from "./template-gallery-modal";
@@ -51,7 +52,6 @@ const CURRENCIES = [
 export default function SettingsPage() {
     const router = useRouter();
     const [isSaved, setIsSaved] = useState(false);
-    const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [showTemplateGallery, setShowTemplateGallery] = useState(false);
 
     const { data: settings, isLoading } = api.settings.getTenantSettings.useQuery();
@@ -104,9 +104,6 @@ export default function SettingsPage() {
                 receiptTemplate: settings.receiptTemplate ?? "classic",
                 receiptFooter: settings.receiptFooter ?? "Thank you for your business!",
             });
-            if (settings.logo) {
-                setLogoPreview(settings.logo);
-            }
         }
     }, [settings, reset]);
 
@@ -119,14 +116,6 @@ export default function SettingsPage() {
     const lightVariants = primaryColorLight ? generateColorVariants(primaryColorLight) : {};
     const darkVariants = primaryColorDark ? generateColorVariants(primaryColorDark) : {};
     
-    useEffect(() => {
-        if (logoUrl && !errors.logo) {
-            setLogoPreview(logoUrl);
-        } else if (!logoUrl) {
-            setLogoPreview(null);
-        }
-    }, [logoUrl, errors.logo]);
-
     const onSubmit = (data: SettingsFormValues) => {
         updateSettings.mutate(data);
     };
@@ -457,32 +446,19 @@ export default function SettingsPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Logo URL
+                                    Logo
                                 </label>
-                                <div className="mt-1 flex gap-4">
-                                    <div className="flex-1">
-                                        <input
-                                            {...register("logo")}
-                                            placeholder="https://example.com/logo.png"
-                                            className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 shadow-sm transition-colors focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                        />
-                                        {errors.logo && (
-                                            <p className="mt-1 text-sm text-red-600">{errors.logo.message}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex h-16 w-16 flex-none items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                                        {logoPreview ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
-                                            <img
-                                                src={logoPreview}
-                                                alt="Logo Preview"
-                                                className="h-full w-full object-contain p-1"
-                                                onError={() => setLogoPreview(null)}
-                                            />
-                                        ) : (
-                                            <ImageIcon className="h-6 w-6 text-gray-300 dark:text-gray-600" />
-                                        )}
-                                    </div>
+                                <div className="mt-1">
+                                    <ImageUpload
+                                        value={watch("logo") || ""}
+                                        onChange={(url) => setValue("logo", url, { shouldDirty: true })}
+                                    />
+                                    {errors.logo && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.logo.message}</p>
+                                    )}
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        Upload your company logo.
+                                    </p>
                                 </div>
                             </div>
                         </div>

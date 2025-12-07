@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import Cropper from "react-easy-crop";
 import { type Point, type Area } from "react-easy-crop";
@@ -16,6 +16,12 @@ interface ImageUploadProps {
 
 export function ImageUpload({ value, onChange, onBlur }: ImageUploadProps) {
     const [preview, setPreview] = useState<string | null>(value || null);
+    
+    // Sync preview with value prop changes (e.g. when data is loaded)
+    useEffect(() => {
+        setPreview(value || null);
+    }, [value]);
+
     const [isUploading, setIsUploading] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
     const [urlInput, setUrlInput] = useState("");

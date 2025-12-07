@@ -27,9 +27,20 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
             <div className="container mx-auto flex h-20 items-center justify-between px-4">
                 {/* Logo */}
                 <div className="flex items-center gap-2">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--brand-primary-600)] to-[var(--brand-primary-800)] font-bold text-white shadow-lg shadow-[var(--brand-primary-500)]/20">
-                        {tenant?.name?.charAt(0) || "A"}
-                    </div>
+                    {tenant?.logo ? (
+                        <div className="relative h-10 w-10 overflow-hidden rounded-xl">
+                             {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                                src={tenant.logo} 
+                                alt={tenant.name || "Store Logo"} 
+                                className="h-full w-full object-contain bg-white" 
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--brand-primary-600)] to-[var(--brand-primary-800)] font-bold text-white shadow-lg shadow-[var(--brand-primary-500)]/20">
+                            {tenant?.name?.charAt(0) || "A"}
+                        </div>
+                    )}
                     <span className="text-xl font-bold tracking-tight hidden sm:block">
                         {tenant?.name || "Alswap Store"}
                     </span>
