@@ -37,7 +37,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" className={`${geist.variable}`}>
+    <html lang="en" className={`${geist.variable} dark`}>
       <head>
         <ThemeScript />
         <style

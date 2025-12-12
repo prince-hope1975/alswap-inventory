@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "~/trpc/react";
-import { Search, ShoppingCart, X, Plus, Minus, User, UserX, LayoutGrid, List, Smartphone, Monitor, Trash2 } from "lucide-react";
+import { Search, ShoppingCart, X, Plus, Minus, User, UserX, LayoutGrid, List, Smartphone, Monitor, Trash2, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { ThemeToggle } from "~/components/theme-toggle";
@@ -10,6 +10,9 @@ import { ProductCard } from "../_components/pos/product-card";
 import { PaymentModal } from "../_components/pos/payment-modal";
 import { ReceiptModal } from "../_components/pos/receipt-modal";
 import { cn } from "~/lib/utils";
+import { usePosSync } from "~/hooks/use-pos-sync";
+import { db } from "~/lib/db";
+import { useLiveQuery } from "dexie-react-hooks";
 
 type CartItem = {
     productId: string;
@@ -36,6 +39,9 @@ export default function POSTerminal() {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [lastOrder, setLastOrder] = useState<any>(null);
 
+    // Sync Hook
+    const { isOnline, isSyncing, pendingOrdersCount, pullData, pushData } = usePosSync();
+
     // Detect touch device or load preference
     useEffect(() => {
         const stored = localStorage.getItem("pos_touch_mode");
@@ -55,51 +61,139 @@ export default function POSTerminal() {
         localStorage.setItem("pos_touch_mode", String(newValue));
     };
 
-    const { data: currentShift } = api.pos.getCurrentShift.useQuery();
-    
-    // In touch mode, we might want to show all products if query is empty, but for performance we might stick to search
-    // Or maybe fetch a default list of popular items? 
-    // For now, sticking to search behavior but maybe default to empty query returning top items if backend supports it (my backend code does strict ILIKE matching, so empty string matches everything with %%)
-    // Wait, `%${input.query}%` with empty string `""` becomes `%%` which matches all.
-    // But I put `enabled: searchQuery.length > 0` in the original code.
-    // I will change it to always fetch if we want a grid to be populated initially.
-    // Let's allow fetching all products (limit 20) if query is empty.
-    const searchProducts = api.pos.searchProducts.useQuery(
-        { query: searchQuery },
-        { keepPreviousData: true }
-    );
-
-    const searchCustomers = api.pos.searchCustomers.useQuery(
-        { query: customerSearchQuery },
-        { enabled: customerSearchQuery.length > 0 && showCustomerSearch }
-    );
-
-    const createOrder = api.pos.createOrder.useMutation({
-        onSuccess: (order) => {
-            setLastOrder({
-                ...order,
-                items: cart.map(c => ({ 
-                    quantity: c.quantity, 
-                    price: c.price, 
-                    product: { name: c.name } 
-                })),
-                customer: selectedCustomer,
-                // Calculate change/paid locally for receipt as server doesn't return it in the order object yet (except if I query it back)
-                // But the modal will have the details.
-            });
-            setCart([]);
-            setSearchQuery("");
-            setSelectedCustomer(null);
-            setShowPaymentModal(false);
-            setShowReceiptModal(true);
-        },
+    // Shift Management - Hybrid Approach
+    const { data: currentShift, error: shiftError } = api.pos.getCurrentShift.useQuery(undefined, {
+        enabled: isOnline,
+        retry: false
     });
 
     useEffect(() => {
-        if (currentShift) {
-            setShiftId(currentShift.id);
+        const syncShift = async () => {
+            if (currentShift) {
+                setShiftId(currentShift.id);
+                // Persist shift to local DB
+                await db.settings.put({ key: "currentShift", value: currentShift });
+            } else if (!isOnline || shiftError) {
+                // Try to load from local DB
+                const cachedShift = await db.settings.get("currentShift");
+                if (cachedShift?.value) {
+                    setShiftId(cachedShift.value.id);
+                }
+            }
+        };
+        void syncShift();
+    }, [currentShift, isOnline, shiftError]);
+    
+    // Product Search - Local DB
+    const searchProductsResults = useLiveQuery(async () => {
+        let collection = db.products.toCollection();
+        
+        if (searchQuery) {
+            const lowerQuery = searchQuery.toLowerCase();
+            collection = db.products.filter(p => 
+                p.name.toLowerCase().includes(lowerQuery) || 
+                (p.sku?.toLowerCase().includes(lowerQuery) ?? false) || 
+                (p.barcode?.includes(lowerQuery) ?? false)
+            );
         }
-    }, [currentShift]);
+        
+        return collection.limit(20).toArray();
+    }, [searchQuery]);
+
+
+    // Customer Search - Local DB
+    const searchCustomersResults = useLiveQuery(async () => {
+        if (!customerSearchQuery && !showCustomerSearch) return [];
+        
+        const lowerQuery = customerSearchQuery.toLowerCase();
+        return db.customers
+            .filter(c => 
+                c.name.toLowerCase().includes(lowerQuery) || 
+                (c.email?.toLowerCase().includes(lowerQuery) ?? false) || 
+                (c.phone?.includes(lowerQuery) ?? false)
+            )
+            .limit(10)
+            .toArray();
+    }, [customerSearchQuery, showCustomerSearch]);
+
+    const createOrder = api.pos.createOrder.useMutation({
+        onSuccess: (order) => {
+            handleOrderSuccess(order);
+        },
+        onError: async (error) => {
+            console.error("Online order creation failed, attempting offline save:", error);
+            await handleOfflineOrder();
+        }
+    });
+
+    const handleOrderSuccess = (order: any) => {
+        setLastOrder({
+            ...order,
+            items: cart.map(c => ({ 
+                quantity: c.quantity, 
+                price: c.price, 
+                product: { name: c.name } 
+            })),
+            customer: selectedCustomer,
+        });
+        setCart([]);
+        setSearchQuery("");
+        setSelectedCustomer(null);
+        setShowPaymentModal(false);
+        setShowReceiptModal(true);
+    };
+
+    const handleOfflineOrder = async (paymentMethod?: string, amountPaid?: number) => {
+        // Fallback to offline save
+        const tempId = `offline-${Date.now()}`;
+        const orderData = {
+            shiftId: shiftId ?? undefined,
+            customerId: selectedCustomer?.id,
+            items: cart.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                price: item.price,
+            })),
+            paymentMethod: (paymentMethod ?? "CASH") as any,
+            amountPaid: amountPaid,
+        };
+
+        try {
+            // Save to pending orders
+            await db.pendingOrders.add({
+                orderData,
+                createdAt: new Date(),
+                synced: 0 // 0 = false
+            });
+
+            // Optimistically update stock
+            for (const item of cart) {
+                const product = await db.products.get(item.productId);
+                if (product) {
+                    await db.products.update(item.productId, {
+                        stockQuantity: Math.max(0, product.stockQuantity - item.quantity)
+                    });
+                }
+            }
+
+            // Create a fake order object for the receipt
+            const fakeOrder = {
+                id: tempId,
+                totalAmount: cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toString(),
+                paymentMethod: paymentMethod ?? "CASH",
+                createdAt: new Date().toISOString(),
+                items: [], // Populated in handleOrderSuccess
+                customer: selectedCustomer,
+                amountPaid: amountPaid
+            };
+
+            handleOrderSuccess(fakeOrder);
+            // toast.success("Order saved offline. Will sync when online.");
+        } catch (e) {
+            console.error("Failed to save offline order", e);
+            alert("Failed to save order offline. Please check your device storage.");
+        }
+    };
 
     const addToCart = (product: any) => {
         const existingItem = cart.find((item) => item.productId === product.id);
@@ -142,10 +236,6 @@ export default function POSTerminal() {
         );
     };
 
-    const removeFromCart = (productId: string) => {
-        setCart(cart.filter((item) => item.productId !== productId));
-    };
-
     const clearCart = () => {
         if (confirm("Are you sure you want to clear the cart?")) {
             setCart([]);
@@ -154,23 +244,29 @@ export default function POSTerminal() {
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    const handlePaymentConfirm = (paymentMethod: string, amountPaid: number) => {
+    const handlePaymentConfirm = async (paymentMethod: string, amountPaid: number) => {
         if (cart.length === 0) return;
 
-        createOrder.mutate({
-            shiftId: shiftId ?? undefined,
-            customerId: selectedCustomer?.id,
-            items: cart.map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                price: item.price,
-            })),
-            paymentMethod: paymentMethod as any,
-            amountPaid: amountPaid,
-        });
+        if (isOnline) {
+             createOrder.mutate({
+                shiftId: shiftId ?? undefined,
+                customerId: selectedCustomer?.id,
+                items: cart.map((item) => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    price: item.price,
+                })),
+                paymentMethod: paymentMethod as any,
+                amountPaid: amountPaid,
+            }, {
+                onError: () => handleOfflineOrder(paymentMethod, amountPaid)
+            });
+        } else {
+            await handleOfflineOrder(paymentMethod, amountPaid);
+        }
     };
 
-    if (!currentShift) {
+    if (!shiftId && isOnline && !currentShift) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
                 <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-lg dark:border-gray-800 dark:bg-gray-900">
@@ -199,9 +295,39 @@ export default function POSTerminal() {
                 <div className="flex items-center justify-between border-b border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">POS</h1>
-                        <p className="text-xs text-gray-500">Shift #{currentShift.id.slice(0, 8)}</p>
+                        <p className="text-xs text-gray-500">
+                            {shiftId ? `Shift #${shiftId.slice(0, 8)}` : "Offline Mode"}
+                        </p>
                     </div>
                     <div className="flex items-center gap-3">
+                         {/* Offline Indicator */}
+                        <div className="flex items-center gap-2 px-2">
+                             {isOnline ? (
+                                <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400" title="Online">
+                                    <Wifi className="h-4 w-4" />
+                                </span>
+                             ) : (
+                                <span className="flex items-center gap-1 text-xs text-red-500" title="Offline">
+                                    <WifiOff className="h-4 w-4" />
+                                </span>
+                             )}
+                             
+                             {pendingOrdersCount > 0 && (
+                                <button 
+                                    onClick={() => pushData()}
+                                    disabled={isSyncing || !isOnline}
+                                    className={cn(
+                                        "flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                                        isSyncing && "animate-pulse"
+                                    )}
+                                    title={`${pendingOrdersCount} pending orders`}
+                                >
+                                    <RefreshCw className={cn("h-3 w-3", isSyncing && "animate-spin")} />
+                                    {pendingOrdersCount}
+                                </button>
+                             )}
+                        </div>
+
                         <button
                             onClick={toggleTouchMode}
                             className={cn(
@@ -241,7 +367,7 @@ export default function POSTerminal() {
 
                 {/* Products Grid */}
                 <div className="flex-1 overflow-y-auto p-4 pt-0">
-                    {searchProducts.isLoading ? (
+                    {!searchProductsResults ? (
                         <div className="flex h-full items-center justify-center">
                             <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[var(--brand-primary-600)]"></div>
                         </div>
@@ -250,15 +376,20 @@ export default function POSTerminal() {
                             "grid gap-4",
                             isTouchMode ? "grid-cols-3 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                         )}>
-                            {searchProducts.data?.map((product) => (
+                            {searchProductsResults?.map((product) => (
                                 <div key={product.id} className="h-64">
                                     <ProductCard
-                                        product={product}
+                                        product={{
+                                            ...product,
+                                            // Ensure price is number for display
+                                            price: Number(product.price),
+                                            image: product.image ?? null
+                                        }}
                                         onClick={() => addToCart(product)}
                                     />
                                 </div>
                             ))}
-                            {searchProducts.data?.length === 0 && (
+                            {searchProductsResults?.length === 0 && (
                                 <div className="col-span-full flex h-64 items-center justify-center text-gray-500">
                                     No products found
                                 </div>
@@ -325,11 +456,14 @@ export default function POSTerminal() {
                                     />
                                 </div>
                                 <div className="max-h-64 overflow-y-auto">
-                                    {searchCustomers.data?.map((customer) => (
+                                    {searchCustomersResults?.map((customer) => (
                                         <button
                                             key={customer.id}
                                             onClick={() => {
-                                                setSelectedCustomer(customer);
+                                                setSelectedCustomer({
+                                                    ...customer,
+                                                    email: customer.email ?? null
+                                                });
                                                 setShowCustomerSearch(false);
                                                 setCustomerSearchQuery("");
                                             }}

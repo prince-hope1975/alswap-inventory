@@ -31,6 +31,8 @@
     "ai": "^5.0.95",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "dexie": "^4.2.1",
+    "dexie-react-hooks": "^4.2.0",
     "drizzle-orm": "^0.41.0",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",

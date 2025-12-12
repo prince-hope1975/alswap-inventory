@@ -303,4 +303,22 @@ export const posRouter = createTRPCRouter({
                 limit: 10,
             });
         }),
+
+    getOfflineData: tenantProcedure.query(async ({ ctx }) => {
+        const tenantId = ctx.session.user.tenantId;
+        if (!tenantId) return { products: [], customers: [] };
+
+        const allProducts = await ctx.db.query.products.findMany({
+            where: eq(products.tenantId, tenantId),
+        });
+
+        const allCustomers = await ctx.db.query.customers.findMany({
+            where: eq(customers.tenantId, tenantId),
+        });
+
+        return {
+            products: allProducts,
+            customers: allCustomers,
+        };
+    }),
 });
