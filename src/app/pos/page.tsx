@@ -13,6 +13,8 @@ import { cn } from "~/lib/utils";
 import { usePosSync } from "~/hooks/use-pos-sync";
 import { db } from "~/lib/db";
 import { useLiveQuery } from "dexie-react-hooks";
+import { ErrorBoundary } from "~/components/error-boundary";
+import { ComponentErrorFallback } from "~/components/route-error-boundary";
 
 type CartItem = {
     productId: string;
@@ -32,7 +34,7 @@ export default function POSTerminal() {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [shiftId, setShiftId] = useState<string | null>(null);
     const { formatCurrency, currency } = useCurrency();
-    
+
     // UI State
     const [isTouchMode, setIsTouchMode] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -83,20 +85,20 @@ export default function POSTerminal() {
         };
         void syncShift();
     }, [currentShift, isOnline, shiftError]);
-    
+
     // Product Search - Local DB
     const searchProductsResults = useLiveQuery(async () => {
         let collection = db.products.toCollection();
-        
+
         if (searchQuery) {
             const lowerQuery = searchQuery.toLowerCase();
-            collection = db.products.filter(p => 
-                p.name.toLowerCase().includes(lowerQuery) || 
-                (p.sku?.toLowerCase().includes(lowerQuery) ?? false) || 
+            collection = db.products.filter(p =>
+                p.name.toLowerCase().includes(lowerQuery) ||
+                (p.sku?.toLowerCase().includes(lowerQuery) ?? false) ||
                 (p.barcode?.includes(lowerQuery) ?? false)
             );
         }
-        
+
         return collection.limit(20).toArray();
     }, [searchQuery]);
 
@@ -104,12 +106,12 @@ export default function POSTerminal() {
     // Customer Search - Local DB
     const searchCustomersResults = useLiveQuery(async () => {
         if (!customerSearchQuery && !showCustomerSearch) return [];
-        
+
         const lowerQuery = customerSearchQuery.toLowerCase();
         return db.customers
-            .filter(c => 
-                c.name.toLowerCase().includes(lowerQuery) || 
-                (c.email?.toLowerCase().includes(lowerQuery) ?? false) || 
+            .filter(c =>
+                c.name.toLowerCase().includes(lowerQuery) ||
+                (c.email?.toLowerCase().includes(lowerQuery) ?? false) ||
                 (c.phone?.includes(lowerQuery) ?? false)
             )
             .limit(10)
@@ -129,10 +131,10 @@ export default function POSTerminal() {
     const handleOrderSuccess = (order: any) => {
         setLastOrder({
             ...order,
-            items: cart.map(c => ({ 
-                quantity: c.quantity, 
-                price: c.price, 
-                product: { name: c.name } 
+            items: cart.map(c => ({
+                quantity: c.quantity,
+                price: c.price,
+                product: { name: c.name }
             })),
             customer: selectedCustomer,
         });
@@ -220,7 +222,7 @@ export default function POSTerminal() {
         }
         // Don't clear search query in grid mode, annoying
         if (!isTouchMode) {
-             setSearchQuery("");
+            setSearchQuery("");
         }
     };
 
@@ -248,7 +250,7 @@ export default function POSTerminal() {
         if (cart.length === 0) return;
 
         if (isOnline) {
-             createOrder.mutate({
+            createOrder.mutate({
                 shiftId: shiftId ?? undefined,
                 customerId: selectedCustomer?.id,
                 items: cart.map((item) => ({
@@ -300,20 +302,20 @@ export default function POSTerminal() {
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                         {/* Offline Indicator */}
+                        {/* Offline Indicator */}
                         <div className="flex items-center gap-2 px-2">
-                             {isOnline ? (
+                            {isOnline ? (
                                 <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400" title="Online">
                                     <Wifi className="h-4 w-4" />
                                 </span>
-                             ) : (
+                            ) : (
                                 <span className="flex items-center gap-1 text-xs text-red-500" title="Offline">
                                     <WifiOff className="h-4 w-4" />
                                 </span>
-                             )}
-                             
-                             {pendingOrdersCount > 0 && (
-                                <button 
+                            )}
+
+                            {pendingOrdersCount > 0 && (
+                                <button
                                     onClick={() => pushData()}
                                     disabled={isSyncing || !isOnline}
                                     className={cn(
@@ -325,14 +327,14 @@ export default function POSTerminal() {
                                     <RefreshCw className={cn("h-3 w-3", isSyncing && "animate-spin")} />
                                     {pendingOrdersCount}
                                 </button>
-                             )}
+                            )}
                         </div>
 
                         <button
                             onClick={toggleTouchMode}
                             className={cn(
                                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                                isTouchMode 
+                                isTouchMode
                                     ? "bg-[var(--brand-primary-50)] text-[var(--brand-primary-600)] dark:bg-[var(--brand-primary-900)]/20 dark:text-[var(--brand-primary-400)]"
                                     : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                             )}
@@ -367,35 +369,40 @@ export default function POSTerminal() {
 
                 {/* Products Grid */}
                 <div className="flex-1 overflow-y-auto p-4 pt-0">
-                    {!searchProductsResults ? (
-                        <div className="flex h-full items-center justify-center">
-                            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[var(--brand-primary-600)]"></div>
-                        </div>
-                    ) : (
-                        <div className={cn(
-                            "grid gap-4",
-                            isTouchMode ? "grid-cols-3 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                        )}>
-                            {searchProductsResults?.map((product) => (
-                                <div key={product.id} className="h-64">
-                                    <ProductCard
-                                        product={{
-                                            ...product,
-                                            // Ensure price is number for display
-                                            price: Number(product.price),
-                                            image: product.image ?? null
-                                        }}
-                                        onClick={() => addToCart(product)}
-                                    />
-                                </div>
-                            ))}
-                            {searchProductsResults?.length === 0 && (
-                                <div className="col-span-full flex h-64 items-center justify-center text-gray-500">
-                                    No products found
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <ErrorBoundary
+                        componentName="POSProductGrid"
+                        fallback={<ComponentErrorFallback title="Grid Error" message="Failed to load product grid" />}
+                    >
+                        {!searchProductsResults ? (
+                            <div className="flex h-full items-center justify-center">
+                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[var(--brand-primary-600)]"></div>
+                            </div>
+                        ) : (
+                            <div className={cn(
+                                "grid gap-4",
+                                isTouchMode ? "grid-cols-3 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                            )}>
+                                {searchProductsResults?.map((product) => (
+                                    <div key={product.id} className="h-64">
+                                        <ProductCard
+                                            product={{
+                                                ...product,
+                                                // Ensure price is number for display
+                                                price: Number(product.price),
+                                                image: product.image ?? null
+                                            }}
+                                            onClick={() => addToCart(product)}
+                                        />
+                                    </div>
+                                ))}
+                                {searchProductsResults?.length === 0 && (
+                                    <div className="col-span-full flex h-64 items-center justify-center text-gray-500">
+                                        No products found
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </ErrorBoundary>
                 </div>
             </div>
 
@@ -406,77 +413,82 @@ export default function POSTerminal() {
             )}>
                 {/* Customer Selection */}
                 <div className="border-b border-gray-200 p-4 dark:border-gray-800">
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowCustomerSearch(!showCustomerSearch)}
-                            className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
-                        >
-                            <div className="flex items-center gap-3">
-                                {selectedCustomer ? (
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary-100)] text-[var(--brand-primary-700)] dark:bg-[var(--brand-primary-900)]/30 dark:text-[var(--brand-primary-400)]">
-                                        <User className="h-5 w-5" />
+                    <ErrorBoundary
+                        componentName="POSCustomerSelection"
+                        fallback={<ComponentErrorFallback title="Customer Error" message="Failed to load customer selector" />}
+                    >
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowCustomerSearch(!showCustomerSearch)}
+                                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+                            >
+                                <div className="flex items-center gap-3">
+                                    {selectedCustomer ? (
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary-100)] text-[var(--brand-primary-700)] dark:bg-[var(--brand-primary-900)]/30 dark:text-[var(--brand-primary-400)]">
+                                            <User className="h-5 w-5" />
+                                        </div>
+                                    ) : (
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700">
+                                            <UserX className="h-5 w-5" />
+                                        </div>
+                                    )}
+                                    <div className="text-left">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                            {selectedCustomer ? selectedCustomer.name : "Add Customer"}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            {selectedCustomer ? "Loyalty Customer" : "Guest Customer"}
+                                        </p>
                                     </div>
-                                ) : (
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700">
-                                        <UserX className="h-5 w-5" />
+                                </div>
+                                {selectedCustomer && (
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedCustomer(null);
+                                        }}
+                                        className="rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    >
+                                        <X className="h-4 w-4 text-gray-500" />
                                     </div>
                                 )}
-                                <div className="text-left">
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                        {selectedCustomer ? selectedCustomer.name : "Add Customer"}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        {selectedCustomer ? "Loyalty Customer" : "Guest Customer"}
-                                    </p>
-                                </div>
-                            </div>
-                            {selectedCustomer && (
-                                <div
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedCustomer(null);
-                                    }}
-                                    className="rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-600"
-                                >
-                                    <X className="h-4 w-4 text-gray-500" />
+                            </button>
+
+                            {showCustomerSearch && (
+                                <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                                    <div className="p-3">
+                                        <input
+                                            type="text"
+                                            value={customerSearchQuery}
+                                            onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                                            placeholder="Search customer name/email..."
+                                            className="w-full rounded-lg border border-gray-200 p-2 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto">
+                                        {searchCustomersResults?.map((customer) => (
+                                            <button
+                                                key={customer.id}
+                                                onClick={() => {
+                                                    setSelectedCustomer({
+                                                        ...customer,
+                                                        email: customer.email ?? null
+                                                    });
+                                                    setShowCustomerSearch(false);
+                                                    setCustomerSearchQuery("");
+                                                }}
+                                                className="w-full border-t border-gray-100 px-4 py-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700"
+                                            >
+                                                <p className="font-medium text-gray-900 dark:text-white">{customer.name}</p>
+                                                <p className="text-xs text-gray-500">{customer.email}</p>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                        </button>
-
-                        {showCustomerSearch && (
-                            <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
-                                <div className="p-3">
-                                    <input
-                                        type="text"
-                                        value={customerSearchQuery}
-                                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                                        placeholder="Search customer name/email..."
-                                        className="w-full rounded-lg border border-gray-200 p-2 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="max-h-64 overflow-y-auto">
-                                    {searchCustomersResults?.map((customer) => (
-                                        <button
-                                            key={customer.id}
-                                            onClick={() => {
-                                                setSelectedCustomer({
-                                                    ...customer,
-                                                    email: customer.email ?? null
-                                                });
-                                                setShowCustomerSearch(false);
-                                                setCustomerSearchQuery("");
-                                            }}
-                                            className="w-full border-t border-gray-100 px-4 py-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700"
-                                        >
-                                            <p className="font-medium text-gray-900 dark:text-white">{customer.name}</p>
-                                            <p className="text-xs text-gray-500">{customer.email}</p>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    </ErrorBoundary>
                 </div>
 
                 {/* Cart List */}
@@ -489,7 +501,7 @@ export default function POSTerminal() {
                     ) : (
                         <div className="space-y-3">
                             <div className="mb-2 flex justify-end">
-                                <button 
+                                <button
                                     onClick={clearCart}
                                     className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
                                 >
@@ -528,28 +540,33 @@ export default function POSTerminal() {
 
                 {/* Totals & Checkout */}
                 <div className="border-t border-gray-200 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
-                    <div className="mb-6 space-y-2">
-                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(total)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                            <span>Tax</span>
-                            <span>{formatCurrency(0)}</span>
-                        </div>
-                        <div className="flex justify-between text-2xl font-bold text-gray-900 dark:text-white">
-                            <span>Total</span>
-                            <span>{formatCurrency(total)}</span>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => setShowPaymentModal(true)}
-                        disabled={cart.length === 0}
-                        className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] py-4 text-lg font-bold text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                    <ErrorBoundary
+                        componentName="POSTotals"
+                        fallback={<ComponentErrorFallback title="Checkout Error" message="Failed to load checkout totals" />}
                     >
-                        <span>Pay {formatCurrency(total)}</span>
-                    </button>
+                        <div className="mb-6 space-y-2">
+                            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                                <span>Subtotal</span>
+                                <span>{formatCurrency(total)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                                <span>Tax</span>
+                                <span>{formatCurrency(0)}</span>
+                            </div>
+                            <div className="flex justify-between text-2xl font-bold text-gray-900 dark:text-white">
+                                <span>Total</span>
+                                <span>{formatCurrency(total)}</span>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setShowPaymentModal(true)}
+                            disabled={cart.length === 0}
+                            className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] py-4 text-lg font-bold text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                        >
+                            <span>Pay {formatCurrency(total)}</span>
+                        </button>
+                    </ErrorBoundary>
                 </div>
             </div>
 

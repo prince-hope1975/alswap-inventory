@@ -6,6 +6,8 @@ import { StatsGrid } from "./stats-grid";
 import { RecentSales } from "./recent-sales";
 import { TopSelling } from "./top-selling";
 import { Plus } from "lucide-react";
+import { ErrorBoundary } from "~/components/error-boundary";
+import { ComponentErrorFallback } from "~/components/route-error-boundary";
 
 export default function InventoryDashboard() {
     const { data: stats, isLoading } = api.inventory.getDashboardStats.useQuery(undefined, {
@@ -32,22 +34,40 @@ export default function InventoryDashboard() {
                 </Link>
             </div>
 
-            <StatsGrid
-                stats={stats ?? {
-                    totalProducts: 0,
-                    productsWithUnknownQuantity: 0,
-                    lowStock: 0,
-                    totalValue: 0,
-                    totalValueConfirmed: 0,
-                    totalValueEstimated: 0,
-                    salesToday: 0
-                }}
-                isLoading={isLoading}
-            />
+            <ErrorBoundary
+                componentName="StatsGrid"
+                fallback={<ComponentErrorFallback title="Stats Error" message="Failed to load dashboard statistics" />}
+            >
+                <StatsGrid
+                    stats={stats ?? {
+                        totalProducts: 0,
+                        productsWithUnknownQuantity: 0,
+                        lowStock: 0,
+                        totalValue: 0,
+                        totalValueConfirmed: 0,
+                        totalValueEstimated: 0,
+                        salesToday: 0
+                    }}
+                    isLoading={isLoading}
+                />
+            </ErrorBoundary>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                <RecentSales sales={stats?.recentActivity ?? []} isLoading={isLoading} />
-                <TopSelling products={stats?.topSelling ?? []} isLoading={isLoading} />
+                <ErrorBoundary
+                    className="lg:col-span-4"
+                    componentName="RecentSales"
+                    fallback={<ComponentErrorFallback title="Sales Error" message="Failed to load recent sales history" />}
+                >
+                    <RecentSales sales={stats?.recentActivity ?? []} isLoading={isLoading} />
+                </ErrorBoundary>
+
+                <ErrorBoundary
+                    className="lg:col-span-3"
+                    componentName="TopSelling"
+                    fallback={<ComponentErrorFallback title="Products Error" message="Failed to load top selling products" />}
+                >
+                    <TopSelling products={stats?.topSelling ?? []} isLoading={isLoading} />
+                </ErrorBoundary>
             </div>
         </div>
     );

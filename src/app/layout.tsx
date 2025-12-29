@@ -9,6 +9,7 @@ import { api } from "~/trpc/server";
 import { getBrandColorStyles } from "~/lib/brand-colors-server";
 import { ThemeScript } from "~/components/theme-script";
 import { SessionProvider } from "next-auth/react";
+import { ErrorBoundary } from "~/components/error-boundary";
 
 export const metadata: Metadata = {
   title: "SPPD AMAKS",
@@ -46,11 +47,13 @@ export default async function RootLayout({
         />
       </head>
       <body className="bg-white dark:bg-gray-900">
-        <TRPCReactProvider>
-          <SessionProvider>
-            <BrandColorProvider>{children}</BrandColorProvider>
-          </SessionProvider>
-        </TRPCReactProvider>
+        <ErrorBoundary componentName="RootLayout">
+          <TRPCReactProvider>
+            <SessionProvider>
+              <BrandColorProvider>{children}</BrandColorProvider>
+            </SessionProvider>
+          </TRPCReactProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

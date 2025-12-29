@@ -2,6 +2,7 @@ import { auth } from "~/server/auth";
 import { api } from "~/trpc/server";
 import { RouterProvider } from "~/lib/routerProvider";
 import { InventoryLayoutClient } from "./inventory-layout-client";
+import { RouteErrorBoundary } from "~/components/route-error-boundary";
 
 export default async function InventoryLayout({
     children,
@@ -25,17 +26,19 @@ export default async function InventoryLayout({
 
     return (
         <RouterProvider>
-            <InventoryLayoutClient
-                companyName={companyName}
-                companyInitial={companyInitial}
-                companyLogo={companyLogo}
-                user={{
-                    name: session?.user?.name,
-                    role: session?.user?.role,
-                }}
-            >
-                {children}
-            </InventoryLayoutClient>
+            <RouteErrorBoundary routeName="Inventory">
+                <InventoryLayoutClient
+                    companyName={companyName}
+                    companyInitial={companyInitial}
+                    companyLogo={companyLogo}
+                    user={{
+                        name: session?.user?.name,
+                        role: session?.user?.role,
+                    }}
+                >
+                    {children}
+                </InventoryLayoutClient>
+            </RouteErrorBoundary>
         </RouterProvider>
     );
 }
