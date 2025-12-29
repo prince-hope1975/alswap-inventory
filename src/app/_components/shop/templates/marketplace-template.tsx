@@ -6,6 +6,7 @@ import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { ShoppingBag, Star, Zap } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -36,6 +37,7 @@ export function MarketplaceTemplate({
 }: MarketplaceTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
+    const { formatCurrency } = useCurrency();
 
     return (
         <div className="min-h-screen bg-[#f1f1f2] dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans">
@@ -134,10 +136,10 @@ export function MarketplaceTemplate({
                                     </div>
                                     <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>
                                     <div className="font-bold text-sm sm:text-base">
-                                        ₦ {Number(product.price).toLocaleString()}
+                                        {formatCurrency(product.price)}
                                     </div>
                                     <div className="text-xs text-gray-400 line-through">
-                                        ₦ {(Number(product.price) * 1.2).toLocaleString()}
+                                        {formatCurrency(Number(product.price) * 1.2)}
                                     </div>
                                     <button
                                         onClick={() => addItem({

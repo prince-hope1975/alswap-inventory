@@ -11,11 +11,11 @@ import { useSession } from "next-auth/react";
 export function RouterProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const { data: session, status } = useSession();
-    useEffect(() => {
-        if (status === "unauthenticated" || (session && session?.user?.role !== "ADMIN")) {
-            router.push("/");
-        }
-    }, [session?.user?.role, status]);
+    // useEffect(() => {
+    //     if (status === "unauthenticated" || (session && session?.user?.role !== "ADMIN")) {
+    //         router.push("/");
+    //     }
+    // }, [session?.user?.role, status]);
 
     return <>{children}</>;
 }

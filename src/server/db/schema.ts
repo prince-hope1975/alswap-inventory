@@ -178,6 +178,7 @@ export const products = createTable(
     name: d.varchar({ length: 255 }).notNull(),
     description: d.text(),
     image: d.varchar({ length: 255 }),
+    images: d.json().$type<string[]>(),
     barcode: d.varchar({ length: 255 }), // Scannable code
     sku: d.varchar({ length: 255 }),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),

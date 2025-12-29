@@ -6,6 +6,7 @@ import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { ArrowRight } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -36,6 +37,7 @@ export function MinimalTemplate({
 }: MinimalTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
+    const { formatCurrency } = useCurrency();
 
     return (
         <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[var(--brand-primary-200)] selection:text-[var(--brand-primary-900)]">
@@ -141,7 +143,7 @@ export function MinimalTemplate({
                                         <p className="text-sm text-zinc-500 mt-1">{product.category?.name || 'Item'}</p>
                                     </div>
                                     <span className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
-                                        ₦{Number(product.price).toLocaleString()}
+                                        {formatCurrency(product.price)}
                                     </span>
                                 </div>
                             </div>

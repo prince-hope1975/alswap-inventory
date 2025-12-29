@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { ShoppingCart } from "lucide-react";
 import { useCart } from "./cart-context";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type Product = {
     id: string;
@@ -15,6 +16,7 @@ type Product = {
 
 export function ProductCard({ product }: { product: Product }) {
     const { addItem } = useCart();
+    const { formatCurrency } = useCurrency();
     const price = Number(product.price);
 
     return (
@@ -62,7 +64,7 @@ export function ProductCard({ product }: { product: Product }) {
                 </p>
                 <div className="mt-auto flex items-center justify-between">
                     <span className="text-xl font-bold text-white">
-                        ₦{price.toLocaleString()}
+                        {formatCurrency(price)}
                     </span>
                 </div>
             </div>

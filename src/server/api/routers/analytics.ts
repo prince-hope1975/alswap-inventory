@@ -11,7 +11,7 @@ const genAI = process.env.GOOGLE_GEMINI_API_KEY
 export const analyticsRouter = createTRPCRouter({
     getKpiStats: tenantProcedure.query(async ({ ctx }) => {
         const tenantId = ctx.tenantId;
-        
+
         // 1. Total Revenue (All Time)
         const [revenueResult] = await ctx.db
             .select({
@@ -43,7 +43,7 @@ export const analyticsRouter = createTRPCRouter({
             .innerJoin(products, eq(orderItems.productId, products.id))
             .innerJoin(orders, eq(orderItems.orderId, orders.id))
             .where(eq(orders.tenantId, tenantId));
-        
+
         const totalCost = profitResult?.cost ?? 0;
         const grossProfit = totalRevenue - totalCost;
 
@@ -110,9 +110,9 @@ export const analyticsRouter = createTRPCRouter({
         }
 
         const tenantId = ctx.tenantId;
-        
-        // Fetch key metrics for the summary
-        const [kpiStats] = await Promise.all([
+
+        // Fetch key metrics and tenant settings for the summary
+        const results = await Promise.all([
             ctx.db
                 .select({
                     totalRevenue: sql<number>`sum(${orders.totalAmount})`,
@@ -120,13 +120,21 @@ export const analyticsRouter = createTRPCRouter({
                 })
                 .from(orders)
                 .where(eq(orders.tenantId, tenantId)),
+            ctx.db.query.tenants.findFirst({
+                where: (tenants, { eq }) => eq(tenants.id, tenantId),
+            }),
         ]);
 
-        const revenue = kpiStats?.[0]?.totalRevenue ?? 0;
-        const orders = kpiStats?.[0]?.totalOrders ?? 0;
+        const kpiStats = results[0]?.[0];
+        const settings = results[1];
+
+        const currency = settings?.currency ?? "$";
+
+        const revenue = kpiStats?.totalRevenue ?? 0;
+        const totalOrdersCount = kpiStats?.totalOrders ?? 0;
 
         // If no data, return a helpful message
-        if (orders === 0) {
+        if (totalOrdersCount === 0) {
             return {
                 text: "Start making sales to generate AI-powered insights! Once you have transaction data, I'll provide personalized business summaries and recommendations.",
             };
@@ -135,7 +143,7 @@ export const analyticsRouter = createTRPCRouter({
         // Get recent sales trend
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
+
         const [recentStats] = await Promise.all([
             ctx.db
                 .select({
@@ -157,10 +165,10 @@ export const analyticsRouter = createTRPCRouter({
         // Prepare prompt for Gemini
         const prompt = `You are a business analyst. Analyze the following sales data and provide a concise, actionable summary (2-3 sentences) with insights:
 
-- Total Revenue: $${revenue.toFixed(2)}
-- Total Orders: ${orders}
-- Average Order Value: $${orders > 0 ? (revenue / orders).toFixed(2) : "0.00"}
-- Last 30 Days Revenue: $${recentRevenue.toFixed(2)}
+- Total Revenue: ${currency}${revenue.toFixed(2)}
+- Total Orders: ${totalOrdersCount}
+- Average Order Value: ${currency}${totalOrdersCount > 0 ? (revenue / totalOrdersCount).toFixed(2) : "0.00"}
+- Last 30 Days Revenue: ${currency}${recentRevenue.toFixed(2)}
 - Last 30 Days Orders: ${recentOrders}
 
 Provide insights about business performance, trends, and any recommendations. Keep it professional and concise.`;

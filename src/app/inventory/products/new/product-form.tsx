@@ -14,6 +14,7 @@ const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
     description: z.string().optional(),
     image: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+    images: z.array(z.string().url("Must be a valid URL")).optional(),
     categoryId: z.number().optional(),
     sku: z.string().optional(),
     barcode: z.string().optional(),
@@ -47,9 +48,9 @@ interface ProductFormProps {
 export function ProductForm({ initialData, isEditing = false, categories: _categories }: ProductFormProps) {
     const router = useRouter();
     const { currency } = useCurrency();
-    
+
     const utils = api.useUtils();
-    
+
     // Fetch categories on the fly
     const { data: categoryList = [], isLoading: categoriesLoading, error: categoriesError } = api.inventory.listCategories.useQuery();
 
@@ -79,25 +80,27 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
         resolver: zodResolver(productSchema),
         defaultValues: initialData
             ? {
-                  ...initialData,
-                  categoryId: initialData.categoryId ?? undefined,
-                  image: initialData.image ?? "",
-              }
+                ...initialData,
+                categoryId: initialData.categoryId ?? undefined,
+                image: initialData.image ?? "",
+                images: (initialData as any).images ?? [],
+            }
             : {
-                  name: "",
-                  description: "",
-                  price: 0,
-                  costPrice: 0,
-                  stockQuantity: 0,
-                  lowStockThreshold: 5,
-                  image: "",
-              },
+                name: "",
+                description: "",
+                price: 0,
+                costPrice: 0,
+                stockQuantity: 0,
+                lowStockThreshold: 5,
+                image: "",
+                images: [],
+            },
     });
 
     // Watch stockQuantity and lowStockThreshold to trigger validation
     const stockQuantity = watch("stockQuantity");
     const lowStockThreshold = watch("lowStockThreshold");
-    
+
     // Trigger validation when stockQuantity or lowStockThreshold changes
     useEffect(() => {
         if (stockQuantity !== undefined && lowStockThreshold !== undefined) {
@@ -224,19 +227,67 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
 
                         <div className="col-span-2">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Product Image
+                                Product Images
                             </label>
-                            <div className="mt-1">
-                                <ImageUpload
-                                    value={watch("image") || ""}
-                                    onChange={(url) => setValue("image", url)}
-                                />
-                                {errors.image && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
-                                )}
-                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Upload an image or provide a URL. You can crop uploaded images.
-                                </p>
+                            <div className="mt-1 space-y-4">
+                                {/* Primary Image */}
+                                <div>
+                                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Primary Image (shown in listings)
+                                    </p>
+                                    <ImageUpload
+                                        value={watch("image") || ""}
+                                        onChange={(url) => setValue("image", url)}
+                                    />
+                                    {errors.image && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
+                                    )}
+                                </div>
+
+                                {/* Additional Images */}
+                                <div>
+                                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Additional Images (optional)
+                                    </p>
+                                    <div className="space-y-2">
+                                        {(watch("images") || []).map((imageUrl, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <div className="flex-1">
+                                                    <ImageUpload
+                                                        value={imageUrl}
+                                                        onChange={(url) => {
+                                                            const currentImages = watch("images") || [];
+                                                            const newImages = [...currentImages];
+                                                            newImages[index] = url;
+                                                            setValue("images", newImages);
+                                                        }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const currentImages = watch("images") || [];
+                                                        const newImages = currentImages.filter((_, i) => i !== index);
+                                                        setValue("images", newImages);
+                                                    }}
+                                                    className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/20"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const currentImages = watch("images") || [];
+                                                setValue("images", [...currentImages, ""]);
+                                            }}
+                                            className="w-full rounded-md border border-dashed border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:bg-gray-800"
+                                        >
+                                            + Add Another Image
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

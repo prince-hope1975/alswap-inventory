@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useCart } from "./cart-context";
 import { api } from "~/trpc/react";
 import { X, Loader2 } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 export function CheckoutModal({ onClose }: { onClose: () => void }) {
     const { items, totalAmount, clearCart } = useCart();
     const [step, setStep] = useState<"details" | "payment" | "success">("details");
     const [details, setDetails] = useState({ name: "", email: "", phone: "" });
     const [isProcessing, setIsProcessing] = useState(false);
+    const { formatCurrency } = useCurrency();
 
     const createOrder = api.shop.createOrder.useMutation({
         onSuccess: () => {
@@ -110,11 +112,11 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                     <div className="mt-6 border-t border-white/10 pt-4">
                         <div className="flex justify-between text-sm text-gray-400">
                             <span>Subtotal</span>
-                            <span>₦{totalAmount.toLocaleString()}</span>
+                            <span>{formatCurrency(totalAmount)}</span>
                         </div>
                         <div className="mt-2 flex justify-between text-xl font-bold text-white">
                             <span>Total</span>
-                            <span>₦{totalAmount.toLocaleString()}</span>
+                            <span>{formatCurrency(totalAmount)}</span>
                         </div>
                     </div>
 
@@ -129,7 +131,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                                 Processing...
                             </>
                         ) : (
-                            `Pay ₦${totalAmount.toLocaleString()}`
+                            `Pay ${formatCurrency(totalAmount)}`
                         )}
                     </button>
 

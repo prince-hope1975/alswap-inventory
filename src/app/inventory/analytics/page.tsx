@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
                                 "Sales Report",
                                 salesData.map((s) => ({
                                     Date: s.date,
-                                    Revenue: `$${Number(s.amount).toFixed(2)}`,
+                                    Revenue: formatCurrency(s.amount),
                                     Orders: s.count,
                                 })),
                                 ["Date", "Revenue", "Orders"]

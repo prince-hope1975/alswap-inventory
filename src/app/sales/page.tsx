@@ -29,7 +29,7 @@ export default function POSTerminal() {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [shiftId, setShiftId] = useState<string | null>(null);
     const { formatCurrency, currency } = useCurrency();
-    
+
     // UI State
     const [isTouchMode, setIsTouchMode] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -56,7 +56,7 @@ export default function POSTerminal() {
     };
 
     const { data: currentShift } = api.pos.getCurrentShift.useQuery();
-    
+
     // In touch mode, we might want to show all products if query is empty, but for performance we might stick to search
     // Or maybe fetch a default list of popular items? 
     // For now, sticking to search behavior but maybe default to empty query returning top items if backend supports it (my backend code does strict ILIKE matching, so empty string matches everything with %%)
@@ -66,7 +66,8 @@ export default function POSTerminal() {
     // Let's allow fetching all products (limit 20) if query is empty.
     const searchProducts = api.pos.searchProducts.useQuery(
         { query: searchQuery },
-        { keepPreviousData: true }
+        // @ts-ignore - TRPC/Tanstack Query v5 compatibility
+        { placeholderData: (prev) => prev }
     );
 
     const searchCustomers = api.pos.searchCustomers.useQuery(
@@ -78,10 +79,10 @@ export default function POSTerminal() {
         onSuccess: (order) => {
             setLastOrder({
                 ...order,
-                items: cart.map(c => ({ 
-                    quantity: c.quantity, 
-                    price: c.price, 
-                    product: { name: c.name } 
+                items: cart.map(c => ({
+                    quantity: c.quantity,
+                    price: c.price,
+                    product: { name: c.name }
                 })),
                 customer: selectedCustomer,
                 // Calculate change/paid locally for receipt as server doesn't return it in the order object yet (except if I query it back)
@@ -126,7 +127,7 @@ export default function POSTerminal() {
         }
         // Don't clear search query in grid mode, annoying
         if (!isTouchMode) {
-             setSearchQuery("");
+            setSearchQuery("");
         }
     };
 
@@ -206,7 +207,7 @@ export default function POSTerminal() {
                             onClick={toggleTouchMode}
                             className={cn(
                                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                                isTouchMode 
+                                isTouchMode
                                     ? "bg-[var(--brand-primary-50)] text-[var(--brand-primary-600)] dark:bg-[var(--brand-primary-900)]/20 dark:text-[var(--brand-primary-400)]"
                                     : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                             )}
@@ -253,7 +254,10 @@ export default function POSTerminal() {
                             {searchProducts.data?.map((product) => (
                                 <div key={product.id} className="h-64">
                                     <ProductCard
-                                        product={product}
+                                        product={{
+                                            ...product,
+                                            price: Number(product.price)
+                                        }}
                                         onClick={() => addToCart(product)}
                                     />
                                 </div>
@@ -355,7 +359,7 @@ export default function POSTerminal() {
                     ) : (
                         <div className="space-y-3">
                             <div className="mb-2 flex justify-end">
-                                <button 
+                                <button
                                     onClick={clearCart}
                                     className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
                                 >

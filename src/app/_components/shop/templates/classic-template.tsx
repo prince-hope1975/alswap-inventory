@@ -6,6 +6,7 @@ import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Menu } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -36,6 +37,7 @@ export function ClassicTemplate({
 }: ClassicTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
+    const { formatCurrency } = useCurrency();
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
@@ -114,8 +116,7 @@ export function ClassicTemplate({
                                             {product.name}
                                         </h3>
                                         <div className="text-2xl font-medium mb-1">
-                                            <span className="text-xs align-top top-1 relative">₦</span>
-                                            {Number(product.price).toLocaleString()}
+                                            {formatCurrency(product.price)}
                                         </div>
                                         <p className="text-xs text-gray-500 mb-3">Ships to Nigeria</p>
                                         <button

@@ -6,6 +6,7 @@ import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Filter, Sparkles } from "lucide-react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -36,6 +37,7 @@ export function BoutiqueTemplate({
 }: BoutiqueTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
+    const { formatCurrency } = useCurrency();
 
     return (
         <div className="min-h-screen bg-[#fcfbf9] dark:bg-[#121212] text-zinc-800 dark:text-zinc-200 font-serif selection:bg-[var(--brand-primary-100)] selection:text-[var(--brand-primary-900)]">
@@ -133,7 +135,7 @@ export function BoutiqueTemplate({
                                 </div>
                                 <div className="text-center">
                                     <h3 className="text-lg font-serif mb-1 group-hover:text-[var(--brand-primary-700)] transition-colors">{product.name}</h3>
-                                    <p className="text-sm text-[var(--brand-primary-600)] font-medium">₦{Number(product.price).toLocaleString()}</p>
+                                    <p className="text-sm text-[var(--brand-primary-600)] font-medium">{formatCurrency(product.price)}</p>
                                 </div>
                             </div>
                         ))}

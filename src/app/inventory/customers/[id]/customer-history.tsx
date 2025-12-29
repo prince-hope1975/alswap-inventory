@@ -3,6 +3,7 @@
 import { Receipt, Calendar, DollarSign, Download, FileDown } from "lucide-react";
 import Link from "next/link";
 import { exportToPDF, exportToExcel } from "~/lib/export-utils";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 interface CustomerHistoryProps {
     customer: {
@@ -27,6 +28,7 @@ interface CustomerHistoryProps {
 }
 
 export function CustomerHistory({ customer }: CustomerHistoryProps) {
+    const { formatCurrency } = useCurrency();
     const totalSpent = customer.orders.reduce(
         (sum, order) => sum + Number(order.totalAmount),
         0
@@ -46,7 +48,7 @@ export function CustomerHistory({ customer }: CustomerHistoryProps) {
                     <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Total Spent</p>
                         <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
-                            ${totalSpent.toFixed(2)}
+                            {formatCurrency(totalSpent)}
                         </p>
                     </div>
                     <div>
@@ -73,7 +75,7 @@ export function CustomerHistory({ customer }: CustomerHistoryProps) {
                                         "Order ID": order.id.slice(0, 8),
                                         Date: new Date(order.createdAt).toLocaleDateString(),
                                         Items: order.items.length,
-                                        Total: `$${Number(order.totalAmount).toFixed(2)}`,
+                                        Total: formatCurrency(order.totalAmount),
                                     })),
                                     ["Order ID", "Date", "Items", "Total"]
                                 );
@@ -149,7 +151,7 @@ export function CustomerHistory({ customer }: CustomerHistoryProps) {
                                     </div>
                                     <div className="ml-4 text-right">
                                         <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                                            ${Number(order.totalAmount).toFixed(2)}
+                                            {formatCurrency(order.totalAmount)}
                                         </p>
                                         <p className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                                             <Calendar className="h-3 w-3" />

@@ -13,7 +13,7 @@ export default async function ProductsPage(props: {
         api.inventory.listProducts({ search: searchParams.search }),
         api.settings.getTenantSettings(),
     ]);
-    const currency = settings.currency ?? "USD";
+    const currency = settings.currency ?? "₦";
 
     return (
         <HydrateClient>

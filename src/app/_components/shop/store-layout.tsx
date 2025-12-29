@@ -15,6 +15,7 @@ import { MinimalTemplate } from "./templates/minimal-template";
 import { BoutiqueTemplate } from "./templates/boutique-template";
 import { ShoppingCart, X } from "lucide-react";
 import { type RouterOutputs } from "~/trpc/react";
+import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -28,6 +29,7 @@ interface StoreLayoutProps {
 
 export function StoreLayout({ initialShopDetails, initialProducts, initialCategories }: StoreLayoutProps) {
     const { items, totalItems, isCartOpen, setIsCartOpen, removeItem, updateQuantity, totalAmount } = useCart();
+    const { formatCurrency } = useCurrency();
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<number | undefined>(undefined);
@@ -144,7 +146,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                                 <div className="flex flex-1 flex-col justify-between">
                                                     <div>
                                                         <h3 className="font-medium text-white line-clamp-1">{item.name}</h3>
-                                                        <p className="text-sm text-purple-400">₦{item.price.toLocaleString()}</p>
+                                                        <p className="text-sm text-purple-400">{formatCurrency(item.price)}</p>
                                                     </div>
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-3 rounded-lg bg-white/5 px-2 py-1">
@@ -180,7 +182,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                 <div className="border-t border-white/10 dark:border-gray-800 p-6 bg-[#1a1b2e] dark:bg-gray-900">
                                     <div className="mb-4 flex items-center justify-between text-lg font-bold text-white">
                                         <span>Total</span>
-                                        <span>₦{totalAmount.toLocaleString()}</span>
+                                        <span>{formatCurrency(totalAmount)}</span>
                                     </div>
                                     <button
                                         onClick={() => {

@@ -69,6 +69,7 @@ export const inventoryRouter = createTRPCRouter({
                 name: z.string().min(1),
                 description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
+                images: z.array(z.string().url()).optional(),
                 categoryId: z.number().optional(),
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
@@ -96,6 +97,7 @@ export const inventoryRouter = createTRPCRouter({
                 name: input.name,
                 description: input.description || null,
                 image: input.image || null,
+                images: input.images || null,
                 categoryId: input.categoryId,
                 barcode: input.barcode,
                 sku: input.sku,
@@ -150,6 +152,7 @@ export const inventoryRouter = createTRPCRouter({
                 name: z.string().min(1).optional(),
                 description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
+                images: z.array(z.string().url()).optional(),
                 categoryId: z.number().optional(),
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
@@ -238,6 +241,45 @@ export const inventoryRouter = createTRPCRouter({
             return { success: true, newQuantity };
         }),
 
+    bulkCreateProducts: tenantProcedure
+        .input(
+            z.object({
+                products: z.array(
+                    z.object({
+                        name: z.string().min(1),
+                        description: z.string().optional(),
+                        image: z.string().url().optional().or(z.literal("")),
+                        images: z.array(z.string().url()).optional(),
+                        categoryId: z.number().optional(),
+                        barcode: z.string().optional(),
+                        sku: z.string().optional(),
+                        price: z.number().min(0),
+                        costPrice: z.number().min(0),
+                        stockQuantity: z.number().int().default(0),
+                        lowStockThreshold: z.number().int().default(5),
+                    })
+                ),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            const productsToInsert = input.products.map((product) => ({
+                name: product.name,
+                description: product.description || null,
+                image: product.image || null,
+                images: product.images || null,
+                categoryId: product.categoryId,
+                barcode: product.barcode,
+                sku: product.sku,
+                price: product.price.toString(),
+                costPrice: product.costPrice.toString(),
+                stockQuantity: product.stockQuantity,
+                lowStockThreshold: product.lowStockThreshold,
+                tenantId: ctx.tenantId,
+            }));
+
+            return ctx.db.insert(products).values(productsToInsert).returning();
+        }),
+
     getDashboardStats: tenantProcedure.query(async ({ ctx }) => {
         const tenantId = ctx.tenantId;
         const today = new Date();
@@ -274,9 +316,9 @@ export const inventoryRouter = createTRPCRouter({
             .select({
                 amount: sql<number>`sum(${orders.totalAmount})`
             })
-                .from(orders)
-                .where(
-                    and(
+            .from(orders)
+            .where(
+                and(
                     eq(orders.tenantId, tenantId),
                     gte(orders.createdAt, today)
                 )
