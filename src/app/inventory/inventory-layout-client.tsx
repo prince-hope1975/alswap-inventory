@@ -22,6 +22,7 @@ import {
 import { cn } from "~/lib/utils";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { LowStockAlerts } from "./low-stock-alerts";
+import { api } from "~/trpc/react";
 
 interface InventoryLayoutClientProps {
     children: React.ReactNode;
@@ -43,6 +44,10 @@ export function InventoryLayoutClient({
 }: InventoryLayoutClientProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const pathname = usePathname();
+    const { data: unread } = api.notifications.unreadCount.useQuery(undefined, {
+        refetchInterval: 30_000,
+    });
+    const unreadCount = unread?.count ?? 0;
 
     const navItems = [
         { href: "/inventory", label: "Dashboard", icon: LayoutDashboard },
@@ -100,7 +105,12 @@ export function InventoryLayoutClient({
                             )}
                         >
                             <item.icon className="h-5 w-5" />
-                            {item.label}
+                            <span className="flex-1">{item.label}</span>
+                            {item.href === "/inventory/notifications" && unreadCount > 0 && (
+                                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-[var(--brand-primary-600)] px-2 py-0.5 text-[10px] font-bold text-white">
+                                    {unreadCount > 99 ? "99+" : unreadCount}
+                                </span>
+                            )}
                         </Link>
                     ))}
                 </nav>
@@ -181,7 +191,12 @@ export function InventoryLayoutClient({
                             )}
                         >
                             <item.icon className="h-5 w-5" />
-                            {item.label}
+                            <span className="flex-1">{item.label}</span>
+                            {item.href === "/inventory/notifications" && unreadCount > 0 && (
+                                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-[var(--brand-primary-600)] px-2 py-0.5 text-[10px] font-bold text-white">
+                                    {unreadCount > 99 ? "99+" : unreadCount}
+                                </span>
+                            )}
                         </Link>
                     ))}
                 </nav>
