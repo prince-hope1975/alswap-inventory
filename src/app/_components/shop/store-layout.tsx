@@ -13,7 +13,9 @@ import { ClassicTemplate } from "./templates/classic-template";
 import { MarketplaceTemplate } from "./templates/marketplace-template";
 import { MinimalTemplate } from "./templates/minimal-template";
 import { BoutiqueTemplate } from "./templates/boutique-template";
+import { ConversionTemplate } from "./templates/conversion-template";
 import { ShoppingCart, X } from "lucide-react";
+import { isSimilar } from "~/lib/fuzzy-match";
 import { type RouterOutputs } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 
@@ -47,8 +49,9 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         initialData: initialCategories
     });
     const { data: products, isLoading: isProductsLoading } = api.shop.getProducts.useQuery({
-        search,
+        // Remove search param to support client-side fuzzy search
         categoryId: selectedCategory,
+        limit: 100,
     }, {
         initialData: (search === "" && selectedCategory === undefined) ? initialProducts : undefined
     });
@@ -88,6 +91,19 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         if (!products) return [];
         
         let filtered = [...products].filter(product => product != null);
+
+        // Filter by search term (Fuzzy)
+        if (search.trim()) {
+            filtered = filtered.filter(product => {
+                if (!product.name) return false;
+                // Check if name or description matches
+                const nameMatch = isSimilar(search, product.name, 0.4) || product.name.toLowerCase().includes(search.toLowerCase());
+                // Simple check for description as fuzzy match might be too heavy for long text
+                const descMatch = product.description?.toLowerCase().includes(search.toLowerCase());
+                
+                return nameMatch || descMatch;
+            });
+        }
         
         // Filter by price range
         filtered = filtered.filter(product => {
@@ -96,9 +112,14 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
             return !isNaN(price) && price >= priceRange[0] && price <= priceRange[1];
         });
         
-        // Filter by stock availability
+        // Filter by stock availability:
+        // - 0 => out of stock
+        // - -1/null => unknown, treat as in stock
         if (inStockOnly) {
-            filtered = filtered.filter(product => product?.stockQuantity > 0);
+            filtered = filtered.filter(product => {
+                const qty = product?.stockQuantity;
+                return qty == null || qty === -1 || qty > 0;
+            });
         }
         
         // Sort products
@@ -155,7 +176,8 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
             {config.template === "marketplace" && <MarketplaceTemplate {...commonProps} />}
             {config.template === "minimal" && <MinimalTemplate {...commonProps} />}
             {config.template === "boutique" && <BoutiqueTemplate {...commonProps} />}
-            {!["modern", "classic", "marketplace", "minimal", "boutique"].includes(config.template) && <ModernTemplate {...commonProps} />}
+            {config.template === "conversion" && <ConversionTemplate {...commonProps} />}
+            {!["modern", "classic", "marketplace", "minimal", "boutique", "conversion"].includes(config.template) && <ModernTemplate {...commonProps} />}
 
             {/* Global Cart Drawer */}
             {isCartOpen && (

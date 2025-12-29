@@ -118,7 +118,10 @@ export function MarketplaceTemplate({
                             <div className="relative z-10 p-12 h-full flex flex-col justify-center text-white">
                                 <h2 className="text-4xl font-bold mb-4">{config.heroTitle || "Official Store"}</h2>
                                 <p className="text-lg mb-6 max-w-lg">{config.heroDescription || "Get the best deals on electronics, fashion, and more. Fast delivery nationwide."}</p>
-                                <button className="bg-[var(--brand-primary-500)] hover:bg-[var(--brand-primary-600)] text-white px-8 py-3 rounded shadow-lg w-fit font-bold">
+                                <button 
+                                    onClick={() => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="bg-[var(--brand-primary-500)] hover:bg-[var(--brand-primary-600)] text-white px-8 py-3 rounded shadow-lg w-fit font-bold"
+                                >
                                     Shop Now
                                 </button>
                             </div>
@@ -145,10 +148,18 @@ export function MarketplaceTemplate({
                 )}
 
                 {/* Main Product Section */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                <div id="marketplace-products" className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-4 border-b pb-2 dark:border-gray-700">
                         <h3 className="text-xl font-bold text-[var(--brand-primary-600)]">Top Picks For You</h3>
-                        <button className="text-sm text-[var(--brand-primary-600)] font-medium hover:underline">See All</button>
+                        <button 
+                            onClick={() => {
+                                setSelectedCategory(undefined);
+                                onClearFilters();
+                            }}
+                            className="text-sm text-[var(--brand-primary-600)] font-medium hover:underline"
+                        >
+                            See All
+                        </button>
                     </div>
 
                     {isLoading ? (
@@ -164,7 +175,7 @@ export function MarketplaceTemplate({
                                     <div className="relative aspect-square mb-2 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         {product.image && <img src={product.image} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />}
-                                        <StockBadge stockQuantity={product.stockQuantity ?? 0} className="absolute top-2 left-2" />
+                                        <StockBadge stockQuantity={product.stockQuantity} className="absolute top-2 left-2" />
                                     </div>
                                     <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>
                                     <div className="font-bold text-sm sm:text-base">
@@ -195,19 +206,12 @@ export function MarketplaceTemplate({
                 </div>
             </main>
 
-            <ProductDetailModal
-                product={selectedProduct}
-                isOpen={!!selectedProduct}
-                onClose={() => setSelectedProduct(null)}
-                onAddToCart={(product) => {
-                    addItem({
-                        productId: product.id,
-                        name: product.name,
-                        price: Number(product.price),
-                        image: product.image
-                    });
-                }}
-            />
+            {selectedProduct && (
+                <ProductDetailModal
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                />
+            )}
         </div>
     );
 }

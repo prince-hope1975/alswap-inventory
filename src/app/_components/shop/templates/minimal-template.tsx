@@ -148,7 +148,7 @@ export function MinimalTemplate({
                                         <div className="flex h-full items-center justify-center text-zinc-300">No Image</div>
                                     )}
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors absolute-cover" />
-                                    <StockBadge stockQuantity={product.stockQuantity ?? 0} className="absolute top-4 left-4" />
+                                    <StockBadge stockQuantity={product.stockQuantity} className="absolute top-4 left-4" />
 
                                     {/* Minimal Quick Add */}
                                     <button
@@ -184,19 +184,12 @@ export function MinimalTemplate({
                 )}
             </main>
 
-            <ProductDetailModal
-                product={selectedProduct}
-                isOpen={!!selectedProduct}
-                onClose={() => setSelectedProduct(null)}
-                onAddToCart={(product) => {
-                    addItem({
-                        productId: product.id,
-                        name: product.name,
-                        price: Number(product.price),
-                        image: product.image
-                    });
-                }}
-            />
+            {selectedProduct && (
+                <ProductDetailModal
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                />
+            )}
         </div>
     );
 }

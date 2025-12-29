@@ -45,7 +45,7 @@ export const settingsRouter = createTRPCRouter({
                 receiptTemplate: z.string().max(50).optional(),
                 receiptFooter: z.string().optional(),
                 storeConfig: z.object({
-                    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique"]),
+                    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion"]),
                     themeMode: z.enum(["system", "light", "dark"]),
                     showHero: z.boolean(),
                     showArticles: z.boolean(),
@@ -69,7 +69,7 @@ export const settingsRouter = createTRPCRouter({
                 receiptTemplate?: string | null;
                 receiptFooter?: string | null;
                 storeConfig?: {
-                    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique";
+                    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion";
                     themeMode: "system" | "light" | "dark";
                     showHero: boolean;
                     showArticles: boolean;

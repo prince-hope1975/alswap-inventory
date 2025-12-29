@@ -174,7 +174,8 @@ export function BulkImport({ categories }: BulkImportProps) {
 
     const handleImport = async () => {
         try {
-            const toCreate = parsedProducts.filter(p => p.action === "create" && p.duplicateStatus !== "duplicate_csv");
+            // Respect user choice even for CSV duplicates (they may intentionally want duplicates)
+            const toCreate = parsedProducts.filter(p => p.action === "create");
             const toMerge = parsedProducts.filter(p => p.action === "merge" && p.duplicateId);
             const toSkip = parsedProducts.filter(p => p.action === "skip");
 
@@ -367,7 +368,6 @@ export function BulkImport({ categories }: BulkImportProps) {
                                             value={product.action || "create"}
                                             onChange={(e) => updateProduct(index, "action", e.target.value as "create" | "merge" | "skip")}
                                             className="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                            disabled={product.duplicateStatus === "duplicate_csv"}
                                         >
                                             <option value="create">Create New</option>
                                             {product.duplicateStatus === "duplicate_db" && (

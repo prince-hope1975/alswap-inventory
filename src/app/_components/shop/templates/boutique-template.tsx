@@ -83,7 +83,10 @@ export function BoutiqueTemplate({
                         <p className="relative z-10 text-lg opacity-80 font-sans max-w-sm leading-relaxed mb-8">
                             {config.heroDescription || "Discover pieces that speak a language of their own. Handpicked for the discerning taste."}
                         </p>
-                        <button className="relative z-10 w-fit border border-white/30 hover:bg-white hover:text-[var(--brand-primary-900)] px-8 py-3 transition-all duration-500 font-sans text-sm tracking-widest uppercase">
+                        <button 
+                            onClick={() => document.getElementById('boutique-products')?.scrollIntoView({ behavior: 'smooth' })}
+                            className="relative z-10 w-fit border border-white/30 hover:bg-white hover:text-[var(--brand-primary-900)] px-8 py-3 transition-all duration-500 font-sans text-sm tracking-widest uppercase"
+                        >
                             Shop The Look
                         </button>
                     </div>
@@ -136,7 +139,7 @@ export function BoutiqueTemplate({
                 {isLoading ? (
                     <ProductSkeletonGrid count={8} columns={4} />
                 ) : (
-                    <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-8 space-y-8 font-sans">
+                    <div id="boutique-products" className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-8 space-y-8 font-sans">
                         {products?.map((product) => (
                             <div 
                                 key={product.id} 
@@ -152,7 +155,7 @@ export function BoutiqueTemplate({
                                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         />
                                     )}
-                                    <StockBadge stockQuantity={product.stockQuantity ?? 0} className="absolute top-4 left-4" />
+                                    <StockBadge stockQuantity={product.stockQuantity} className="absolute top-4 left-4" />
                                     {/* Overlay */}
                                     <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/60 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex justify-center">
                                         <button
@@ -182,19 +185,12 @@ export function BoutiqueTemplate({
                 )}
             </main>
 
-            <ProductDetailModal
-                product={selectedProduct}
-                isOpen={!!selectedProduct}
-                onClose={() => setSelectedProduct(null)}
-                onAddToCart={(product) => {
-                    addItem({
-                        productId: product.id,
-                        name: product.name,
-                        price: Number(product.price),
-                        image: product.image
-                    });
-                }}
-            />
+            {selectedProduct && (
+                <ProductDetailModal
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                />
+            )}
         </div>
     );
 }

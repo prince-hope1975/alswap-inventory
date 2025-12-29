@@ -12,7 +12,7 @@ import type { StoreConfig } from "~/types/store-config";
 
 // Schema matching the one in settings router
 const storeSettingsSchema = z.object({
-    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique"]),
+    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion"]),
     themeMode: z.enum(["system", "light", "dark"]),
     showHero: z.boolean(),
     showArticles: z.boolean(),
@@ -162,6 +162,12 @@ export default function StoreSettingsPage() {
                                         name: "Boutique",
                                         desc: "Elegant, serif-focused masonry grid. Best for fashion and curated items.",
                                         color: "bg-[#fcfbf9] border border-stone-200 !text-stone-800"
+                                    },
+                                    {
+                                        id: "conversion",
+                                        name: "Conversion",
+                                        desc: "Sales-optimized layout with urgency elements, trust signals, and prominent CTAs. Best for promotions.",
+                                        color: "bg-gradient-to-br from-orange-500 to-red-600"
                                     },
                                 ].map((template) => (
                                     <label

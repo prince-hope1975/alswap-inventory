@@ -11,7 +11,7 @@ interface Product {
   price: string;
   image?: string | null;
   description?: string | null;
-  stockQuantity: number;
+  stockQuantity: number | null;
   sku?: string | null;
   barcode?: string | null;
   category?: { name: string } | null;
@@ -33,8 +33,9 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
   }
   
   const price = parseFloat(product.price || "0");
-  const isOutOfStock = product.stockQuantity === 0;
-  const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= 10;
+  const qty = product.stockQuantity ?? -1;
+  const isOutOfStock = qty === 0;
+  const isLowStock = qty > 0 && qty <= 10;
   
   const handleAddToCart = () => {
     if (isOutOfStock) return;
@@ -51,7 +52,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
   };
   
   const incrementQuantity = () => {
-    if (quantity < product.stockQuantity) {
+    if (qty === -1 || quantity < qty) {
       setQuantity(prev => prev + 1);
     }
   };
@@ -189,7 +190,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Availability:</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    {product.stockQuantity} units
+                    {qty === -1 ? 'In Stock' : `${qty} units`}
                   </span>
                 </div>
               </div>
@@ -214,7 +215,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                       </span>
                       <button
                         onClick={incrementQuantity}
-                        disabled={quantity >= product.stockQuantity}
+                        disabled={qty !== -1 && quantity >= qty}
                         className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Plus className="h-4 w-4" />
