@@ -5,10 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { CheckCircle, RefreshCw, LayoutTemplate, Palette, Globe, ShieldCheck, ExternalLink, Moon, Sun, Monitor } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle, RefreshCw, LayoutTemplate, Palette, Globe, ShieldCheck, ExternalLink, Moon, Sun, Monitor, MapPin, CreditCard, Truck } from "lucide-react";
 import Link from "next/link";
 import type { StoreConfig } from "~/types/store-config";
+import { LocationPicker } from "~/app/_components/maps/location-picker";
 
 // Schema matching the one in settings router
 const storeSettingsSchema = z.object({
@@ -19,6 +20,12 @@ const storeSettingsSchema = z.object({
     primaryColor: z.string().optional(),
     heroTitle: z.string().optional(),
     heroDescription: z.string().optional(),
+    deliveryFee: z.coerce.number().min(0).optional(),
+    pickupLocationName: z.string().max(255).optional(),
+    pickupAddress: z.string().optional(),
+    pickupLat: z.coerce.number().min(-90).max(90).optional(),
+    pickupLng: z.coerce.number().min(-180).max(180).optional(),
+    paystackPublicKey: z.string().optional(),
 });
 
 type StoreSettingsFormValues = z.infer<typeof storeSettingsSchema>;
@@ -26,6 +33,7 @@ type StoreSettingsFormValues = z.infer<typeof storeSettingsSchema>;
 export default function StoreSettingsPage() {
     const router = useRouter();
     const [isSaved, setIsSaved] = useState(false);
+    const [paystackSecretKey, setPaystackSecretKey] = useState("");
 
     const { data: settings, isLoading } = api.settings.getTenantSettings.useQuery();
     const utils = api.useUtils();
@@ -69,20 +77,53 @@ export default function StoreSettingsPage() {
                     primaryColor: config.primaryColor || "",
                     heroTitle: config.heroTitle || "",
                     heroDescription: config.heroDescription || "",
+                    deliveryFee: config.deliveryFee ?? 0,
+                    pickupLocationName: settings.location ?? "",
+                    pickupAddress: settings.address ?? "",
+                    pickupLat: settings.latitude ? Number(settings.latitude) : undefined,
+                    pickupLng: settings.longitude ? Number(settings.longitude) : undefined,
+                    paystackPublicKey: settings.paystackPublicKey ?? "",
                 });
             }
         }
     }, [settings, reset]);
 
     const onSubmit = (data: StoreSettingsFormValues) => {
+        const {
+            pickupLocationName,
+            pickupAddress,
+            pickupLat,
+            pickupLng,
+            paystackPublicKey,
+            deliveryFee,
+            ...storeConfigFields
+        } = data;
+
         updateSettings.mutate({
             name: settings?.name || "", // Name is required by mutation but strictly read-only here
-            storeConfig: data,
+            location: pickupLocationName || undefined,
+            address: pickupAddress || undefined,
+            latitude: pickupLat == null ? undefined : pickupLat,
+            longitude: pickupLng == null ? undefined : pickupLng,
+            paystackPublicKey: paystackPublicKey || undefined,
+            paystackSecretKey: paystackSecretKey.trim() ? paystackSecretKey.trim() : undefined,
+            storeConfig: {
+                ...storeConfigFields,
+                deliveryFee,
+            },
         });
     };
 
     const currentTemplate = watch("template");
     const currentTheme = watch("themeMode");
+    const pickupLat = watch("pickupLat");
+    const pickupLng = watch("pickupLng");
+    const pickupAddress = watch("pickupAddress");
+
+    const mapValue = useMemo(() => {
+        if (pickupLat == null || pickupLng == null || Number.isNaN(Number(pickupLat)) || Number.isNaN(Number(pickupLng))) return null;
+        return { lat: Number(pickupLat), lng: Number(pickupLng), address: pickupAddress || undefined };
+    }, [pickupAddress, pickupLat, pickupLng]);
 
     if (isLoading) {
         return (
@@ -115,6 +156,132 @@ export default function StoreSettingsPage() {
 
             <div className="max-w-5xl">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+
+                    {/* Pickup Location */}
+                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="p-6 md:p-8 border-b border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    <MapPin className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pickup Location</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Set where customers should pick up reserved orders.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 md:p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Location name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        {...register("pickupLocationName")}
+                                        placeholder="e.g., Main Branch, Ikeja"
+                                        className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Pickup address (auto-filled)
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        {...register("pickupAddress")}
+                                        placeholder="Will auto-fill when you pick a point"
+                                        className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <LocationPicker
+                                value={mapValue}
+                                onChange={(next) => {
+                                    setValue("pickupLat", next.lat, { shouldDirty: true });
+                                    setValue("pickupLng", next.lng, { shouldDirty: true });
+                                    if (next.address) setValue("pickupAddress", next.address, { shouldDirty: true });
+                                }}
+                            />
+
+                            {/* hidden coords to keep RHF aware */}
+                            <input type="hidden" {...register("pickupLat")} />
+                            <input type="hidden" {...register("pickupLng")} />
+                        </div>
+                    </div>
+
+                    {/* Checkout & Payments */}
+                    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="p-6 md:p-8 border-b border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                                    <CreditCard className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Checkout & Payments</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Delivery fee and Paystack configuration (per store).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 md:p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Delivery fee
+                                    </label>
+                                    <div className="relative">
+                                        <Truck className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            min="0"
+                                            {...register("deliveryFee")}
+                                            className="block w-full rounded-lg border border-gray-300 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                            placeholder="e.g., 1500"
+                                        />
+                                    </div>
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Added to the order total when customers choose delivery.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Paystack public key
+                                    </label>
+                                    <input
+                                        type="text"
+                                        {...register("paystackPublicKey")}
+                                        placeholder="pk_live_..."
+                                        className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Paystack secret key (stored encrypted)
+                                </label>
+                                <input
+                                    type="password"
+                                    value={paystackSecretKey}
+                                    onChange={(e) => setPaystackSecretKey(e.target.value)}
+                                    placeholder={settings?.hasPaystackSecretKey ? "•••••••••••• (already set)" : "sk_live_..."}
+                                    className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                                />
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Leave blank to keep existing. To clear, remove and save (we’ll add a dedicated “Clear key” later if you want).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Templates Section */}
                     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">

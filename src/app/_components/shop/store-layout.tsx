@@ -15,7 +15,6 @@ import { MinimalTemplate } from "./templates/minimal-template";
 import { BoutiqueTemplate } from "./templates/boutique-template";
 import { ConversionTemplate } from "./templates/conversion-template";
 import { ShoppingCart, X } from "lucide-react";
-import { isSimilar } from "~/lib/fuzzy-match";
 import { type RouterOutputs } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 
@@ -27,6 +26,23 @@ interface StoreLayoutProps {
     initialShopDetails?: ShopDetails;
     initialProducts?: Products;
     initialCategories?: Categories;
+}
+
+// Debounce hook for search
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+
+    return debouncedValue;
 }
 
 export function StoreLayout({ initialShopDetails, initialProducts, initialCategories }: StoreLayoutProps) {
@@ -41,6 +57,9 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
     const [inStockOnly, setInStockOnly] = useState(false);
 
+    // Debounce search for server-side query (300ms delay)
+    const debouncedSearch = useDebounce(search, 300);
+
     // Fetch data with initial data from server
     const { data: shopDetails, isLoading: isShopLoading } = api.shop.getShopDetails.useQuery(undefined, {
         initialData: initialShopDetails
@@ -48,12 +67,16 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     const { data: categories } = api.shop.getCategories.useQuery(undefined, {
         initialData: initialCategories
     });
+    
+    // Server-side search and category filter
     const { data: products, isLoading: isProductsLoading } = api.shop.getProducts.useQuery({
-        // Remove search param to support client-side fuzzy search
+        search: debouncedSearch || undefined,
         categoryId: selectedCategory,
         limit: 100,
     }, {
-        initialData: (search === "" && selectedCategory === undefined) ? initialProducts : undefined
+        initialData: (debouncedSearch === "" && selectedCategory === undefined) ? initialProducts : undefined,
+        // Keep previous data while loading new results
+        placeholderData: (prev: Products | undefined) => prev,
     });
 
     const tenant = shopDetails?.tenant;
@@ -86,33 +109,21 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         }
     }, [config.themeMode]);
 
-    // Client-side filtering and sorting
+    // Client-side filtering (price range, stock) and sorting
+    // Search is now handled server-side with fuzzy matching
     const filteredAndSortedProducts = useMemo(() => {
         if (!products) return [];
         
         let filtered = [...products].filter(product => product != null);
-
-        // Filter by search term (Fuzzy)
-        if (search.trim()) {
-            filtered = filtered.filter(product => {
-                if (!product.name) return false;
-                // Check if name or description matches
-                const nameMatch = isSimilar(search, product.name, 0.4) || product.name.toLowerCase().includes(search.toLowerCase());
-                // Simple check for description as fuzzy match might be too heavy for long text
-                const descMatch = product.description?.toLowerCase().includes(search.toLowerCase());
-                
-                return nameMatch || descMatch;
-            });
-        }
         
-        // Filter by price range
+        // Filter by price range (client-side)
         filtered = filtered.filter(product => {
             if (!product?.price) return false;
             const price = parseFloat(product.price);
             return !isNaN(price) && price >= priceRange[0] && price <= priceRange[1];
         });
         
-        // Filter by stock availability:
+        // Filter by stock availability (client-side):
         // - 0 => out of stock
         // - -1/null => unknown, treat as in stock
         if (inStockOnly) {
@@ -122,7 +133,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
             });
         }
         
-        // Sort products
+        // Sort products (client-side)
         filtered.sort((a, b) => {
             switch (sortBy) {
                 case "name-asc":
@@ -214,7 +225,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                     <div className="space-y-6">
                                         {items.map((item) => (
                                             <div key={item.productId} className="flex gap-4">
-                                                <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-white/5 relative">
+                                                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-white/5 relative">
                                                     {item.image ? (
                                                         // eslint-disable-next-line @next/next/no-img-element
                                                         <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
@@ -268,7 +279,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                             setIsCartOpen(false);
                                             setIsCheckoutOpen(true);
                                         }}
-                                        className="w-full rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 py-4 font-bold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02]"
+                                        className="w-full rounded-xl bg-linear-to-r from-purple-600 to-blue-600 py-4 font-bold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02]"
                                     >
                                         Proceed to Checkout
                                     </button>

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
-import { products, categories, orders, orderItems } from "~/server/db/schema";
-import { eq, and, desc, or, ilike, lte, sql, gte } from "drizzle-orm";
+import { products, categories, orders, orderItems, productCategories } from "~/server/db/schema";
+import { eq, and, desc, or, ilike, lte, sql, gte, inArray } from "drizzle-orm";
 
 export const inventoryRouter = createTRPCRouter({
     // --- Categories ---
@@ -70,7 +70,8 @@ export const inventoryRouter = createTRPCRouter({
                 description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
                 images: z.array(z.string().url()).optional(),
-                categoryId: z.number().optional(),
+                categoryId: z.number().optional(), // Primary category (backward compat)
+                categoryIds: z.array(z.number()).optional(), // Multiple categories
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
                 price: z.number().min(0),
@@ -97,20 +98,49 @@ export const inventoryRouter = createTRPCRouter({
             ),
         )
         .mutation(async ({ ctx, input }) => {
-            return ctx.db.insert(products).values({
+            // Insert product
+            const [newProduct] = await ctx.db.insert(products).values({
                 name: input.name,
                 description: input.description || null,
                 image: input.image || null,
                 images: input.images || null,
-                categoryId: input.categoryId,
+                categoryId: input.categoryId, // Keep for backward compatibility
                 barcode: input.barcode,
                 sku: input.sku,
-                price: input.price.toString(), // Decimal handling
+                price: input.price.toString(),
                 costPrice: input.costPrice.toString(),
                 stockQuantity: input.stockQuantity,
                 lowStockThreshold: input.lowStockThreshold,
                 tenantId: ctx.tenantId,
-            });
+            }).returning();
+
+            if (!newProduct) {
+                throw new Error("Failed to create product");
+            }
+
+            // Insert category associations (many-to-many)
+            const categoryIdsToInsert = new Set<number>();
+            
+            // Add primary category if provided
+            if (input.categoryId) {
+                categoryIdsToInsert.add(input.categoryId);
+            }
+            
+            // Add additional categories
+            if (input.categoryIds && input.categoryIds.length > 0) {
+                input.categoryIds.forEach(id => categoryIdsToInsert.add(id));
+            }
+
+            if (categoryIdsToInsert.size > 0) {
+                await ctx.db.insert(productCategories).values(
+                    Array.from(categoryIdsToInsert).map(categoryId => ({
+                        productId: newProduct.id,
+                        categoryId,
+                    }))
+                );
+            }
+
+            return newProduct;
         }),
 
     listProducts: tenantProcedure
@@ -133,6 +163,11 @@ export const inventoryRouter = createTRPCRouter({
                 where: and(...whereConditions),
                 with: {
                     category: true,
+                    productCategories: {
+                        with: {
+                            category: true,
+                        },
+                    },
                 },
                 orderBy: desc(products.createdAt),
             });
@@ -145,6 +180,11 @@ export const inventoryRouter = createTRPCRouter({
                 where: and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)),
                 with: {
                     category: true,
+                    productCategories: {
+                        with: {
+                            category: true,
+                        },
+                    },
                 },
             });
         }),
@@ -157,7 +197,8 @@ export const inventoryRouter = createTRPCRouter({
                 description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
                 images: z.array(z.string().url()).optional(),
-                categoryId: z.number().optional(),
+                categoryId: z.number().optional(), // Primary category (backward compat)
+                categoryIds: z.array(z.number()).optional(), // Multiple categories - replaces existing
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
                 price: z.number().min(0).optional(),
@@ -188,21 +229,73 @@ export const inventoryRouter = createTRPCRouter({
             ),
         )
         .mutation(async ({ ctx, input }) => {
-            const updateData: any = { ...input };
-            delete updateData.id;
+            const updateData: Record<string, unknown> = {};
+            
+            if (input.name !== undefined) updateData.name = input.name;
+            if (input.description !== undefined) updateData.description = input.description || null;
+            if (input.image !== undefined) updateData.image = input.image || null;
+            if (input.images !== undefined) updateData.images = input.images;
+            if (input.categoryId !== undefined) updateData.categoryId = input.categoryId;
+            if (input.barcode !== undefined) updateData.barcode = input.barcode;
+            if (input.sku !== undefined) updateData.sku = input.sku;
             if (input.price !== undefined) updateData.price = input.price.toString();
             if (input.costPrice !== undefined) updateData.costPrice = input.costPrice.toString();
-            if (input.description !== undefined) updateData.description = input.description || null;
+            if (input.stockQuantity !== undefined) updateData.stockQuantity = input.stockQuantity;
+            if (input.lowStockThreshold !== undefined) updateData.lowStockThreshold = input.lowStockThreshold;
 
-            return ctx.db
-                .update(products)
-                .set(updateData)
-                .where(and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)));
+            // Update product
+            if (Object.keys(updateData).length > 0) {
+                await ctx.db
+                    .update(products)
+                    .set(updateData)
+                    .where(and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)));
+            }
+
+            // Update category associations if categoryIds provided
+            if (input.categoryIds !== undefined) {
+                // Delete existing associations
+                await ctx.db
+                    .delete(productCategories)
+                    .where(eq(productCategories.productId, input.id));
+
+                // Insert new associations
+                const categoryIdsToInsert = new Set<number>();
+                
+                // Add primary category if provided
+                if (input.categoryId !== undefined) {
+                    categoryIdsToInsert.add(input.categoryId);
+                }
+                
+                // Add additional categories
+                input.categoryIds.forEach(id => categoryIdsToInsert.add(id));
+
+                if (categoryIdsToInsert.size > 0) {
+                    await ctx.db.insert(productCategories).values(
+                        Array.from(categoryIdsToInsert).map(categoryId => ({
+                            productId: input.id,
+                            categoryId,
+                        }))
+                    );
+                }
+            }
+
+            return ctx.db.query.products.findFirst({
+                where: eq(products.id, input.id),
+                with: {
+                    category: true,
+                    productCategories: {
+                        with: {
+                            category: true,
+                        },
+                    },
+                },
+            });
         }),
 
     deleteProduct: tenantProcedure
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            // Product categories will be deleted automatically due to CASCADE
             return ctx.db
                 .delete(products)
                 .where(and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)));
@@ -217,6 +310,11 @@ export const inventoryRouter = createTRPCRouter({
             ),
             with: {
                 category: true,
+                productCategories: {
+                    with: {
+                        category: true,
+                    },
+                },
             },
             limit: 20,
             orderBy: desc(products.createdAt),
@@ -260,6 +358,7 @@ export const inventoryRouter = createTRPCRouter({
                         image: z.string().url().optional().or(z.literal("")),
                         images: z.array(z.string().url()).optional(),
                         categoryId: z.number().optional(),
+                        categoryIds: z.array(z.number()).optional(),
                         barcode: z.string().optional(),
                         sku: z.string().optional(),
                         price: z.number().min(0),
@@ -286,7 +385,123 @@ export const inventoryRouter = createTRPCRouter({
                 tenantId: ctx.tenantId,
             }));
 
-            return ctx.db.insert(products).values(productsToInsert).returning();
+            const insertedProducts = await ctx.db.insert(products).values(productsToInsert).returning();
+
+            // Insert category associations for each product
+            const categoryAssociations: { productId: string; categoryId: number }[] = [];
+            
+            insertedProducts.forEach((product, index) => {
+                const inputProduct = input.products[index];
+                if (!inputProduct) return;
+                
+                const categoryIdsToInsert = new Set<number>();
+                
+                if (inputProduct.categoryId) {
+                    categoryIdsToInsert.add(inputProduct.categoryId);
+                }
+                
+                if (inputProduct.categoryIds) {
+                    inputProduct.categoryIds.forEach(id => categoryIdsToInsert.add(id));
+                }
+                
+                categoryIdsToInsert.forEach(categoryId => {
+                    categoryAssociations.push({
+                        productId: product.id,
+                        categoryId,
+                    });
+                });
+            });
+
+            if (categoryAssociations.length > 0) {
+                await ctx.db.insert(productCategories).values(categoryAssociations);
+            }
+
+            return insertedProducts;
+        }),
+
+    // --- Product Categories Management ---
+
+    addProductCategories: tenantProcedure
+        .input(z.object({
+            productId: z.string(),
+            categoryIds: z.array(z.number()),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // Verify product belongs to tenant
+            const product = await ctx.db.query.products.findFirst({
+                where: and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenantId)),
+            });
+            
+            if (!product) {
+                throw new Error("Product not found");
+            }
+
+            // Insert new associations (ignore duplicates)
+            const values = input.categoryIds.map(categoryId => ({
+                productId: input.productId,
+                categoryId,
+            }));
+
+            await ctx.db.insert(productCategories)
+                .values(values)
+                .onConflictDoNothing();
+
+            return { success: true };
+        }),
+
+    removeProductCategory: tenantProcedure
+        .input(z.object({
+            productId: z.string(),
+            categoryId: z.number(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // Verify product belongs to tenant
+            const product = await ctx.db.query.products.findFirst({
+                where: and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenantId)),
+            });
+            
+            if (!product) {
+                throw new Error("Product not found");
+            }
+
+            await ctx.db
+                .delete(productCategories)
+                .where(and(
+                    eq(productCategories.productId, input.productId),
+                    eq(productCategories.categoryId, input.categoryId)
+                ));
+
+            return { success: true };
+        }),
+
+    getProductsByCategory: tenantProcedure
+        .input(z.object({ categoryId: z.number() }))
+        .query(async ({ ctx, input }) => {
+            // Get product IDs in this category
+            const productIdsInCategory = await ctx.db
+                .selectDistinct({ productId: productCategories.productId })
+                .from(productCategories)
+                .where(eq(productCategories.categoryId, input.categoryId));
+
+            const pIds = productIdsInCategory.map(p => p.productId);
+            
+            if (pIds.length === 0) return [];
+
+            return ctx.db.query.products.findMany({
+                where: and(
+                    eq(products.tenantId, ctx.tenantId),
+                    inArray(products.id, pIds)
+                ),
+                with: {
+                    category: true,
+                    productCategories: {
+                        with: {
+                            category: true,
+                        },
+                    },
+                },
+                orderBy: desc(products.createdAt),
+            });
         }),
 
     getDashboardStats: tenantProcedure.query(async ({ ctx }) => {
@@ -515,6 +730,7 @@ export const inventoryRouter = createTRPCRouter({
                     image: z.string().url().optional().or(z.literal("")),
                     images: z.array(z.string().url()).optional(),
                     categoryId: z.number().optional(),
+                    categoryIds: z.array(z.number()).optional(),
                     sku: z.string().optional(),
                     barcode: z.string().optional(),
                 }),
@@ -533,7 +749,7 @@ export const inventoryRouter = createTRPCRouter({
                 throw new Error("Product not found");
             }
 
-            const updateData: any = {};
+            const updateData: Record<string, unknown> = {};
 
             if (input.mergeStrategy === "add_stock") {
                 // Add to existing stock
@@ -570,15 +786,48 @@ export const inventoryRouter = createTRPCRouter({
                 }
             }
 
-            await ctx.db
-                .update(products)
-                .set(updateData)
-                .where(eq(products.id, input.existingId));
+            if (Object.keys(updateData).length > 0) {
+                await ctx.db
+                    .update(products)
+                    .set(updateData)
+                    .where(eq(products.id, input.existingId));
+            }
+
+            // Handle category updates for replace_all strategy
+            if (input.mergeStrategy === "replace_all" && input.newData.categoryIds !== undefined) {
+                // Delete existing associations
+                await ctx.db
+                    .delete(productCategories)
+                    .where(eq(productCategories.productId, input.existingId));
+
+                // Insert new associations
+                const categoryIdsToInsert = new Set<number>();
+                
+                if (input.newData.categoryId !== undefined) {
+                    categoryIdsToInsert.add(input.newData.categoryId);
+                }
+                
+                input.newData.categoryIds.forEach(id => categoryIdsToInsert.add(id));
+
+                if (categoryIdsToInsert.size > 0) {
+                    await ctx.db.insert(productCategories).values(
+                        Array.from(categoryIdsToInsert).map(categoryId => ({
+                            productId: input.existingId,
+                            categoryId,
+                        }))
+                    );
+                }
+            }
 
             return ctx.db.query.products.findFirst({
                 where: eq(products.id, input.existingId),
                 with: {
                     category: true,
+                    productCategories: {
+                        with: {
+                            category: true,
+                        },
+                    },
                 },
             });
         }),

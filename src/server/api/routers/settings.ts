@@ -3,6 +3,7 @@ import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
 import { tenants } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { generateColorVariants } from "~/lib/color-utils";
+import { encryptString } from "~/server/utils/encryption";
 
 export const settingsRouter = createTRPCRouter({
     getTenantSettings: tenantProcedure.query(async ({ ctx }) => {
@@ -21,8 +22,12 @@ export const settingsRouter = createTRPCRouter({
         const lightVariants = generateColorVariants(primaryLight);
         const darkVariants = generateColorVariants(primaryDark);
 
+        // Never return encrypted secrets to the client.
+        const { paystackSecretKey: _paystackSecretKey, ...tenantSafe } = tenant;
+
         return {
-            ...tenant,
+            ...tenantSafe,
+            hasPaystackSecretKey: !!tenant.paystackSecretKey,
             colorVariants: {
                 light: lightVariants,
                 dark: darkVariants,
@@ -41,9 +46,15 @@ export const settingsRouter = createTRPCRouter({
                 currency: z.string().max(10).optional(),
                 location: z.string().max(255).optional(),
                 address: z.string().optional(),
+                latitude: z.number().min(-90).max(90).nullable().optional(),
+                longitude: z.number().min(-180).max(180).nullable().optional(),
                 phone: z.string().max(50).optional(),
                 receiptTemplate: z.string().max(50).optional(),
                 receiptFooter: z.string().optional(),
+                paystackPublicKey: z.string().optional(),
+                // If provided and non-empty, will be encrypted before storing.
+                // Send undefined/omit to keep existing value.
+                paystackSecretKey: z.string().optional(),
                 storeConfig: z.object({
                     template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion"]),
                     themeMode: z.enum(["system", "light", "dark"]),
@@ -52,6 +63,7 @@ export const settingsRouter = createTRPCRouter({
                     primaryColor: z.string().optional(),
                     heroTitle: z.string().optional(),
                     heroDescription: z.string().optional(),
+                    deliveryFee: z.number().min(0).optional(),
                 }).nullable().optional(),
             }),
         )
@@ -65,9 +77,13 @@ export const settingsRouter = createTRPCRouter({
                 currency?: string | null;
                 location?: string | null;
                 address?: string | null;
+                latitude?: string | null;
+                longitude?: string | null;
                 phone?: string | null;
                 receiptTemplate?: string | null;
                 receiptFooter?: string | null;
+                paystackPublicKey?: string | null;
+                paystackSecretKey?: string | null;
                 storeConfig?: {
                     template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion";
                     themeMode: "system" | "light" | "dark";
@@ -76,6 +92,7 @@ export const settingsRouter = createTRPCRouter({
                     primaryColor?: string;
                     heroTitle?: string;
                     heroDescription?: string;
+                    deliveryFee?: number;
                 } | null;
             } = {
                 name: input.name,
@@ -88,9 +105,18 @@ export const settingsRouter = createTRPCRouter({
             if (input.currency !== undefined) updateData.currency = input.currency || null;
             if (input.location !== undefined) updateData.location = input.location || null;
             if (input.address !== undefined) updateData.address = input.address || null;
+            if (input.latitude !== undefined) updateData.latitude = input.latitude == null ? null : input.latitude.toString();
+            if (input.longitude !== undefined) updateData.longitude = input.longitude == null ? null : input.longitude.toString();
             if (input.phone !== undefined) updateData.phone = input.phone || null;
             if (input.receiptTemplate !== undefined) updateData.receiptTemplate = input.receiptTemplate || null;
             if (input.receiptFooter !== undefined) updateData.receiptFooter = input.receiptFooter || null;
+            if (input.paystackPublicKey !== undefined) updateData.paystackPublicKey = input.paystackPublicKey || null;
+            if (input.paystackSecretKey !== undefined) {
+                updateData.paystackSecretKey =
+                    input.paystackSecretKey === ""
+                        ? null
+                        : encryptString(input.paystackSecretKey);
+            }
             if (input.storeConfig !== undefined) updateData.storeConfig = input.storeConfig;
 
             await ctx.db

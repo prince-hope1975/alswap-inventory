@@ -36,6 +36,20 @@
       "when": 1765134742852,
       "tag": "0004_dark_warbound",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1767007812139,
+      "tag": "0005_good_carnage",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1767014054657,
+      "tag": "0006_misty_paper_doll",
+      "breakpoints": true
     }
   ]
 }

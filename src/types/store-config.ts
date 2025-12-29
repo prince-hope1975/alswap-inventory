@@ -6,4 +6,6 @@ export type StoreConfig = {
     primaryColor?: string;
     heroTitle?: string;
     heroDescription?: string;
+    // Optional checkout settings
+    deliveryFee?: number;
 };

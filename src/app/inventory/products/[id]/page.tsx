@@ -13,15 +13,19 @@ export default async function EditProductPage(props: { params: Promise<{ id: str
 
     // Transform product data to match form schema
     const initialData = {
-        ...product,
+        id: product.id,
+        name: product.name,
         sku: product.sku ?? undefined,
         barcode: product.barcode ?? undefined,
         categoryId: product.categoryId ?? undefined,
         description: product.description ?? undefined,
-        costPrice: product.costPrice ? Number(product.costPrice) : undefined,
-        price: Number(product.price),
+        image: product.image ?? undefined,
+        images: product.images ?? undefined,
+        costPrice: product.costPrice ?? undefined,
+        price: product.price,
         stockQuantity: product.stockQuantity,
         lowStockThreshold: product.lowStockThreshold ?? 5,
+        productCategories: product.productCategories,
     };
 
     return (

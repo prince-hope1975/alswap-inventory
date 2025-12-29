@@ -23,6 +23,7 @@ export const userRoles = pgEnum("user_role", ["ADMIN", "MANAGER", "CASHIER", "US
 export const shiftStatus = pgEnum("shift_status", ["OPEN", "CLOSED"]);
 export const orderStatus = pgEnum("order_status", ["PENDING", "COMPLETED", "CANCELLED"]);
 export const purchaseOrderStatus = pgEnum("purchase_order_status", ["DRAFT", "ORDERED", "RECEIVED", "CANCELLED"]);
+export const orderDeliveryMethod = pgEnum("order_delivery_method", ["PICKUP", "DELIVERY"]);
 
 // --- Multi-tenancy Core ---
 
@@ -39,17 +40,23 @@ export const tenants = createTable(
     currency: d.varchar("currency", { length: 10 }).default("₦"),
     location: d.varchar("location", { length: 255 }),
     address: d.text(),
+    latitude: decimal("latitude", { precision: 10, scale: 6 }),
+    longitude: decimal("longitude", { precision: 10, scale: 6 }),
     phone: d.varchar({ length: 50 }),
+    paystackPublicKey: d.text("paystack_public_key"),
+    // Encrypted-at-rest (application-layer encryption)
+    paystackSecretKey: d.text("paystack_secret_key"),
     receiptTemplate: d.varchar("receipt_template", { length: 50 }).default("classic"),
     receiptFooter: d.text("receipt_footer"),
     storeConfig: d.json("store_config").$type<{
-      template: "modern" | "classic" | "marketplace" | "minimal" | "boutique";
+      template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion";
       themeMode: "system" | "light" | "dark";
       showHero: boolean;
       showArticles: boolean;
       primaryColor?: string;
       heroTitle?: string;
       heroDescription?: string;
+      deliveryFee?: number;
     }>().default({
       template: "modern",
       themeMode: "system",
@@ -147,6 +154,10 @@ export const categories = createTable(
   (t) => [index("category_tenant_idx").on(t.tenantId)],
 );
 
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  productCategories: many(productCategories),
+}));
+
 export const suppliers = createTable(
   "supplier",
   (d) => ({
@@ -199,6 +210,27 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
   supplier: one(suppliers, { fields: [products.supplierId], references: [suppliers.id] }),
   purchaseOrderItems: many(purchaseOrderItems),
+  productCategories: many(productCategories),
+}));
+
+// --- Product Categories Junction Table (Many-to-Many) ---
+
+export const productCategories = createTable(
+  "product_category",
+  (d) => ({
+    productId: d.varchar({ length: 255 }).notNull().references(() => products.id, { onDelete: "cascade" }),
+    categoryId: d.integer().notNull().references(() => categories.id, { onDelete: "cascade" }),
+  }),
+  (t) => [
+    primaryKey({ columns: [t.productId, t.categoryId] }),
+    index("pc_product_idx").on(t.productId),
+    index("pc_category_idx").on(t.categoryId),
+  ],
+);
+
+export const productCategoriesRelations = relations(productCategories, ({ one }) => ({
+  product: one(products, { fields: [productCategories.productId], references: [products.id] }),
+  category: one(categories, { fields: [productCategories.categoryId], references: [categories.id] }),
 }));
 
 export const purchaseOrders = createTable(
@@ -292,6 +324,8 @@ export const orders = createTable(
     totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
     status: orderStatus("status").default("COMPLETED").notNull(),
     paymentMethod: d.varchar({ length: 50 }).default("CASH"),
+    deliveryMethod: orderDeliveryMethod("delivery_method").default("PICKUP").notNull(),
+    deliveryAddress: d.text("delivery_address"),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [index("order_tenant_idx").on(t.tenantId)],
@@ -317,4 +351,25 @@ export const orderItems = createTable(
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
+}));
+
+// --- Admin Notifications (simple in-app notifications for tenant admins) ---
+
+export const adminNotifications = createTable(
+  "admin_notification",
+  (d) => ({
+    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
+    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    type: d.varchar({ length: 100 }).notNull(), // e.g. DELIVERY_ORDER
+    title: d.varchar({ length: 255 }).notNull(),
+    message: d.text(),
+    data: d.json("data").$type<Record<string, unknown>>(),
+    isRead: d.boolean("is_read").notNull().default(false),
+    createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  }),
+  (t) => [index("admin_notification_tenant_idx").on(t.tenantId)],
+);
+
+export const adminNotificationsRelations = relations(adminNotifications, ({ one }) => ({
+  tenant: one(tenants, { fields: [adminNotifications.tenantId], references: [tenants.id] }),
 }));

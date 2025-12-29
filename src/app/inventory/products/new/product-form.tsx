@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,13 +11,14 @@ import { ImageUpload } from "~/app/_components/image-upload";
 import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
 import { SimilarProductsPanel } from "./similar-products-panel";
 import { toast } from "~/lib/toast";
+import { X, ChevronDown } from "lucide-react";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
     description: z.string().optional(),
     image: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     images: z.array(z.string().url("Must be a valid URL")).optional(),
-    categoryId: z.number().optional(),
+    categoryIds: z.array(z.number()).optional(),
     sku: z.string().optional(),
     barcode: z.string().optional(),
     price: z.number().min(0, "Price must be positive"),
@@ -46,14 +47,29 @@ const productSchema = z.object({
 type ProductFormValues = z.infer<typeof productSchema>;
 
 interface ProductFormProps {
-    initialData?: ProductFormValues & { id: string };
+    initialData?: {
+        id: string;
+        name: string;
+        description?: string | null;
+        image?: string | null;
+        images?: string[] | null;
+        categoryId?: number | null;
+        sku?: string | null;
+        barcode?: string | null;
+        price: string;
+        costPrice?: string | null;
+        stockQuantity: number;
+        lowStockThreshold?: number | null;
+        productCategories?: { category: { id: number; name: string } }[];
+    };
     isEditing?: boolean;
-    categories?: { id: number; name: string }[]; // Kept for backward compatibility but not used
+    categories?: { id: number; name: string }[];
 }
 
 export function ProductForm({ initialData, isEditing = false, categories: _categories }: ProductFormProps) {
     const router = useRouter();
     const { currency } = useCurrency();
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
     const utils = api.useUtils();
 
@@ -83,6 +99,10 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
         },
     });
 
+    // Extract existing category IDs from productCategories relation
+    const existingCategoryIds = initialData?.productCategories?.map(pc => pc.category.id) 
+        ?? (initialData?.categoryId ? [initialData.categoryId] : []);
+
     const {
         register,
         handleSubmit,
@@ -94,10 +114,17 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
         resolver: zodResolver(productSchema),
         defaultValues: initialData
             ? {
-                ...initialData,
-                categoryId: initialData.categoryId ?? undefined,
+                name: initialData.name,
+                description: initialData.description ?? "",
+                categoryIds: existingCategoryIds,
                 image: initialData.image ?? "",
-                images: (initialData as any).images ?? [],
+                images: initialData.images ?? [],
+                sku: initialData.sku ?? "",
+                barcode: initialData.barcode ?? "",
+                price: parseFloat(initialData.price),
+                costPrice: parseFloat(initialData.costPrice ?? "0"),
+                stockQuantity: initialData.stockQuantity,
+                lowStockThreshold: initialData.lowStockThreshold ?? 5,
             }
             : {
                 name: "",
@@ -108,12 +135,14 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                 lowStockThreshold: 5,
                 image: "",
                 images: [],
+                categoryIds: [],
             },
     });
 
     // Watch stockQuantity and lowStockThreshold to trigger validation
     const stockQuantity = watch("stockQuantity");
     const lowStockThreshold = watch("lowStockThreshold");
+    const selectedCategoryIds = watch("categoryIds") || [];
 
     // Trigger validation when stockQuantity or lowStockThreshold changes
     useEffect(() => {
@@ -125,7 +154,8 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
     const onSubmit = (data: ProductFormValues) => {
         const formattedData = {
             ...data,
-            categoryId: data.categoryId ? Number(data.categoryId) : undefined,
+            categoryIds: data.categoryIds || [],
+            categoryId: data.categoryIds?.[0], // First category as primary for backward compat
             price: Number(data.price),
             costPrice: Number(data.costPrice),
             image: data.image || undefined,
@@ -145,7 +175,27 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
     const handleCategoryCreated = async (newCategory: { id: number; name: string }) => {
         // Refetch categories to get the latest list
         await utils.inventory.listCategories.refetch();
-        setValue("categoryId", newCategory.id);
+        // Add the new category to selected categories
+        const currentIds = watch("categoryIds") || [];
+        setValue("categoryIds", [...currentIds, newCategory.id]);
+    };
+
+    const toggleCategory = (categoryId: number) => {
+        const currentIds = watch("categoryIds") || [];
+        if (currentIds.includes(categoryId)) {
+            setValue("categoryIds", currentIds.filter(id => id !== categoryId));
+        } else {
+            setValue("categoryIds", [...currentIds, categoryId]);
+        }
+    };
+
+    const removeCategory = (categoryId: number) => {
+        const currentIds = watch("categoryIds") || [];
+        setValue("categoryIds", currentIds.filter(id => id !== categoryId));
+    };
+
+    const getSelectedCategoryNames = () => {
+        return categoryList.filter(cat => selectedCategoryIds.includes(cat.id));
     };
 
     const isPending = createProduct.isPending || updateProduct.isPending;
@@ -188,7 +238,10 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                                         setValue("price", parseFloat(product.price));
                                         setValue("costPrice", parseFloat(product.costPrice || "0"));
                                         setValue("stockQuantity", product.stockQuantity);
-                                        setValue("categoryId", product.categoryId);
+                                        // Handle categories
+                                        if (product.categoryId) {
+                                            setValue("categoryIds", [product.categoryId]);
+                                        }
                                         setValue("sku", product.sku || "");
                                         setValue("barcode", product.barcode || "");
                                         setValue("image", product.image || "");
@@ -218,45 +271,89 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             </p>
                         </div>
 
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-2">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Category
+                                Categories
                             </label>
-                            <div className="flex items-center gap-2">
-                                <select
-                                    {...register("categoryId", { valueAsNumber: true })}
-                                    disabled={categoriesLoading}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                >
-                                    <option value="">Select a category</option>
-                                    {categoriesLoading && (
-                                        <option value="" disabled>
-                                            Loading categories...
-                                        </option>
-                                    )}
-                                    {!categoriesLoading && categoryList.length === 0 && (
-                                        <option value="" disabled>
-                                            No categories found - please create one
-                                        </option>
-                                    )}
-                                    {categoryList.map((category) => (
-                                        <option key={category.id} value={category.id}>
+                            
+                            {/* Selected Categories Tags */}
+                            {selectedCategoryIds.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {getSelectedCategoryNames().map((category) => (
+                                        <span
+                                            key={category.id}
+                                            className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-primary-100)] px-3 py-1 text-sm font-medium text-[var(--brand-primary-800)] dark:bg-[var(--brand-primary-900)] dark:text-[var(--brand-primary-200)]"
+                                        >
                                             {category.name}
-                                        </option>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCategory(category.id)}
+                                                className="ml-1 rounded-full p-0.5 hover:bg-[var(--brand-primary-200)] dark:hover:bg-[var(--brand-primary-800)]"
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </span>
                                     ))}
-                                </select>
-                                <CreateCategoryDialog onCategoryCreated={handleCategoryCreated} />
+                                </div>
+                            )}
+
+                            {/* Category Dropdown */}
+                            <div className="relative mt-2">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                        disabled={categoriesLoading}
+                                        className="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-left shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                    >
+                                        <span className="text-gray-500 dark:text-gray-400">
+                                            {categoriesLoading 
+                                                ? "Loading categories..." 
+                                                : selectedCategoryIds.length === 0 
+                                                    ? "Select categories" 
+                                                    : `${selectedCategoryIds.length} selected`}
+                                        </span>
+                                        <ChevronDown className={`h-4 w-4 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    <CreateCategoryDialog onCategoryCreated={handleCategoryCreated} />
+                                </div>
+
+                                {/* Dropdown Menu */}
+                                {isCategoryDropdownOpen && (
+                                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                                        {categoryList.length === 0 ? (
+                                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                                No categories found - create one first
+                                            </div>
+                                        ) : (
+                                            categoryList.map((category) => (
+                                                <label
+                                                    key={category.id}
+                                                    className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedCategoryIds.includes(category.id)}
+                                                        onChange={() => toggleCategory(category.id)}
+                                                        className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary-600)] focus:ring-[var(--brand-primary-focus)] dark:border-gray-500 dark:bg-gray-600"
+                                                    />
+                                                    <span className="text-sm text-gray-700 dark:text-gray-200">
+                                                        {category.name}
+                                                    </span>
+                                                </label>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                             </div>
+                            
                             {categoriesError && (
                                 <p className="mt-1 text-sm text-red-600">
                                     Error loading categories: {categoriesError.message}
                                 </p>
                             )}
-                            {errors.categoryId && (
-                                <p className="mt-1 text-sm text-red-600">{errors.categoryId.message}</p>
-                            )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Organize items into groups for better reporting and filtering.
+                                Assign one or more categories for better organization and filtering.
                             </p>
                         </div>
 

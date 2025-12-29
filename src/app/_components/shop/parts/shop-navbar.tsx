@@ -6,6 +6,7 @@ import { ShoppingCart, Search, Menu, X, User, LayoutDashboard } from "lucide-rea
 import { useCart } from "../cart-context";
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
+import { ThemeToggle } from "~/components/theme-toggle";
 
 type Tenant = NonNullable<RouterOutputs["shop"]["getShopDetails"]["tenant"]>;
 
@@ -26,7 +27,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
         <nav className={`fixed top-0 left-0 right-0 z-40 border-b border-white/5 bg-[#0f1016]/80 backdrop-blur-md ${className}`}>
             <div className="container mx-auto flex h-20 items-center justify-between px-4">
                 {/* Logo */}
-                <div className="flex items-center gap-2">
+                <Link href="/" className="flex items-center gap-2">
                     {tenant?.logo ? (
                         <div className="relative h-10 w-10 overflow-hidden rounded-xl">
                              {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -44,6 +45,19 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                     <span className="text-xl font-bold tracking-tight hidden sm:block">
                         {tenant?.name || "Alswap Store"}
                     </span>
+                </Link>
+
+                {/* Primary Nav (desktop) */}
+                <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-300">
+                    <Link href="/" className="hover:text-white transition-colors">
+                        Shop
+                    </Link>
+                    <Link href="/about" className="hover:text-white transition-colors">
+                        About Us
+                    </Link>
+                    <Link href="/find-us" className="hover:text-white transition-colors">
+                        Find Us
+                    </Link>
                 </div>
 
                 {/* Search Bar - Desktop */}
@@ -64,6 +78,11 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
 
                 {/* Actions */}
                 <div className="flex items-center gap-4">
+                    {/* Theme Toggle */}
+                    <div className="hidden sm:block">
+                        <ThemeToggle />
+                    </div>
+
                     {/* User Menu */}
                     {session?.user?.role === "ADMIN" ? (
                         <div className="hidden md:flex items-center gap-4">
@@ -133,6 +152,28 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                         </div>
                     )}
                     <div className="flex flex-col gap-2">
+                        {/* Mobile Nav Links */}
+                        <Link
+                            href="/about"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white"
+                        >
+                            About Us
+                        </Link>
+                        <Link
+                            href="/find-us"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white"
+                        >
+                            Find Us
+                        </Link>
+
+                        {/* Mobile Theme Toggle */}
+                        <div className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white mb-2">
+                            <span>Theme</span>
+                            <ThemeToggle />
+                        </div>
+
                         {session ? (
                             <>
                                 <Link
