@@ -4,6 +4,109 @@ import { adminNotifications, products, categories, orders, orderItems, tenants, 
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sendDeliveryOrderEmail } from "~/server/email";
+import { decryptString } from "~/server/utils/encryption";
+
+type DeliveryPricingConfig =
+    | {
+        type: "flat";
+      }
+    | {
+        type: "distance";
+        baseFee: number;
+        perKmFee: number;
+        maxKm?: number;
+      };
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+    const R = 6371;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+
+    const x =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+    const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    return R * c;
+}
+
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+    const url = new URL("https://nominatim.openstreetmap.org/search");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("q", address);
+    url.searchParams.set("limit", "1");
+
+    const res = await fetch(url.toString(), {
+        headers: {
+            Accept: "application/json",
+            "User-Agent": "alswap-inventory/1.0",
+        },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+    const first = data[0];
+    if (!first) return null;
+    return { lat: Number(first.lat), lng: Number(first.lon) };
+}
+
+async function computeDeliveryFee(input: {
+    tenant: typeof tenants.$inferSelect;
+    deliveryMethod: "PICKUP" | "DELIVERY";
+    deliveryAddress?: string;
+}): Promise<{ fee: number; distanceKm?: number }> {
+    if (input.deliveryMethod !== "DELIVERY") return { fee: 0 };
+    if (!input.deliveryAddress?.trim()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery address is required." });
+    }
+
+    const storeConfig = input.tenant.storeConfig as unknown as {
+        deliveryFee?: number;
+        deliveryPricing?: DeliveryPricingConfig;
+    } | null;
+
+    const pricing = storeConfig?.deliveryPricing;
+
+    // Default / backward-compatible flat fee:
+    if (!pricing || pricing.type === "flat") {
+        const fee = Number(storeConfig?.deliveryFee ?? 0);
+        if (!Number.isFinite(fee) || fee < 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid delivery fee configuration." });
+        }
+        return { fee };
+    }
+
+    // Distance-based:
+    const lat = input.tenant.latitude ? Number(input.tenant.latitude) : NaN;
+    const lng = input.tenant.longitude ? Number(input.tenant.longitude) : NaN;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Store pickup location (lat/lng) must be configured for distance-based delivery pricing.",
+        });
+    }
+
+    const dest = await geocodeAddress(input.deliveryAddress.trim());
+    if (!dest) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Could not geocode delivery address." });
+    }
+
+    const distanceKm = haversineKm({ lat, lng }, dest);
+    const baseFee = Number(pricing.baseFee);
+    const perKmFee = Number(pricing.perKmFee);
+    const maxKm = pricing.maxKm == null ? undefined : Number(pricing.maxKm);
+
+    if (!Number.isFinite(baseFee) || baseFee < 0 || !Number.isFinite(perKmFee) || perKmFee < 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid distance-based delivery pricing configuration." });
+    }
+    if (maxKm != null && Number.isFinite(maxKm) && distanceKm > maxKm) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery address is outside delivery range." });
+    }
+
+    const fee = Math.round(baseFee + perKmFee * distanceKm);
+    return { fee, distanceKm };
+}
 
 export const shopRouter = createTRPCRouter({
     getShopDetails: publicProcedure.query(async ({ ctx }) => {
@@ -205,6 +308,118 @@ export const shopRouter = createTRPCRouter({
             });
         }),
 
+    estimateDeliveryFee: publicProcedure
+        .input(z.object({ deliveryAddress: z.string().min(5) }))
+        .query(async ({ ctx, input }) => {
+            const tenant = await ctx.db.query.tenants.findFirst({
+                orderBy: desc(tenants.updatedAt),
+            });
+            if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+
+            const out = await computeDeliveryFee({
+                tenant,
+                deliveryMethod: "DELIVERY",
+                deliveryAddress: input.deliveryAddress,
+            });
+            return out;
+        }),
+
+    initPaystackPayment: publicProcedure
+        .input(
+            z.object({
+                items: z.array(
+                    z.object({
+                        productId: z.string(),
+                        quantity: z.number().min(1),
+                    })
+                ),
+                customerDetails: z.object({
+                    name: z.string(),
+                    email: z.string().email(),
+                    phone: z.string().optional(),
+                }),
+                deliveryMethod: z.enum(["PICKUP", "DELIVERY"]).optional(),
+                deliveryAddress: z.string().optional(),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            const tenant = await ctx.db.query.tenants.findFirst({
+                orderBy: desc(tenants.updatedAt),
+            });
+            if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+
+            if (!tenant.paystackSecretKey || !tenant.paystackPublicKey) {
+                throw new TRPCError({
+                    code: "PRECONDITION_FAILED",
+                    message: "Paystack is not configured for this store.",
+                });
+            }
+
+            const deliveryMethod = input.deliveryMethod ?? "PICKUP";
+
+            // Compute expected total (same logic as createOrder)
+            let totalAmount = 0;
+            for (const item of input.items) {
+                const product = await ctx.db.query.products.findFirst({
+                    where: eq(products.id, item.productId),
+                });
+                if (!product) continue;
+                totalAmount += Number(product.price) * item.quantity;
+            }
+            const deliveryFeeOut = await computeDeliveryFee({
+                tenant,
+                deliveryMethod,
+                deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress : undefined,
+            });
+            totalAmount += deliveryFeeOut.fee;
+
+            const amountKobo = Math.round(totalAmount * 100);
+            if (!Number.isFinite(amountKobo) || amountKobo <= 0) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid order total." });
+            }
+
+            const secretKey = decryptString(tenant.paystackSecretKey);
+            const reference = `ps_${tenant.id}_${Date.now()}`;
+
+            const resp = await fetch("https://api.paystack.co/transaction/initialize", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${secretKey}`,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({
+                    email: input.customerDetails.email,
+                    amount: amountKobo,
+                    reference,
+                    metadata: {
+                        tenantId: tenant.id,
+                        deliveryMethod,
+                        deliveryFee: deliveryFeeOut.fee,
+                        distanceKm: deliveryFeeOut.distanceKm,
+                    },
+                }),
+            });
+
+            const payload = (await resp.json()) as {
+                status: boolean;
+                message?: string;
+                data?: { access_code: string; reference: string };
+            };
+
+            if (!resp.ok || !payload.status || !payload.data?.access_code || !payload.data?.reference) {
+                throw new TRPCError({
+                    code: "BAD_GATEWAY",
+                    message: payload.message ?? "Failed to initialize Paystack transaction.",
+                });
+            }
+
+            return {
+                reference: payload.data.reference,
+                accessCode: payload.data.access_code,
+            };
+        }),
+
     createOrder: publicProcedure
         .input(
             z.object({
@@ -264,12 +479,60 @@ export const shopRouter = createTRPCRouter({
             }
 
             // Delivery fee from store config (if configured)
-            const storeConfig = tenant.storeConfig as unknown as { deliveryFee?: number } | null;
-            const deliveryFee = deliveryMethod === "DELIVERY" ? Number(storeConfig?.deliveryFee ?? 0) : 0;
-            if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
-                throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid delivery fee configuration." });
+            const deliveryFeeOut = await computeDeliveryFee({
+                tenant,
+                deliveryMethod,
+                deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress : undefined,
+            });
+            totalAmount += deliveryFeeOut.fee;
+
+            // If PAYSTACK, verify transaction before creating a completed order
+            if (paymentMethod === "PAYSTACK") {
+                if (!tenant.paystackSecretKey) {
+                    throw new TRPCError({
+                        code: "PRECONDITION_FAILED",
+                        message: "Paystack secret key is not configured for this store.",
+                    });
+                }
+
+                const expectedAmountKobo = Math.round(totalAmount * 100);
+                const secretKey = decryptString(tenant.paystackSecretKey);
+
+                const verifyResp = await fetch(
+                    `https://api.paystack.co/transaction/verify/${encodeURIComponent(input.reference)}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${secretKey}`,
+                            Accept: "application/json",
+                        },
+                    },
+                );
+
+                const verifyPayload = (await verifyResp.json()) as {
+                    status: boolean;
+                    message?: string;
+                    data?: { status?: string; amount?: number; reference?: string };
+                };
+
+                const status = verifyPayload.data?.status;
+                const amount = verifyPayload.data?.amount;
+                const ref = verifyPayload.data?.reference;
+
+                if (!verifyResp.ok || !verifyPayload.status || status !== "success") {
+                    throw new TRPCError({
+                        code: "PAYMENT_REQUIRED",
+                        message: verifyPayload.message ?? "Payment verification failed.",
+                    });
+                }
+
+                if (ref && ref !== input.reference) {
+                    throw new TRPCError({ code: "PAYMENT_REQUIRED", message: "Payment reference mismatch." });
+                }
+
+                if (typeof amount !== "number" || amount !== expectedAmountKobo) {
+                    throw new TRPCError({ code: "PAYMENT_REQUIRED", message: "Payment amount mismatch." });
+                }
             }
-            totalAmount += deliveryFee;
 
             const [newOrder] = await ctx.db.insert(orders).values({
                 tenantId: tenant.id,
@@ -278,6 +541,7 @@ export const shopRouter = createTRPCRouter({
                 paymentMethod,
                 deliveryMethod,
                 deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : null,
+                deliveryFee: deliveryMethod === "DELIVERY" ? deliveryFeeOut.fee.toString() : null,
             }).returning();
 
             if (!newOrder) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });
@@ -305,6 +569,8 @@ export const shopRouter = createTRPCRouter({
                         deliveryAddress: input.deliveryAddress?.trim(),
                         paymentMethod,
                         totalAmount: totalAmount.toString(),
+                        deliveryFee: deliveryFeeOut.fee,
+                        distanceKm: deliveryFeeOut.distanceKm,
                     },
                 });
 

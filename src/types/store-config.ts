@@ -8,4 +8,11 @@ export type StoreConfig = {
     heroDescription?: string;
     // Optional checkout settings
     deliveryFee?: number;
+    deliveryPricing?: {
+        type: "flat" | "distance";
+        // Used when type === "distance"
+        baseFee?: number;
+        perKmFee?: number;
+        maxKm?: number;
+    };
 };

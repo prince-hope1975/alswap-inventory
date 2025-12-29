@@ -64,6 +64,12 @@ export const settingsRouter = createTRPCRouter({
                     heroTitle: z.string().optional(),
                     heroDescription: z.string().optional(),
                     deliveryFee: z.number().min(0).optional(),
+                    deliveryPricing: z.object({
+                        type: z.enum(["flat", "distance"]),
+                        baseFee: z.number().min(0).optional(),
+                        perKmFee: z.number().min(0).optional(),
+                        maxKm: z.number().min(0).optional(),
+                    }).optional(),
                 }).nullable().optional(),
             }),
         )
@@ -93,6 +99,12 @@ export const settingsRouter = createTRPCRouter({
                     heroTitle?: string;
                     heroDescription?: string;
                     deliveryFee?: number;
+                    deliveryPricing?: {
+                        type: "flat" | "distance";
+                        baseFee?: number;
+                        perKmFee?: number;
+                        maxKm?: number;
+                    };
                 } | null;
             } = {
                 name: input.name,

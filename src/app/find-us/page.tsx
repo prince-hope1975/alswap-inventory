@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { LocationPicker } from "~/app/_components/maps/location-picker";
+import { toAppleMapsDirectionsUrl, toGoogleMapsDirectionsUrl, toGoogleMapsQueryUrl } from "~/lib/maps";
 
 export default function FindUsPage() {
   const { data, isLoading } = api.shop.getShopDetails.useQuery();
@@ -31,6 +32,33 @@ export default function FindUsPage() {
               Pickup address:{" "}
               <span className="text-gray-200">{tenant?.address ?? "—"}</span>
             </p>
+
+            <div className="mb-4 flex flex-wrap gap-3">
+              <a
+                href={toGoogleMapsDirectionsUrl({ lat, lng })}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-purple-500"
+              >
+                Get Directions (Google Maps)
+              </a>
+              <a
+                href={toGoogleMapsQueryUrl({ lat, lng })}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                Open in Google Maps
+              </a>
+              <a
+                href={toAppleMapsDirectionsUrl({ lat, lng })}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                Open in Apple Maps
+              </a>
+            </div>
 
             {/* Read-only map: we re-use LocationPicker UI but ignore changes */}
             <LocationPicker

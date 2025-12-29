@@ -57,6 +57,12 @@ export const tenants = createTable(
       heroTitle?: string;
       heroDescription?: string;
       deliveryFee?: number;
+      deliveryPricing?: {
+        type: "flat" | "distance";
+        baseFee?: number;
+        perKmFee?: number;
+        maxKm?: number;
+      };
     }>().default({
       template: "modern",
       themeMode: "system",
@@ -326,6 +332,7 @@ export const orders = createTable(
     paymentMethod: d.varchar({ length: 50 }).default("CASH"),
     deliveryMethod: orderDeliveryMethod("delivery_method").default("PICKUP").notNull(),
     deliveryAddress: d.text("delivery_address"),
+    deliveryFee: decimal("delivery_fee", { precision: 10, scale: 2 }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [index("order_tenant_idx").on(t.tenantId)],

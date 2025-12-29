@@ -21,6 +21,10 @@ const storeSettingsSchema = z.object({
     heroTitle: z.string().optional(),
     heroDescription: z.string().optional(),
     deliveryFee: z.coerce.number().min(0).optional(),
+    deliveryPricingType: z.enum(["flat", "distance"]).optional(),
+    deliveryBaseFee: z.coerce.number().min(0).optional(),
+    deliveryPerKmFee: z.coerce.number().min(0).optional(),
+    deliveryMaxKm: z.coerce.number().min(0).optional(),
     pickupLocationName: z.string().max(255).optional(),
     pickupAddress: z.string().optional(),
     pickupLat: z.coerce.number().min(-90).max(90).optional(),
@@ -69,6 +73,7 @@ export default function StoreSettingsPage() {
             // Drizzle might return the JSON object directly
             const config = settings.storeConfig as StoreConfig;
             if (config) {
+                const dp = config.deliveryPricing;
                 reset({
                     template: config.template || "modern",
                     themeMode: config.themeMode || "system",
@@ -78,6 +83,10 @@ export default function StoreSettingsPage() {
                     heroTitle: config.heroTitle || "",
                     heroDescription: config.heroDescription || "",
                     deliveryFee: config.deliveryFee ?? 0,
+                    deliveryPricingType: dp?.type ?? "flat",
+                    deliveryBaseFee: dp?.baseFee ?? 0,
+                    deliveryPerKmFee: dp?.perKmFee ?? 0,
+                    deliveryMaxKm: dp?.maxKm ?? 0,
                     pickupLocationName: settings.location ?? "",
                     pickupAddress: settings.address ?? "",
                     pickupLat: settings.latitude ? Number(settings.latitude) : undefined,
@@ -96,6 +105,10 @@ export default function StoreSettingsPage() {
             pickupLng,
             paystackPublicKey,
             deliveryFee,
+            deliveryPricingType,
+            deliveryBaseFee,
+            deliveryPerKmFee,
+            deliveryMaxKm,
             ...storeConfigFields
         } = data;
 
@@ -110,12 +123,21 @@ export default function StoreSettingsPage() {
             storeConfig: {
                 ...storeConfigFields,
                 deliveryFee,
+                deliveryPricing: deliveryPricingType
+                    ? {
+                        type: deliveryPricingType,
+                        baseFee: deliveryPricingType === "distance" ? deliveryBaseFee : undefined,
+                        perKmFee: deliveryPricingType === "distance" ? deliveryPerKmFee : undefined,
+                        maxKm: deliveryPricingType === "distance" ? deliveryMaxKm : undefined,
+                    }
+                    : undefined,
             },
         });
     };
 
     const currentTemplate = watch("template");
     const currentTheme = watch("themeMode");
+    const deliveryPricingType = watch("deliveryPricingType") ?? "flat";
     const pickupLat = watch("pickupLat");
     const pickupLng = watch("pickupLng");
     const pickupAddress = watch("pickupAddress");
@@ -234,7 +256,7 @@ export default function StoreSettingsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Delivery fee
+                                        Delivery fee (flat)
                                     </label>
                                     <div className="relative">
                                         <Truck className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -248,7 +270,7 @@ export default function StoreSettingsPage() {
                                         />
                                     </div>
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                        Added to the order total when customers choose delivery.
+                                        Used when delivery pricing is set to Flat.
                                     </p>
                                 </div>
 
@@ -263,6 +285,79 @@ export default function StoreSettingsPage() {
                                         className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-purple-500 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
+                                <p className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Delivery pricing</p>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800">
+                                        <input
+                                            type="radio"
+                                            value="flat"
+                                            {...register("deliveryPricingType")}
+                                            className="h-4 w-4"
+                                            defaultChecked
+                                        />
+                                        <div>
+                                            <div className="font-semibold text-gray-900 dark:text-white">Flat</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">Same fee for all deliveries</div>
+                                        </div>
+                                    </label>
+
+                                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800">
+                                        <input
+                                            type="radio"
+                                            value="distance"
+                                            {...register("deliveryPricingType")}
+                                            className="h-4 w-4"
+                                        />
+                                        <div>
+                                            <div className="font-semibold text-gray-900 dark:text-white">Distance-based</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">Fee = base + (per km × distance)</div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {deliveryPricingType === "distance" && (
+                                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                                        <div>
+                                            <label className="mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                                                Base fee
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                {...register("deliveryBaseFee")}
+                                                className="block w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                                                Per km fee
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                {...register("deliveryPerKmFee")}
+                                                className="block w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                                                Max distance (km)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                {...register("deliveryMaxKm")}
+                                                className="block w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div>

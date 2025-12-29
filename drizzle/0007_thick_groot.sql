@@ -1,0 +1,1 @@
+ALTER TABLE "alswap-inventory_order" ADD COLUMN "delivery_fee" numeric(10, 2);

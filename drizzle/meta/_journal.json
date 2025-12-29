@@ -50,6 +50,13 @@
       "when": 1767014054657,
       "tag": "0006_misty_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1767015996371,
+      "tag": "0007_thick_groot",
+      "breakpoints": true
     }
   ]
 }

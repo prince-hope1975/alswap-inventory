@@ -17,6 +17,7 @@ import {
     LogOut,
     Globe,
     X,
+    Bell,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { ThemeToggle } from "~/components/theme-toggle";
@@ -48,6 +49,7 @@ export function InventoryLayoutClient({
         { href: "/inventory/products", label: "Products", icon: Package },
         { href: "/inventory/categories", label: "Categories", icon: Layers },
         { href: "/inventory/customers", label: "Customers", icon: Users },
+        { href: "/inventory/notifications", label: "Notifications", icon: Bell },
         { href: "/inventory/users", label: "Users", icon: UserPlus },
         { href: "/inventory/analytics", label: "Analytics", icon: BarChart3 },
         { href: "/pos", label: "Point of Sale", icon: ShoppingCart },
