@@ -61,17 +61,17 @@ export function InventoryLayoutClient({
     return (
         <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
             <LowStockAlerts />
-            
+
             {/* Desktop Sidebar */}
             <aside className="hidden w-64 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 md:flex">
                 <div className="flex h-16 items-center border-b border-gray-200 px-6 dark:border-gray-800">
-                     <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                         {companyLogo ? (
                             <div className="relative h-8 w-8 overflow-hidden rounded-lg">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img 
-                                    src={companyLogo} 
-                                    alt={companyName} 
+                                <img
+                                    src={companyLogo}
+                                    alt={companyName}
                                     className="h-full w-full object-contain"
                                 />
                             </div>
@@ -127,7 +127,7 @@ export function InventoryLayoutClient({
 
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
-                <div 
+                <div
                     className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                 />
@@ -138,14 +138,14 @@ export function InventoryLayoutClient({
                 "fixed inset-y-0 left-0 z-50 w-64 transform bg-white transition-transform duration-200 ease-in-out dark:bg-gray-900 md:hidden",
                 isSidebarOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                 <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6 dark:border-gray-800">
-                     <div className="flex items-center gap-2">
+                <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6 dark:border-gray-800">
+                    <div className="flex items-center gap-2">
                         {companyLogo ? (
                             <div className="relative h-8 w-8 overflow-hidden rounded-lg">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img 
-                                    src={companyLogo} 
-                                    alt={companyName} 
+                                <img
+                                    src={companyLogo}
+                                    alt={companyName}
                                     className="h-full w-full object-contain"
                                 />
                             </div>
@@ -158,14 +158,14 @@ export function InventoryLayoutClient({
                             {companyName}
                         </span>
                     </div>
-                    <button 
+                    <button
                         onClick={() => setIsSidebarOpen(false)}
                         className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                 <nav className="flex-1 space-y-1 px-3 py-4">
+                <nav className="flex-1 space-y-1 px-3 py-4">
                     {navItems.map((item) => (
                         <Link
                             key={item.href}
@@ -183,7 +183,7 @@ export function InventoryLayoutClient({
                         </Link>
                     ))}
                 </nav>
-                 <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 p-4 dark:border-gray-800">
+                <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 p-4 dark:border-gray-800">
                     <div className="flex items-center gap-3 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-3 dark:from-gray-800 dark:to-gray-700">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] text-sm font-bold text-white">
                             {user.name?.[0] ?? "U"}
@@ -214,9 +214,9 @@ export function InventoryLayoutClient({
                         {companyLogo ? (
                             <div className="relative h-8 w-8 overflow-hidden rounded-lg">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img 
-                                    src={companyLogo} 
-                                    alt={companyName} 
+                                <img
+                                    src={companyLogo}
+                                    alt={companyName}
                                     className="h-full w-full object-contain"
                                 />
                             </div>
@@ -231,7 +231,7 @@ export function InventoryLayoutClient({
                     </div>
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
-                        <button 
+                        <button
                             onClick={toggleSidebar}
                             className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                         >
