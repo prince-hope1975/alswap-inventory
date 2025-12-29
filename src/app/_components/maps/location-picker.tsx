@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { ensureLeafletMarkerIcons } from "./leaflet-setup";
@@ -43,9 +43,8 @@ export function LocationPicker({
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  useEffect(() => {
-    ensureLeafletMarkerIcons();
-  }, []);
+  // Safe to call during render; internally guarded by a global flag.
+  if (typeof window !== "undefined") ensureLeafletMarkerIcons();
 
   const center: LatLngExpression = useMemo(() => {
     if (value?.lat != null && value?.lng != null) return [value.lat, value.lng];

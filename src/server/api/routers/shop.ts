@@ -542,6 +542,9 @@ export const shopRouter = createTRPCRouter({
                 deliveryMethod,
                 deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : null,
                 deliveryFee: deliveryMethod === "DELIVERY" ? deliveryFeeOut.fee.toString() : null,
+                customerName: input.customerDetails.name,
+                customerEmail: input.customerDetails.email,
+                customerPhone: input.customerDetails.phone ?? null,
             }).returning();
 
             if (!newOrder) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });

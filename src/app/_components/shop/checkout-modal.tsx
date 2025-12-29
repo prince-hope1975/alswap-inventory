@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useCart } from "./cart-context";
 import { api } from "~/trpc/react";
 import { X, Loader2, MapPin, Truck, CreditCard, Wallet } from "lucide-react";
@@ -57,19 +57,15 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
     const tenant = shopDetails?.tenant;
     const storeConfig = tenant?.storeConfig as { deliveryFee?: number; deliveryPricing?: { type: "flat" | "distance" } } | undefined;
 
-    const [debouncedDeliveryAddress, setDebouncedDeliveryAddress] = useState("");
-    useEffect(() => {
-        const t = setTimeout(() => setDebouncedDeliveryAddress(deliveryAddress), 400);
-        return () => clearTimeout(t);
-    }, [deliveryAddress]);
+    const deferredDeliveryAddress = useDeferredValue(deliveryAddress);
 
     const shouldEstimate =
         deliveryMethod === "DELIVERY" &&
         storeConfig?.deliveryPricing?.type === "distance" &&
-        debouncedDeliveryAddress.trim().length >= 5;
+        deferredDeliveryAddress.trim().length >= 5;
 
     const estimate = api.shop.estimateDeliveryFee.useQuery(
-        { deliveryAddress: debouncedDeliveryAddress.trim() },
+        { deliveryAddress: deferredDeliveryAddress.trim() },
         { enabled: shouldEstimate, retry: false },
     );
 
@@ -200,7 +196,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="relative w-full max-w-md rounded-2xl bg-[#1a1b2e] p-6 border border-white/10 shadow-2xl">
+            <div className="relative max-h-[90vh] overflow-scroll w-full max-w-md rounded-2xl bg-[#1a1b2e] p-6 border border-white/10 shadow-2xl">
                 <button
                     onClick={onClose}
                     className="absolute right-4 top-4 text-gray-400 hover:text-white"

@@ -18,6 +18,7 @@ import {
     Globe,
     X,
     Bell,
+    ClipboardList,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { ThemeToggle } from "~/components/theme-toggle";
@@ -53,6 +54,7 @@ export function InventoryLayoutClient({
         { href: "/inventory", label: "Dashboard", icon: LayoutDashboard },
         { href: "/inventory/products", label: "Products", icon: Package },
         { href: "/inventory/categories", label: "Categories", icon: Layers },
+        { href: "/inventory/orders", label: "Orders", icon: ClipboardList },
         { href: "/inventory/customers", label: "Customers", icon: Users },
         { href: "/inventory/notifications", label: "Notifications", icon: Bell },
         { href: "/inventory/users", label: "Users", icon: UserPlus },

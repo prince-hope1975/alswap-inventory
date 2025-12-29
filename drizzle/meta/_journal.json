@@ -57,6 +57,13 @@
       "when": 1767015996371,
       "tag": "0007_thick_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1767017751495,
+      "tag": "0008_loving_frog_thor",
+      "breakpoints": true
     }
   ]
 }

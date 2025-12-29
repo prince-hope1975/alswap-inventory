@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "~/trpc/react";
 import { LocationPicker } from "~/app/_components/maps/location-picker";
 import { toAppleMapsDirectionsUrl, toGoogleMapsDirectionsUrl, toGoogleMapsQueryUrl } from "~/lib/maps";
+import { useQuery } from "@tanstack/react-query";
 
 export default function FindUsPage() {
   const { data, isLoading } = api.shop.getShopDetails.useQuery();
@@ -11,6 +12,25 @@ export default function FindUsPage() {
 
   const lat = tenant?.latitude ? Number(tenant.latitude) : undefined;
   const lng = tenant?.longitude ? Number(tenant.longitude) : undefined;
+
+  const reverse = useQuery({
+    queryKey: ["nominatim", "reverse", lat, lng],
+    enabled: lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng),
+    queryFn: async () => {
+      const url = new URL("https://nominatim.openstreetmap.org/reverse");
+      url.searchParams.set("format", "jsonv2");
+      url.searchParams.set("lat", String(lat));
+      url.searchParams.set("lon", String(lng));
+
+      const res = await fetch(url.toString(), {
+        headers: { Accept: "application/json" },
+      });
+      const json = (await res.json()) as { display_name?: string };
+      return json.display_name ?? null;
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
 
   return (
     <main className="min-h-screen bg-[#0f1016] text-white">
@@ -28,10 +48,18 @@ export default function FindUsPage() {
           </div>
         ) : lat != null && lng != null ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <p className="mb-4 text-gray-300">
-              Pickup address:{" "}
-              <span className="text-gray-200">{tenant?.address ?? "—"}</span>
-            </p>
+            <div className="mb-4 space-y-1 text-gray-300">
+              <p>
+                Saved address:{" "}
+                <span className="text-gray-200">{tenant?.address ?? "—"}</span>
+              </p>
+              <p className="text-sm text-gray-400">
+                Detected from coordinates:{" "}
+                <span className="text-gray-200">
+                  {reverse.isFetching ? "Detecting..." : reverse.data ?? "—"}
+                </span>
+              </p>
+            </div>
 
             <div className="mb-4 flex flex-wrap gap-3">
               <a
