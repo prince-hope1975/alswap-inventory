@@ -38,6 +38,8 @@ export type RouterInputs = inferRouterInputs<AppRouter>;
  */
 export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
+import { TrpcErrorBoundary } from "~/components/trpc-error-boundary";
+
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -65,7 +67,9 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <api.Provider client={trpcClient} queryClient={queryClient}>
-        {props.children}
+        <TrpcErrorBoundary>
+          {props.children}
+        </TrpcErrorBoundary>
       </api.Provider>
     </QueryClientProvider>
   );

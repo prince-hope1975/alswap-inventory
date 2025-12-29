@@ -7,7 +7,7 @@ import { cn } from "~/lib/utils";
 
 interface Props {
     children: ReactNode;
-    fallback?: ReactNode;
+    fallback?: ReactNode | ((props: { error: Error; resetErrorBoundary: () => void }) => ReactNode);
     componentName?: string;
     onReset?: () => void;
     className?: string;
@@ -53,7 +53,14 @@ export class ErrorBoundary extends Component<Props, State> {
     };
 
     public render() {
-        if (this.state.hasError) {
+        if (this.state.hasError && this.state.error) {
+            if (typeof this.props.fallback === "function") {
+                return this.props.fallback({
+                    error: this.state.error,
+                    resetErrorBoundary: this.handleReset,
+                });
+            }
+
             if (this.props.fallback) {
                 return this.props.fallback;
             }

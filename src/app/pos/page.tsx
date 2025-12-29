@@ -493,49 +493,54 @@ export default function POSTerminal() {
 
                 {/* Cart List */}
                 <div className="flex-1 overflow-y-auto p-4">
-                    {cart.length === 0 ? (
-                        <div className="flex h-full flex-col items-center justify-center text-gray-400">
-                            <ShoppingCart className="mb-4 h-16 w-16 opacity-20" />
-                            <p>Cart is empty</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            <div className="mb-2 flex justify-end">
-                                <button
-                                    onClick={clearCart}
-                                    className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
-                                >
-                                    <Trash2 className="h-3 w-3" /> Clear All
-                                </button>
+                    <ErrorBoundary
+                        componentName="POSCartList"
+                        fallback={<ComponentErrorFallback title="Cart Error" message="Failed to load cart items" />}
+                    >
+                        {cart.length === 0 ? (
+                            <div className="flex h-full flex-col items-center justify-center text-gray-400">
+                                <ShoppingCart className="mb-4 h-16 w-16 opacity-20" />
+                                <p>Cart is empty</p>
                             </div>
-                            {cart.map((item) => (
-                                <div
-                                    key={item.productId}
-                                    className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-800/50"
-                                >
-                                    <div className="flex-1">
-                                        <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
-                                        <p className="text-sm text-gray-500">{formatCurrency(item.price)}</p>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-1 dark:text-white dark:bg-gray-800">
-                                        <button
-                                            onClick={() => updateQuantity(item.productId, -1)}
-                                            className="rounded-md p-1 hover:bg-white hover:shadow-sm dark:hover:bg-gray-700"
-                                        >
-                                            <Minus className="h-4 w-4" />
-                                        </button>
-                                        <span className="w-8 text-center font-semibold">{item.quantity}</span>
-                                        <button
-                                            onClick={() => updateQuantity(item.productId, 1)}
-                                            className="rounded-md p-1 hover:bg-white hover:shadow-sm dark:hover:bg-gray-700"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                        </button>
-                                    </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="mb-2 flex justify-end">
+                                    <button
+                                        onClick={clearCart}
+                                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
+                                    >
+                                        <Trash2 className="h-3 w-3" /> Clear All
+                                    </button>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                                {cart.map((item) => (
+                                    <div
+                                        key={item.productId}
+                                        className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-800/50"
+                                    >
+                                        <div className="flex-1">
+                                            <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
+                                            <p className="text-sm text-gray-500">{formatCurrency(item.price)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-1 dark:text-white dark:bg-gray-800">
+                                            <button
+                                                onClick={() => updateQuantity(item.productId, -1)}
+                                                className="rounded-md p-1 hover:bg-white hover:shadow-sm dark:hover:bg-gray-700"
+                                            >
+                                                <Minus className="h-4 w-4" />
+                                            </button>
+                                            <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                                            <button
+                                                onClick={() => updateQuantity(item.productId, 1)}
+                                                className="rounded-md p-1 hover:bg-white hover:shadow-sm dark:hover:bg-gray-700"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </ErrorBoundary>
                 </div>
 
                 {/* Totals & Checkout */}
