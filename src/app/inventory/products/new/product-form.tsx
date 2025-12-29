@@ -9,6 +9,8 @@ import { api } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { ImageUpload } from "~/app/_components/image-upload";
 import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
+import { SimilarProductsPanel } from "./similar-products-panel";
+import { toast } from "~/lib/toast";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -20,10 +22,14 @@ const productSchema = z.object({
     barcode: z.string().optional(),
     price: z.number().min(0, "Price must be positive"),
     costPrice: z.number().min(0, "Cost price is required and must be positive"),
-    stockQuantity: z.number().int().min(0, "Stock must be non-negative"),
+    stockQuantity: z.number().int().min(-1, "Stock must be -1 (unknown) or greater"),
     lowStockThreshold: z.number().int().min(0),
 }).refine(
     (data) => {
+        // Skip validation if quantity is unknown (-1)
+        if (data.stockQuantity === -1) {
+            return true;
+        }
         // If stockQuantity is 0, allow any threshold >= 0
         // Otherwise, threshold must be less than stockQuantity
         if (data.stockQuantity === 0) {
@@ -56,16 +62,24 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
 
     const createProduct = api.inventory.createProduct.useMutation({
         onSuccess: () => {
+            toast.success("Product created successfully!");
             router.push("/inventory/products");
             router.refresh();
+        },
+        onError: (error) => {
+            toast.error(`Failed to create product: ${error.message}`);
         },
     });
 
     const updateProduct = api.inventory.updateProduct.useMutation({
         onSuccess: () => {
+            toast.success("Product updated successfully!");
             router.push("/inventory/products");
             router.refresh();
             utils.inventory.listProducts.invalidate();
+        },
+        onError: (error) => {
+            toast.error(`Failed to update product: ${error.message}`);
         },
     });
 
@@ -163,6 +177,27 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 The primary name of the product as it will appear in the catalog.
                             </p>
+
+                            {/* Similar Products Panel */}
+                            {!isEditing && (
+                                <SimilarProductsPanel
+                                    searchName={watch("name") || ""}
+                                    onUseProduct={(product) => {
+                                        // Pre-fill form with existing product data
+                                        setValue("description", product.description || "");
+                                        setValue("price", parseFloat(product.price));
+                                        setValue("costPrice", parseFloat(product.costPrice || "0"));
+                                        setValue("stockQuantity", product.stockQuantity);
+                                        setValue("categoryId", product.categoryId);
+                                        setValue("sku", product.sku || "");
+                                        setValue("barcode", product.barcode || "");
+                                        setValue("image", product.image || "");
+                                        if (product.images) {
+                                            setValue("images", product.images);
+                                        }
+                                    }}
+                                />
+                            )}
                         </div>
 
                         <div className="col-span-2">
@@ -391,18 +426,40 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Current Stock
                             </label>
-                            <input
-                                type="number"
-                                {...register("stockQuantity", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
+                            <div className="mt-1 space-y-2">
+                                <input
+                                    type="number"
+                                    {...register("stockQuantity", { valueAsNumber: true })}
+                                    disabled={watch("stockQuantity") === -1}
+                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:disabled:bg-gray-800"
+                                />
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={watch("stockQuantity") === -1}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setValue("stockQuantity", -1);
+                                            } else {
+                                                setValue("stockQuantity", 0);
+                                            }
+                                        }}
+                                        className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary-600)] focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700"
+                                    />
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        Quantity Unknown
+                                    </span>
+                                </label>
+                            </div>
                             {errors.stockQuantity && (
                                 <p className="mt-1 text-sm text-red-600">
                                     {errors.stockQuantity.message}
                                 </p>
                             )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Quantity currently available on hand.
+                                {watch("stockQuantity") === -1
+                                    ? "This product's quantity is currently unknown and will be excluded from stock calculations."
+                                    : "Quantity currently available on hand."}
                             </p>
                         </div>
 

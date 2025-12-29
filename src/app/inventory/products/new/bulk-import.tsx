@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { toast } from "~/lib/toast";
 
 interface ParsedProduct {
     name: string;
@@ -15,6 +16,9 @@ interface ParsedProduct {
     barcode?: string;
     categoryId?: number;
     lowStockThreshold: number;
+    duplicateStatus?: "new" | "duplicate_csv" | "duplicate_db";
+    duplicateId?: string; // ID of existing product if duplicate
+    action?: "create" | "merge" | "skip";
 }
 
 interface BulkImportProps {
@@ -30,9 +34,25 @@ export function BulkImport({ categories }: BulkImportProps) {
     const [parseError, setParseError] = useState("");
 
     const bulkCreate = api.inventory.bulkCreateProducts.useMutation({
-        onSuccess: () => {
+        onSuccess: (data) => {
+            toast.success(`Successfully created ${data?.length || 0} products!`);
             router.push("/inventory/products");
             router.refresh();
+        },
+        onError: (error) => {
+            toast.error(`Failed to create products: ${error.message}`);
+        },
+    });
+
+    const mergeProduct = api.inventory.mergeProduct.useMutation({
+        onError: (error) => {
+            toast.error(`Failed to merge product: ${error.message}`);
+        },
+    });
+
+    const checkDuplicates = api.inventory.checkDuplicates.useMutation({
+        onError: (error) => {
+            toast.error(`Failed to check duplicates: ${error.message}`);
         },
     });
 
@@ -70,7 +90,8 @@ export function BulkImport({ categories }: BulkImportProps) {
                 } else if (header.includes("selling") || header.includes("price")) {
                     product.price = parseFloat(value) || 0;
                 } else if (header.includes("quantity") || header.includes("stock")) {
-                    product.stockQuantity = parseInt(value) || 0;
+                    // Empty or blank = unknown (-1), otherwise parse as number
+                    product.stockQuantity = value.trim() === "" ? -1 : (parseInt(value) || 0);
                 } else if (header.includes("sku")) {
                     product.sku = value;
                 } else if (header.includes("barcode")) {
@@ -88,23 +109,114 @@ export function BulkImport({ categories }: BulkImportProps) {
         return products;
     };
 
-    const handleParse = () => {
+    const handleParse = async () => {
         try {
             setParseError("");
             const products = parseCSV(csvText);
             if (products.length === 0) {
                 setParseError("No valid products found in CSV");
+                toast.error("No valid products found in CSV");
                 return;
             }
+
+            toast.info(`Parsing ${products.length} products...`);
+
+            // Check for duplicates within CSV
+            const nameCount: Record<string, number> = {};
+            products.forEach(p => {
+                const normalizedName = p.name.toLowerCase().trim();
+                nameCount[normalizedName] = (nameCount[normalizedName] || 0) + 1;
+            });
+
+            // Mark CSV duplicates
+            const seenNames = new Set<string>();
+            products.forEach(p => {
+                const normalizedName = p.name.toLowerCase().trim();
+                if (seenNames.has(normalizedName)) {
+                    p.duplicateStatus = "duplicate_csv";
+                    p.action = "skip";
+                } else {
+                    seenNames.add(normalizedName);
+                    p.duplicateStatus = "new";
+                    p.action = "create";
+                }
+            });
+
+            // Check against database
+            const names = products.map(p => p.name);
+            const dbDuplicates = await checkDuplicates.mutateAsync({ names });
+
+            products.forEach(p => {
+                if (dbDuplicates[p.name]) {
+                    p.duplicateStatus = "duplicate_db";
+                    p.duplicateId = dbDuplicates[p.name]!.id;
+                    p.action = "merge"; // Default to merge for DB duplicates
+                }
+            });
+
+            const csvDupes = products.filter(p => p.duplicateStatus === "duplicate_csv").length;
+            const dbDupes = products.filter(p => p.duplicateStatus === "duplicate_db").length;
+
+            if (csvDupes > 0 || dbDupes > 0) {
+                toast.warning(`Found ${csvDupes} CSV duplicates and ${dbDupes} existing products`);
+            } else {
+                toast.success("All products are new!");
+            }
+
             setParsedProducts(products);
             setShowTable(true);
         } catch (error) {
-            setParseError(error instanceof Error ? error.message : "Failed to parse CSV");
+            const errorMessage = error instanceof Error ? error.message : "Failed to parse CSV";
+            setParseError(errorMessage);
+            toast.error(errorMessage);
         }
     };
 
-    const handleImport = () => {
-        bulkCreate.mutate({ products: parsedProducts });
+    const handleImport = async () => {
+        try {
+            const toCreate = parsedProducts.filter(p => p.action === "create" && p.duplicateStatus !== "duplicate_csv");
+            const toMerge = parsedProducts.filter(p => p.action === "merge" && p.duplicateId);
+            const toSkip = parsedProducts.filter(p => p.action === "skip");
+
+            toast.info(`Importing: ${toCreate.length} new, ${toMerge.length} merges, ${toSkip.length} skipped`);
+
+            // Merge products first
+            let mergedCount = 0;
+            for (const product of toMerge) {
+                try {
+                    await mergeProduct.mutateAsync({
+                        existingId: product.duplicateId!,
+                        newData: {
+                            price: product.price,
+                            costPrice: product.costPrice,
+                            stockQuantity: product.stockQuantity,
+                            description: product.description,
+                            sku: product.sku,
+                            barcode: product.barcode,
+                        },
+                        mergeStrategy: "add_stock",
+                    });
+                    mergedCount++;
+                } catch (error) {
+                    console.error(`Failed to merge ${product.name}:`, error);
+                    // Continue with other products
+                }
+            }
+
+            // Create new products
+            if (toCreate.length > 0) {
+                await bulkCreate.mutateAsync({ products: toCreate });
+            }
+
+            if (mergedCount > 0) {
+                toast.success(`Merged ${mergedCount} products successfully!`);
+            }
+
+            router.push("/inventory/products");
+            router.refresh();
+        } catch (error) {
+            toast.error(`Import failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
     };
 
     const updateProduct = (index: number, field: keyof ParsedProduct, value: any) => {
@@ -145,6 +257,9 @@ export function BulkImport({ categories }: BulkImportProps) {
                         <thead className="bg-gray-50 dark:bg-gray-800">
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Status
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Product Name
                                 </th>
                                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -160,13 +275,33 @@ export function BulkImport({ categories }: BulkImportProps) {
                                     SKU
                                 </th>
                                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Actions
+                                    Action
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Remove
                                 </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             {parsedProducts.map((product, index) => (
-                                <tr key={index}>
+                                <tr key={index} className={product.duplicateStatus !== "new" ? "bg-yellow-50 dark:bg-yellow-900/10" : ""}>
+                                    <td className="px-4 py-3">
+                                        {product.duplicateStatus === "new" && (
+                                            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                ✓ New
+                                            </span>
+                                        )}
+                                        {product.duplicateStatus === "duplicate_csv" && (
+                                            <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                ⚠️ Duplicate in CSV
+                                            </span>
+                                        )}
+                                        {product.duplicateStatus === "duplicate_db" && (
+                                            <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                                ⚠️ Exists in DB
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3">
                                         <input
                                             type="text"
@@ -192,12 +327,32 @@ export function BulkImport({ categories }: BulkImportProps) {
                                         />
                                     </td>
                                     <td className="px-4 py-3">
-                                        <input
-                                            type="number"
-                                            value={product.stockQuantity}
-                                            onChange={(e) => updateProduct(index, "stockQuantity", parseInt(e.target.value) || 0)}
-                                            className="w-20 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                        />
+                                        {product.stockQuantity === -1 ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm italic text-gray-500 dark:text-gray-400">Unknown</span>
+                                                <button
+                                                    onClick={() => updateProduct(index, "stockQuantity", 0)}
+                                                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                                                >
+                                                    Set Value
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    value={product.stockQuantity}
+                                                    onChange={(e) => updateProduct(index, "stockQuantity", parseInt(e.target.value) || 0)}
+                                                    className="w-20 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                />
+                                                <button
+                                                    onClick={() => updateProduct(index, "stockQuantity", -1)}
+                                                    className="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-400"
+                                                >
+                                                    Unknown
+                                                </button>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3">
                                         <input
@@ -206,6 +361,20 @@ export function BulkImport({ categories }: BulkImportProps) {
                                             onChange={(e) => updateProduct(index, "sku", e.target.value)}
                                             className="w-24 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                                         />
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <select
+                                            value={product.action || "create"}
+                                            onChange={(e) => updateProduct(index, "action", e.target.value as "create" | "merge" | "skip")}
+                                            className="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                            disabled={product.duplicateStatus === "duplicate_csv"}
+                                        >
+                                            <option value="create">Create New</option>
+                                            {product.duplicateStatus === "duplicate_db" && (
+                                                <option value="merge">Merge</option>
+                                            )}
+                                            <option value="skip">Skip</option>
+                                        </select>
                                     </td>
                                     <td className="px-4 py-3">
                                         <button

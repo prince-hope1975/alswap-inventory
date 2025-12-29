@@ -32,14 +32,17 @@ export default function InventoryDashboard() {
                 </Link>
             </div>
 
-            <StatsGrid 
+            <StatsGrid
                 stats={stats ?? {
                     totalProducts: 0,
+                    productsWithUnknownQuantity: 0,
                     lowStock: 0,
                     totalValue: 0,
+                    totalValueConfirmed: 0,
+                    totalValueEstimated: 0,
                     salesToday: 0
-                }} 
-                isLoading={isLoading} 
+                }}
+                isLoading={isLoading}
             />
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">

@@ -75,10 +75,14 @@ export const inventoryRouter = createTRPCRouter({
                 sku: z.string().optional(),
                 price: z.number().min(0),
                 costPrice: z.number().min(0),
-                stockQuantity: z.number().int().default(0),
+                stockQuantity: z.number().int().min(-1).default(0), // -1 = unknown quantity
                 lowStockThreshold: z.number().int().default(5),
             }).refine(
                 (data) => {
+                    // Skip validation if quantity is unknown (-1)
+                    if (data.stockQuantity === -1) {
+                        return true;
+                    }
                     // If stockQuantity is 0, allow any threshold >= 0
                     // Otherwise, threshold must be less than stockQuantity
                     if (data.stockQuantity === 0) {
@@ -158,12 +162,16 @@ export const inventoryRouter = createTRPCRouter({
                 sku: z.string().optional(),
                 price: z.number().min(0).optional(),
                 costPrice: z.number().min(0).optional(),
-                stockQuantity: z.number().int().optional(),
+                stockQuantity: z.number().int().min(-1).optional(), // -1 = unknown quantity
                 lowStockThreshold: z.number().int().optional(),
             }).refine(
                 (data) => {
                     // Only validate if both fields are provided
                     if (data.stockQuantity !== undefined && data.lowStockThreshold !== undefined) {
+                        // Skip validation if quantity is unknown (-1)
+                        if (data.stockQuantity === -1) {
+                            return true;
+                        }
                         // If stockQuantity is 0, allow any threshold >= 0
                         // Otherwise, threshold must be less than stockQuantity
                         if (data.stockQuantity === 0) {
@@ -204,7 +212,8 @@ export const inventoryRouter = createTRPCRouter({
         return ctx.db.query.products.findMany({
             where: and(
                 eq(products.tenantId, ctx.tenantId),
-                lte(products.stockQuantity, products.lowStockThreshold ?? 5) // Handle null threshold
+                lte(products.stockQuantity, products.lowStockThreshold ?? 5), // Handle null threshold
+                sql`${products.stockQuantity} >= 0` // Exclude unknown quantities (-1)
             ),
             with: {
                 category: true,
@@ -255,7 +264,7 @@ export const inventoryRouter = createTRPCRouter({
                         sku: z.string().optional(),
                         price: z.number().min(0),
                         costPrice: z.number().min(0),
-                        stockQuantity: z.number().int().default(0),
+                        stockQuantity: z.number().int().min(-1).default(0), // -1 = unknown quantity
                         lowStockThreshold: z.number().int().default(5),
                     })
                 ),
@@ -291,22 +300,47 @@ export const inventoryRouter = createTRPCRouter({
             .from(products)
             .where(eq(products.tenantId, tenantId));
 
-        // 2. Low Stock
+        // 1b. Products with unknown quantity
+        const [unknownQuantityProducts] = await ctx.db
+            .select({ count: sql<number>`count(*)` })
+            .from(products)
+            .where(
+                and(
+                    eq(products.tenantId, tenantId),
+                    eq(products.stockQuantity, -1)
+                )
+            );
+
+        // 2. Low Stock (exclude unknown quantities)
         const [lowStock] = await ctx.db
             .select({ count: sql<number>`count(*)` })
             .from(products)
             .where(
                 and(
                     eq(products.tenantId, tenantId),
-                    lte(products.stockQuantity, products.lowStockThreshold ?? 5)
+                    lte(products.stockQuantity, products.lowStockThreshold ?? 5),
+                    sql`${products.stockQuantity} >= 0` // Exclude unknown quantities
                 )
             );
 
-        // 3. Total Value
-        // Note: price is decimal, cast to number for calculation if needed, or let SQL handle it
-        const [totalValue] = await ctx.db
+        // 3a. Confirmed Total Value (only products with known quantities >= 0)
+        const [totalValueConfirmed] = await ctx.db
             .select({
                 value: sql<number>`sum(${products.price} * ${products.stockQuantity})`
+            })
+            .from(products)
+            .where(
+                and(
+                    eq(products.tenantId, tenantId),
+                    sql`${products.stockQuantity} >= 0`
+                )
+            );
+
+        // 3b. Estimated Total Value (treating unknown as 0, so same as confirmed)
+        // In the future, you could add logic to estimate unknown quantities
+        const [totalValueEstimated] = await ctx.db
+            .select({
+                value: sql<number>`sum(${products.price} * CASE WHEN ${products.stockQuantity} = -1 THEN 0 ELSE ${products.stockQuantity} END)`
             })
             .from(products)
             .where(eq(products.tenantId, tenantId));
@@ -355,11 +389,161 @@ export const inventoryRouter = createTRPCRouter({
 
         return {
             totalProducts: totalProducts?.count ?? 0,
+            productsWithUnknownQuantity: unknownQuantityProducts?.count ?? 0,
             lowStock: lowStock?.count ?? 0,
-            totalValue: totalValue?.value ?? 0,
+            totalValueConfirmed: totalValueConfirmed?.value ?? 0,
+            totalValueEstimated: totalValueEstimated?.value ?? 0,
             salesToday: salesToday?.amount ?? 0,
             recentActivity,
             topSelling,
         };
     }),
+
+    // --- Duplicate Detection ---
+
+    findSimilarProducts: tenantProcedure
+        .input(
+            z.object({
+                name: z.string().min(1),
+                threshold: z.number().min(0).max(1).default(0.7),
+                limit: z.number().int().min(1).max(20).default(10),
+            })
+        )
+        .query(async ({ ctx, input }) => {
+            // Get all products for this tenant
+            const allProducts = await ctx.db.query.products.findMany({
+                where: eq(products.tenantId, ctx.tenantId),
+                with: {
+                    category: true,
+                },
+            });
+
+            // Import fuzzy match utility
+            const { similarityScore } = await import("~/lib/fuzzy-match");
+
+            // Calculate similarity for each product
+            const similarProducts = allProducts
+                .map((product) => ({
+                    ...product,
+                    similarity: similarityScore(input.name, product.name),
+                }))
+                .filter((product) => product.similarity >= input.threshold)
+                .sort((a, b) => b.similarity - a.similarity)
+                .slice(0, input.limit);
+
+            return similarProducts;
+        }),
+
+    checkDuplicates: tenantProcedure
+        .input(
+            z.object({
+                names: z.array(z.string()),
+            })
+        )
+        .query(async ({ ctx, input }) => {
+            const allProducts = await ctx.db.query.products.findMany({
+                where: eq(products.tenantId, ctx.tenantId),
+            });
+
+            // Create map of lowercase name -> product
+            const duplicates: Record<string, { id: string; name: string; sku?: string | null; price: string; stockQuantity: number }> = {};
+
+            for (const inputName of input.names) {
+                const normalizedInput = inputName.toLowerCase().trim();
+                const match = allProducts.find(
+                    (p) => p.name.toLowerCase().trim() === normalizedInput
+                );
+                if (match) {
+                    duplicates[inputName] = {
+                        id: match.id,
+                        name: match.name,
+                        sku: match.sku,
+                        price: match.price,
+                        stockQuantity: match.stockQuantity,
+                    };
+                }
+            }
+
+            return duplicates;
+        }),
+
+    mergeProduct: tenantProcedure
+        .input(
+            z.object({
+                existingId: z.string(),
+                newData: z.object({
+                    price: z.number().min(0).optional(),
+                    costPrice: z.number().min(0).optional(),
+                    stockQuantity: z.number().int().min(-1).optional(),
+                    description: z.string().optional(),
+                    image: z.string().url().optional().or(z.literal("")),
+                    images: z.array(z.string().url()).optional(),
+                    categoryId: z.number().optional(),
+                    sku: z.string().optional(),
+                    barcode: z.string().optional(),
+                }),
+                mergeStrategy: z.enum(["add_stock", "replace_all", "update_price_only"]).default("add_stock"),
+            })
+        )
+        .mutation(async ({ ctx, input }) => {
+            const existing = await ctx.db.query.products.findFirst({
+                where: and(
+                    eq(products.id, input.existingId),
+                    eq(products.tenantId, ctx.tenantId)
+                ),
+            });
+
+            if (!existing) {
+                throw new Error("Product not found");
+            }
+
+            const updateData: any = {};
+
+            if (input.mergeStrategy === "add_stock") {
+                // Add to existing stock
+                if (input.newData.stockQuantity !== undefined && input.newData.stockQuantity >= 0) {
+                    updateData.stockQuantity = existing.stockQuantity >= 0
+                        ? existing.stockQuantity + input.newData.stockQuantity
+                        : input.newData.stockQuantity;
+                }
+                // Update price if provided
+                if (input.newData.price !== undefined) {
+                    updateData.price = input.newData.price.toString();
+                }
+                if (input.newData.costPrice !== undefined) {
+                    updateData.costPrice = input.newData.costPrice.toString();
+                }
+            } else if (input.mergeStrategy === "replace_all") {
+                // Replace all fields
+                if (input.newData.price !== undefined) updateData.price = input.newData.price.toString();
+                if (input.newData.costPrice !== undefined) updateData.costPrice = input.newData.costPrice.toString();
+                if (input.newData.stockQuantity !== undefined) updateData.stockQuantity = input.newData.stockQuantity;
+                if (input.newData.description !== undefined) updateData.description = input.newData.description || null;
+                if (input.newData.image !== undefined) updateData.image = input.newData.image || null;
+                if (input.newData.images !== undefined) updateData.images = input.newData.images;
+                if (input.newData.categoryId !== undefined) updateData.categoryId = input.newData.categoryId;
+                if (input.newData.sku !== undefined) updateData.sku = input.newData.sku;
+                if (input.newData.barcode !== undefined) updateData.barcode = input.newData.barcode;
+            } else if (input.mergeStrategy === "update_price_only") {
+                // Only update price
+                if (input.newData.price !== undefined) {
+                    updateData.price = input.newData.price.toString();
+                }
+                if (input.newData.costPrice !== undefined) {
+                    updateData.costPrice = input.newData.costPrice.toString();
+                }
+            }
+
+            await ctx.db
+                .update(products)
+                .set(updateData)
+                .where(eq(products.id, input.existingId));
+
+            return ctx.db.query.products.findFirst({
+                where: eq(products.id, input.existingId),
+                with: {
+                    category: true,
+                },
+            });
+        }),
 });

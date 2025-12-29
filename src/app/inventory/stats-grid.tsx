@@ -4,8 +4,11 @@ import { useCurrency } from "~/hooks/use-tenant-settings";
 interface StatsGridProps {
     stats: {
         totalProducts: number;
+        productsWithUnknownQuantity?: number;
         lowStock: number;
-        totalValue: number;
+        totalValueConfirmed?: number;
+        totalValueEstimated?: number;
+        totalValue?: number; // Backward compatibility
         salesToday: number;
     };
     isLoading?: boolean;
@@ -13,6 +16,9 @@ interface StatsGridProps {
 
 export function StatsGrid({ stats, isLoading }: StatsGridProps) {
     const { formatCurrency } = useCurrency();
+    const unknownCount = stats.productsWithUnknownQuantity ?? 0;
+    const confirmedValue = stats.totalValueConfirmed ?? stats.totalValue ?? 0;
+    const estimatedValue = stats.totalValueEstimated ?? stats.totalValue ?? 0;
 
     return (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -20,7 +26,7 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
                 title="Total Products"
                 value={stats.totalProducts}
                 icon={Package}
-                description="Active items in stock"
+                description={unknownCount > 0 ? `${unknownCount} with unknown quantity` : "Active items in stock"}
                 gradient="from-blue-500 to-cyan-500"
                 isLoading={isLoading}
             />
@@ -33,10 +39,10 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
                 isLoading={isLoading}
             />
             <StatsCard
-                title="Total Value"
-                value={formatCurrency(stats.totalValue)}
+                title="Stock Value (Confirmed)"
+                value={formatCurrency(confirmedValue)}
                 icon={DollarSign}
-                description="Inventory asset value"
+                description={unknownCount > 0 ? `Excludes ${unknownCount} unknown` : "Inventory asset value"}
                 gradient="from-green-500 to-emerald-500"
                 isLoading={isLoading}
             />
