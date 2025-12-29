@@ -165,10 +165,10 @@ export const analyticsRouter = createTRPCRouter({
         // Prepare prompt for Gemini
         const prompt = `You are a business analyst. Analyze the following sales data and provide a concise, actionable summary (2-3 sentences) with insights:
 
-- Total Revenue: ${currency}${revenue.toFixed(2)}
+- Total Revenue: ${currency}${revenue?.toFixed(2)}
 - Total Orders: ${totalOrdersCount}
 - Average Order Value: ${currency}${totalOrdersCount > 0 ? (revenue / totalOrdersCount).toFixed(2) : "0.00"}
-- Last 30 Days Revenue: ${currency}${recentRevenue.toFixed(2)}
+- Last 30 Days Revenue: ${currency}${recentRevenue?.toFixed(2)}
 - Last 30 Days Orders: ${recentOrders}
 
 Provide insights about business performance, trends, and any recommendations. Keep it professional and concise.`;

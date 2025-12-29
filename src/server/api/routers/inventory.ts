@@ -440,6 +440,7 @@ export const inventoryRouter = createTRPCRouter({
                 names: z.array(z.string()),
             })
         )
+    
         .query(async ({ ctx, input }) => {
             const allProducts = await ctx.db.query.products.findMany({
                 where: eq(products.tenantId, ctx.tenantId),
@@ -465,7 +466,42 @@ export const inventoryRouter = createTRPCRouter({
             }
 
             return duplicates;
-        }),
+        })
+        ,
+    checkDuplicatesMutation: tenantProcedure
+        .input(
+            z.object({
+                names: z.array(z.string()),
+            })
+        )
+    
+        .mutation(async ({ ctx, input }) => {
+            const allProducts = await ctx.db.query.products.findMany({
+                where: eq(products.tenantId, ctx.tenantId),
+            });
+
+            // Create map of lowercase name -> product
+            const duplicates: Record<string, { id: string; name: string; sku?: string | null; price: string; stockQuantity: number }> = {};
+
+            for (const inputName of input.names) {
+                const normalizedInput = inputName.toLowerCase().trim();
+                const match = allProducts.find(
+                    (p) => p.name.toLowerCase().trim() === normalizedInput
+                );
+                if (match) {
+                    duplicates[inputName] = {
+                        id: match.id,
+                        name: match.name,
+                        sku: match.sku,
+                        price: match.price,
+                        stockQuantity: match.stockQuantity,
+                    };
+                }
+            }
+
+            return duplicates;
+        })
+        ,
 
     mergeProduct: tenantProcedure
         .input(

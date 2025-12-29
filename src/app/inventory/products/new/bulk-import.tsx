@@ -50,7 +50,7 @@ export function BulkImport({ categories }: BulkImportProps) {
         },
     });
 
-    const checkDuplicates = api.inventory.checkDuplicates.useMutation({
+    const checkDuplicates = api.inventory.checkDuplicatesMutation.useMutation({
         onError: (error) => {
             toast.error(`Failed to check duplicates: ${error.message}`);
         },

@@ -27,7 +27,12 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
   const { addItem } = useCart();
   const { formatCurrency } = useCurrency();
   
-  const price = parseFloat(product.price);
+  // Guard against null/undefined product
+  if (!product) {
+    return null;
+  }
+  
+  const price = parseFloat(product.price || "0");
   const isOutOfStock = product.stockQuantity === 0;
   const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= 10;
   
