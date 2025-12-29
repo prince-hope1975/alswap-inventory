@@ -1,8 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
+import { ShopFilters, type SortOption } from "../parts/shop-filters";
+import { ProductSkeletonGrid } from "../parts/product-skeleton";
+import { ProductDetailModal } from "../parts/product-detail-modal";
+import { StockBadge } from "../parts/stock-badge";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Menu } from "lucide-react";
@@ -11,6 +16,7 @@ import { useCurrency } from "~/hooks/use-tenant-settings";
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
 type Categories = RouterOutputs["shop"]["getCategories"];
+type Product = Products[number];
 
 interface ClassicTemplateProps {
     shopDetails: ShopDetails | undefined;
@@ -22,6 +28,13 @@ interface ClassicTemplateProps {
     selectedCategory: number | undefined;
     setSelectedCategory: (id: number | undefined) => void;
     config: StoreConfig;
+    sortBy: SortOption;
+    setSortBy: (sort: SortOption) => void;
+    priceRange: [number, number];
+    setPriceRange: (range: [number, number]) => void;
+    inStockOnly: boolean;
+    setInStockOnly: (value: boolean) => void;
+    onClearFilters: () => void;
 }
 
 export function ClassicTemplate({
@@ -33,11 +46,18 @@ export function ClassicTemplate({
     setSearch,
     selectedCategory,
     setSelectedCategory,
-    // config, // Using config for themes/toggles if needed
+    sortBy,
+    setSortBy,
+    priceRange,
+    setPriceRange,
+    inStockOnly,
+    setInStockOnly,
+    onClearFilters,
 }: ClassicTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
@@ -71,8 +91,8 @@ export function ClassicTemplate({
 
             <main className="container mx-auto px-4 py-6">
                 <div className="flex gap-6">
-                    {/* Left Sidebar - Departments */}
-                    <div className="hidden lg:block w-56 flex-shrink-0">
+                    {/* Left Sidebar - Departments + Filters */}
+                    <div className="hidden lg:block w-64 flex-shrink-0 space-y-4">
                         <div className="bg-white dark:bg-gray-800 p-4 rounded-sm shadow-sm border border-gray-200 dark:border-gray-700">
                             <h3 className="font-bold text-base mb-3">Departments</h3>
                             <ul className="space-y-1 text-sm">
@@ -88,37 +108,55 @@ export function ClassicTemplate({
                                 ))}
                             </ul>
                         </div>
+                        
+                        <div className="bg-white dark:bg-gray-800 p-4 rounded-sm shadow-sm border border-gray-200 dark:border-gray-700">
+                            <ShopFilters
+                                sortBy={sortBy}
+                                setSortBy={setSortBy}
+                                priceRange={priceRange}
+                                setPriceRange={setPriceRange}
+                                inStockOnly={inStockOnly}
+                                setInStockOnly={setInStockOnly}
+                                onClearFilters={onClearFilters}
+                            />
+                        </div>
                     </div>
 
                     {/* Main Content */}
                     <div className="flex-1">
                         <div className="mb-4">
                             <h2 className="text-xl font-bold">Results</h2>
-                            <p className="text-sm text-gray-500">Check each product page for other buying options.</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Check each product page for other buying options.</p>
                         </div>
 
                         {isLoading ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {[...Array(8)].map((_, i) => (
-                                    <div key={i} className="h-80 animate-pulse bg-gray-200 dark:bg-gray-800 rounded-sm" />
-                                ))}
-                            </div>
+                            <ProductSkeletonGrid count={8} columns={4} />
                         ) : products && products.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                                 {products.map((product) => (
-                                    <div key={product.id} className="bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 rounded-sm hover:shadow-md transition-shadow">
+                                    <div 
+                                        key={product.id} 
+                                        className="bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 rounded-sm hover:shadow-md transition-shadow relative"
+                                    >
                                         {/* Simplified Product Card for Classic View */}
-                                        <div className="aspect-square bg-gray-100 dark:bg-gray-700 mb-4 rounded-sm relative overflow-hidden">
+                                        <div 
+                                            className="aspect-square bg-gray-100 dark:bg-gray-700 mb-4 rounded-sm relative overflow-hidden cursor-pointer"
+                                            onClick={() => setSelectedProduct(product)}
+                                        >
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
                                             {product.image && <img src={product.image} alt={product.name} className="object-cover w-full h-full" />}
+                                            <StockBadge stockQuantity={product.stockQuantity} className="absolute top-2 right-2" />
                                         </div>
-                                        <h3 className="text-base font-medium line-clamp-2 mb-1 hover:text-[#d48100] cursor-pointer">
+                                        <h3 
+                                            className="text-base font-medium line-clamp-2 mb-1 hover:text-[#d48100] cursor-pointer"
+                                            onClick={() => setSelectedProduct(product)}
+                                        >
                                             {product.name}
                                         </h3>
                                         <div className="text-2xl font-medium mb-1">
                                             {formatCurrency(product.price)}
                                         </div>
-                                        <p className="text-xs text-gray-500 mb-3">Ships to Nigeria</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Ships to Nigeria</p>
                                         <button
                                             onClick={() => addItem({
                                                 productId: product.id,
@@ -126,9 +164,10 @@ export function ClassicTemplate({
                                                 price: Number(product.price),
                                                 image: product.image
                                             })}
-                                            className="w-full bg-[#fa8900] hover:bg-[#e67e00] text-white border border-transparent rounded-full py-1.5 text-sm shadow-sm font-bold transition-colors"
+                                            disabled={product.stockQuantity === 0}
+                                            className="w-full bg-[#fa8900] hover:bg-[#e67e00] text-white border border-transparent rounded-full py-1.5 text-sm shadow-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            Add to Cart
+                                            {product.stockQuantity === 0 ? 'Out of Stock' : 'Add to Cart'}
                                         </button>
                                     </div>
                                 ))}
@@ -136,11 +175,29 @@ export function ClassicTemplate({
                         ) : (
                             <div className="p-12 text-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-sm">
                                 <p>No products found matching your criteria.</p>
+                                <button
+                                    onClick={() => {
+                                        setSearch("");
+                                        setSelectedCategory(undefined);
+                                        onClearFilters();
+                                    }}
+                                    className="mt-3 text-[#d48100] hover:text-[#e67e00] font-medium"
+                                >
+                                    Clear all filters
+                                </button>
                             </div>
                         )}
                     </div>
                 </div>
             </main>
+            
+            {/* Product Detail Modal */}
+            {selectedProduct && (
+                <ProductDetailModal
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                />
+            )}
         </div>
     );
 }

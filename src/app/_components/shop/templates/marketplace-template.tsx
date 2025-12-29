@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
@@ -7,10 +8,15 @@ import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { ShoppingBag, Star, Zap } from "lucide-react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { ProductDetailModal } from "../parts/product-detail-modal";
+import { ShopFilters, type SortOption } from "../parts/shop-filters";
+import { ProductSkeletonGrid } from "../parts/product-skeleton";
+import { StockBadge } from "../parts/stock-badge";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
 type Categories = RouterOutputs["shop"]["getCategories"];
+type Product = Products[number];
 
 interface MarketplaceTemplateProps {
     shopDetails: ShopDetails | undefined;
@@ -21,6 +27,13 @@ interface MarketplaceTemplateProps {
     setSearch: (value: string) => void;
     selectedCategory: number | undefined;
     setSelectedCategory: (id: number | undefined) => void;
+    sortBy: SortOption;
+    setSortBy: (value: SortOption) => void;
+    priceRange: [number, number];
+    setPriceRange: (value: [number, number]) => void;
+    inStockOnly: boolean;
+    setInStockOnly: (value: boolean) => void;
+    onClearFilters: () => void;
     config: StoreConfig;
 }
 
@@ -33,11 +46,19 @@ export function MarketplaceTemplate({
     setSearch,
     selectedCategory,
     setSelectedCategory,
+    sortBy,
+    setSortBy,
+    priceRange,
+    setPriceRange,
+    inStockOnly,
+    setInStockOnly,
+    onClearFilters,
     config,
 }: MarketplaceTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     return (
         <div className="min-h-screen bg-[#f1f1f2] dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans">
@@ -53,7 +74,7 @@ export function MarketplaceTemplate({
                 {/* Marketplace Hero Layout: Left Menu | Slider | Right Promo */}
                 {config.showHero && (
                     <div className="flex gap-4 mb-6 h-[380px]">
-                        {/* Left Menu - Always visible on desktop */}
+                        {/* Left Menu - Categories and Filters */}
                         <div className="hidden lg:block w-52 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-y-auto">
                             <div className="p-3 border-b dark:border-gray-700 flex items-center gap-2 font-medium">
                                 <ShoppingBag size={18} /> Categories
@@ -74,6 +95,17 @@ export function MarketplaceTemplate({
                                         {c.name}
                                     </button>
                                 ))}
+                            </div>
+                            <div className="border-t dark:border-gray-700 mt-2">
+                                <ShopFilters
+                                    sortBy={sortBy}
+                                    setSortBy={setSortBy}
+                                    priceRange={priceRange}
+                                    setPriceRange={setPriceRange}
+                                    inStockOnly={inStockOnly}
+                                    setInStockOnly={setInStockOnly}
+                                    onClearFilters={onClearFilters}
+                                />
                             </div>
                         </div>
 
@@ -120,19 +152,19 @@ export function MarketplaceTemplate({
                     </div>
 
                     {isLoading ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                            {[...Array(10)].map((_, i) => (
-                                <div key={i} className="h-64 animate-pulse bg-gray-100 dark:bg-gray-700 rounded" />
-                            ))}
-                        </div>
+                        <ProductSkeletonGrid count={10} columns={5} />
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                             {products?.map((product) => (
-                                <div key={product.id} className="group hover:shadow-lg transition-shadow border border-transparent hover:border-gray-200 dark:hover:border-gray-700 rounded p-2">
+                                <div 
+                                    key={product.id} 
+                                    className="group hover:shadow-lg transition-shadow border border-transparent hover:border-gray-200 dark:hover:border-gray-700 rounded p-2 cursor-pointer"
+                                    onClick={() => setSelectedProduct(product)}
+                                >
                                     <div className="relative aspect-square mb-2 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         {product.image && <img src={product.image} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />}
-                                        {/* Classic Jumia styled discount tag could go here */}
+                                        <StockBadge stockQuantity={product.stockQuantity ?? 0} className="absolute top-2 left-2" />
                                     </div>
                                     <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>
                                     <div className="font-bold text-sm sm:text-base">
@@ -142,13 +174,17 @@ export function MarketplaceTemplate({
                                         {formatCurrency(Number(product.price) * 1.2)}
                                     </div>
                                     <button
-                                        onClick={() => addItem({
-                                            productId: product.id,
-                                            name: product.name,
-                                            price: Number(product.price),
-                                            image: product.image
-                                        })}
-                                        className="w-full mt-2 bg-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-700)] text-white text-xs py-2 uppercase tracking-wide rounded-sm font-extrabold opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            addItem({
+                                                productId: product.id,
+                                                name: product.name,
+                                                price: Number(product.price),
+                                                image: product.image
+                                            });
+                                        }}
+                                        disabled={product.stockQuantity === 0}
+                                        className="w-full mt-2 bg-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-700)] text-white text-xs py-2 uppercase tracking-wide rounded-sm font-extrabold opacity-0 group-hover:opacity-100 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         ADD TO CART
                                     </button>
@@ -158,6 +194,20 @@ export function MarketplaceTemplate({
                     )}
                 </div>
             </main>
+
+            <ProductDetailModal
+                product={selectedProduct}
+                isOpen={!!selectedProduct}
+                onClose={() => setSelectedProduct(null)}
+                onAddToCart={(product) => {
+                    addItem({
+                        productId: product.id,
+                        name: product.name,
+                        price: Number(product.price),
+                        image: product.image
+                    });
+                }}
+            />
         </div>
     );
 }

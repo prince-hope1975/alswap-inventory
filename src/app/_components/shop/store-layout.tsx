@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "~/trpc/react";
 import { useCart } from "./cart-context";
 import { CheckoutModal } from "./checkout-modal";
 import type { StoreConfig } from "~/types/store-config";
+import type { SortOption } from "./parts/shop-filters";
 
-// Templates
 // Templates
 import { ModernTemplate } from "./templates/modern-template";
 import { ClassicTemplate } from "./templates/classic-template";
@@ -33,6 +33,11 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<number | undefined>(undefined);
+    
+    // Filter and sort state
+    const [sortBy, setSortBy] = useState<SortOption>("newest");
+    const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
+    const [inStockOnly, setInStockOnly] = useState(false);
 
     // Fetch data with initial data from server
     const { data: shopDetails, isLoading: isShopLoading } = api.shop.getShopDetails.useQuery(undefined, {
@@ -78,9 +83,52 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         }
     }, [config.themeMode]);
 
+    // Client-side filtering and sorting
+    const filteredAndSortedProducts = useMemo(() => {
+        if (!products) return [];
+        
+        let filtered = [...products];
+        
+        // Filter by price range
+        filtered = filtered.filter(product => {
+            const price = parseFloat(product.price);
+            return price >= priceRange[0] && price <= priceRange[1];
+        });
+        
+        // Filter by stock availability
+        if (inStockOnly) {
+            filtered = filtered.filter(product => product.stockQuantity > 0);
+        }
+        
+        // Sort products
+        filtered.sort((a, b) => {
+            switch (sortBy) {
+                case "name-asc":
+                    return a.name.localeCompare(b.name);
+                case "name-desc":
+                    return b.name.localeCompare(a.name);
+                case "price-asc":
+                    return parseFloat(a.price) - parseFloat(b.price);
+                case "price-desc":
+                    return parseFloat(b.price) - parseFloat(a.price);
+                case "newest":
+                default:
+                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            }
+        });
+        
+        return filtered;
+    }, [products, priceRange, inStockOnly, sortBy]);
+
+    const handleClearFilters = () => {
+        setSortBy("newest");
+        setPriceRange([0, 1000000]);
+        setInStockOnly(false);
+    };
+
     const commonProps = {
         shopDetails,
-        products,
+        products: filteredAndSortedProducts,
         categories,
         isLoading: isShopLoading || isProductsLoading,
         search,
@@ -88,6 +136,14 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         selectedCategory,
         setSelectedCategory,
         config,
+        // Filter props
+        sortBy,
+        setSortBy,
+        priceRange,
+        setPriceRange,
+        inStockOnly,
+        setInStockOnly,
+        onClearFilters: handleClearFilters,
     };
 
     return (

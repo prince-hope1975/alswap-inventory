@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
@@ -7,10 +8,15 @@ import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { ArrowRight } from "lucide-react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { ProductDetailModal } from "../parts/product-detail-modal";
+import { ShopFilters, type SortOption } from "../parts/shop-filters";
+import { ProductSkeletonGrid } from "../parts/product-skeleton";
+import { StockBadge } from "../parts/stock-badge";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
 type Categories = RouterOutputs["shop"]["getCategories"];
+type Product = Products[number];
 
 interface MinimalTemplateProps {
     shopDetails: ShopDetails | undefined;
@@ -21,6 +27,13 @@ interface MinimalTemplateProps {
     setSearch: (value: string) => void;
     selectedCategory: number | undefined;
     setSelectedCategory: (id: number | undefined) => void;
+    sortBy: SortOption;
+    setSortBy: (value: SortOption) => void;
+    priceRange: [number, number];
+    setPriceRange: (value: [number, number]) => void;
+    inStockOnly: boolean;
+    setInStockOnly: (value: boolean) => void;
+    onClearFilters: () => void;
     config: StoreConfig;
 }
 
@@ -33,11 +46,19 @@ export function MinimalTemplate({
     setSearch,
     selectedCategory,
     setSelectedCategory,
+    sortBy,
+    setSortBy,
+    priceRange,
+    setPriceRange,
+    inStockOnly,
+    setInStockOnly,
+    onClearFilters,
     config,
 }: MinimalTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     return (
         <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[var(--brand-primary-200)] selection:text-[var(--brand-primary-900)]">
@@ -73,7 +94,7 @@ export function MinimalTemplate({
                 )}
 
                 {/* Category Filters - Text only */}
-                <div id="shop" className="flex flex-wrap justify-center gap-8 mb-16 text-sm tracking-wide">
+                <div id="shop" className="flex flex-wrap justify-center gap-8 mb-8 text-sm tracking-wide">
                     <button
                         onClick={() => setSelectedCategory(undefined)}
                         className={`transition-colors ${selectedCategory === undefined ? 'text-[var(--brand-primary-600)] font-medium' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
@@ -91,21 +112,30 @@ export function MinimalTemplate({
                     ))}
                 </div>
 
+                {/* Filters */}
+                <div className="mb-16 max-w-4xl mx-auto">
+                    <ShopFilters
+                        sortBy={sortBy}
+                        setSortBy={setSortBy}
+                        priceRange={priceRange}
+                        setPriceRange={setPriceRange}
+                        inStockOnly={inStockOnly}
+                        setInStockOnly={setInStockOnly}
+                        onClearFilters={onClearFilters}
+                    />
+                </div>
+
                 {/* Products Grid - Sparse */}
                 {isLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-20">
-                        {[...Array(6)].map((_, i) => (
-                            <div key={i} className="space-y-4">
-                                <div className="aspect-[3/4] bg-zinc-100 dark:bg-zinc-900 animate-pulse" />
-                                <div className="h-4 w-2/3 bg-zinc-100 dark:bg-zinc-900" />
-                                <div className="h-4 w-1/4 bg-zinc-100 dark:bg-zinc-900" />
-                            </div>
-                        ))}
-                    </div>
+                    <ProductSkeletonGrid count={6} columns={3} />
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-20">
                         {products?.map((product) => (
-                            <div key={product.id} className="group cursor-pointer">
+                            <div 
+                                key={product.id} 
+                                className="group cursor-pointer"
+                                onClick={() => setSelectedProduct(product)}
+                            >
                                 <div className="relative aspect-[3/4] mb-6 overflow-hidden bg-zinc-50 dark:bg-zinc-900">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     {product.image ? (
@@ -118,6 +148,7 @@ export function MinimalTemplate({
                                         <div className="flex h-full items-center justify-center text-zinc-300">No Image</div>
                                     )}
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors absolute-cover" />
+                                    <StockBadge stockQuantity={product.stockQuantity ?? 0} className="absolute top-4 left-4" />
 
                                     {/* Minimal Quick Add */}
                                     <button
@@ -130,7 +161,8 @@ export function MinimalTemplate({
                                                 image: product.image
                                             });
                                         }}
-                                        className="absolute bottom-6 right-6 h-12 w-12 flex items-center justify-center rounded-full bg-white dark:bg-zinc-800 shadow-xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 ease-out hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black border border-zinc-100 dark:border-zinc-700"
+                                        disabled={product.stockQuantity === 0}
+                                        className="absolute bottom-6 right-6 h-12 w-12 flex items-center justify-center rounded-full bg-white dark:bg-zinc-800 shadow-xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 ease-out hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black border border-zinc-100 dark:border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <span className="text-xl font-light">+</span>
                                     </button>
@@ -151,6 +183,20 @@ export function MinimalTemplate({
                     </div>
                 )}
             </main>
+
+            <ProductDetailModal
+                product={selectedProduct}
+                isOpen={!!selectedProduct}
+                onClose={() => setSelectedProduct(null)}
+                onAddToCart={(product) => {
+                    addItem({
+                        productId: product.id,
+                        name: product.name,
+                        price: Number(product.price),
+                        image: product.image
+                    });
+                }}
+            />
         </div>
     );
 }

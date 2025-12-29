@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
@@ -7,10 +8,15 @@ import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Filter, Sparkles } from "lucide-react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { ProductDetailModal } from "../parts/product-detail-modal";
+import { ShopFilters, type SortOption } from "../parts/shop-filters";
+import { ProductSkeletonGrid } from "../parts/product-skeleton";
+import { StockBadge } from "../parts/stock-badge";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
 type Categories = RouterOutputs["shop"]["getCategories"];
+type Product = Products[number];
 
 interface BoutiqueTemplateProps {
     shopDetails: ShopDetails | undefined;
@@ -21,6 +27,13 @@ interface BoutiqueTemplateProps {
     setSearch: (value: string) => void;
     selectedCategory: number | undefined;
     setSelectedCategory: (id: number | undefined) => void;
+    sortBy: SortOption;
+    setSortBy: (value: SortOption) => void;
+    priceRange: [number, number];
+    setPriceRange: (value: [number, number]) => void;
+    inStockOnly: boolean;
+    setInStockOnly: (value: boolean) => void;
+    onClearFilters: () => void;
     config: StoreConfig;
 }
 
@@ -33,11 +46,19 @@ export function BoutiqueTemplate({
     setSearch,
     selectedCategory,
     setSelectedCategory,
+    sortBy,
+    setSortBy,
+    priceRange,
+    setPriceRange,
+    inStockOnly,
+    setInStockOnly,
+    onClearFilters,
     config,
 }: BoutiqueTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     return (
         <div className="min-h-screen bg-[#fcfbf9] dark:bg-[#121212] text-zinc-800 dark:text-zinc-200 font-serif selection:bg-[var(--brand-primary-100)] selection:text-[var(--brand-primary-900)]">
@@ -80,7 +101,7 @@ export function BoutiqueTemplate({
             <main className="container mx-auto px-4 md:px-8 py-16">
 
                 {/* Category Pills - Centered */}
-                <div className="flex flex-wrap justify-center gap-4 mb-16 font-sans text-sm">
+                <div className="flex flex-wrap justify-center gap-4 mb-12 font-sans text-sm">
                     <button
                         onClick={() => setSelectedCategory(undefined)}
                         className={`px-6 py-2 rounded-full border transition-all ${selectedCategory === undefined ? 'bg-[var(--brand-primary-900)] text-white border-[var(--brand-primary-900)]' : 'border-stone-200 dark:border-zinc-800 hover:border-[var(--brand-primary-400)]'}`}
@@ -98,17 +119,30 @@ export function BoutiqueTemplate({
                     ))}
                 </div>
 
+                {/* Filters */}
+                <div className="mb-16 max-w-4xl mx-auto">
+                    <ShopFilters
+                        sortBy={sortBy}
+                        setSortBy={setSortBy}
+                        priceRange={priceRange}
+                        setPriceRange={setPriceRange}
+                        inStockOnly={inStockOnly}
+                        setInStockOnly={setInStockOnly}
+                        onClearFilters={onClearFilters}
+                    />
+                </div>
+
                 {/* Products - Masonry-ish Grid */}
                 {isLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                        {[...Array(8)].map((_, i) => (
-                            <div key={i} className="aspect-[4/5] bg-stone-100 dark:bg-zinc-800 animate-pulse" />
-                        ))}
-                    </div>
+                    <ProductSkeletonGrid count={8} columns={4} />
                 ) : (
                     <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-8 space-y-8 font-sans">
                         {products?.map((product) => (
-                            <div key={product.id} className="break-inside-avoid group bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-xl transition-shadow duration-500 border border-stone-100 dark:border-zinc-800">
+                            <div 
+                                key={product.id} 
+                                className="break-inside-avoid group bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-xl transition-shadow duration-500 border border-stone-100 dark:border-zinc-800 cursor-pointer"
+                                onClick={() => setSelectedProduct(product)}
+                            >
                                 <div className="relative aspect-[4/5] overflow-hidden mb-4 bg-stone-50 dark:bg-zinc-800">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     {product.image && (
@@ -118,16 +152,21 @@ export function BoutiqueTemplate({
                                             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         />
                                     )}
+                                    <StockBadge stockQuantity={product.stockQuantity ?? 0} className="absolute top-4 left-4" />
                                     {/* Overlay */}
                                     <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/60 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex justify-center">
                                         <button
-                                            onClick={() => addItem({
-                                                productId: product.id,
-                                                name: product.name,
-                                                price: Number(product.price),
-                                                image: product.image
-                                            })}
-                                            className="bg-white text-black px-8 py-3 text-xs font-serif uppercase tracking-[0.2em] hover:bg-black hover:text-white border border-black dark:border-white dark:bg-black dark:text-white dark:hover:bg-white dark:hover:text-black transition-all duration-300 shadow-xl"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                addItem({
+                                                    productId: product.id,
+                                                    name: product.name,
+                                                    price: Number(product.price),
+                                                    image: product.image
+                                                });
+                                            }}
+                                            disabled={product.stockQuantity === 0}
+                                            className="bg-white text-black px-8 py-3 text-xs font-serif uppercase tracking-[0.2em] hover:bg-black hover:text-white border border-black dark:border-white dark:bg-black dark:text-white dark:hover:bg-white dark:hover:text-black transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Add to Cart
                                         </button>
@@ -142,6 +181,20 @@ export function BoutiqueTemplate({
                     </div>
                 )}
             </main>
+
+            <ProductDetailModal
+                product={selectedProduct}
+                isOpen={!!selectedProduct}
+                onClose={() => setSelectedProduct(null)}
+                onAddToCart={(product) => {
+                    addItem({
+                        productId: product.id,
+                        name: product.name,
+                        price: Number(product.price),
+                        image: product.image
+                    });
+                }}
+            />
         </div>
     );
 }
