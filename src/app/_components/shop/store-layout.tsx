@@ -87,33 +87,34 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     const filteredAndSortedProducts = useMemo(() => {
         if (!products) return [];
         
-        let filtered = [...products];
+        let filtered = [...products].filter(product => product != null);
         
         // Filter by price range
         filtered = filtered.filter(product => {
+            if (!product?.price) return false;
             const price = parseFloat(product.price);
-            return price >= priceRange[0] && price <= priceRange[1];
+            return !isNaN(price) && price >= priceRange[0] && price <= priceRange[1];
         });
         
         // Filter by stock availability
         if (inStockOnly) {
-            filtered = filtered.filter(product => product.stockQuantity > 0);
+            filtered = filtered.filter(product => product?.stockQuantity > 0);
         }
         
         // Sort products
         filtered.sort((a, b) => {
             switch (sortBy) {
                 case "name-asc":
-                    return a.name.localeCompare(b.name);
+                    return (a?.name || "").localeCompare(b?.name || "");
                 case "name-desc":
-                    return b.name.localeCompare(a.name);
+                    return (b?.name || "").localeCompare(a?.name || "");
                 case "price-asc":
-                    return parseFloat(a.price) - parseFloat(b.price);
+                    return parseFloat(a?.price || "0") - parseFloat(b?.price || "0");
                 case "price-desc":
-                    return parseFloat(b.price) - parseFloat(a.price);
+                    return parseFloat(b?.price || "0") - parseFloat(a?.price || "0");
                 case "newest":
                 default:
-                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    return new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime();
             }
         });
         
