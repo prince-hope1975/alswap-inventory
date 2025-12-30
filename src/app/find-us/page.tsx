@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { api } from "~/trpc/react";
-import { LocationPicker } from "~/app/_components/maps/location-picker";
 import { toAppleMapsDirectionsUrl, toGoogleMapsDirectionsUrl, toGoogleMapsQueryUrl } from "~/lib/maps";
 import { useQuery } from "@tanstack/react-query";
+
+const LocationPicker = dynamic(
+  () => import("~/app/_components/maps/location-picker").then((mod) => mod.LocationPicker),
+  { ssr: false }
+);
 
 export default function FindUsPage() {
   const { data, isLoading } = api.shop.getShopDetails.useQuery();
