@@ -475,34 +475,42 @@ export default function POSTerminal() {
                                     position: 'relative'
                                 }}
                             >
-                                <div
-                                    className={cn(
-                                        "grid gap-4 absolute top-0 left-0 w-full",
-                                        isTouchMode ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                                    )}
-                                >
-                                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                        const product = searchedProducts[virtualRow.index]!;
-                                        return (
-                                            <div
-                                                key={virtualRow.key}
-                                                style={{
-                                                    height: '256px',
-                                                }}
-                                            >
-                                                <ProductCard
-                                                    product={{
-                                                        ...product,
-                                                        price: Number(product.price),
-                                                        image: product.image ?? null
-                                                    }}
-                                                    onClick={() => addToCart(product)}
-                                                    touchMode={isTouchMode}
-                                                />
+                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const rowProducts = virtualItems[virtualRow.index] as typeof searchedProducts;
+                                    if (!rowProducts) return null;
+                                    
+                                    return (
+                                        <div
+                                            key={virtualRow.key}
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                width: '100%',
+                                                height: `${virtualRow.size}px`,
+                                                transform: `translateY(${virtualRow.start}px)`
+                                            }}
+                                        >
+                                            <div className={cn(
+                                                "grid gap-4 h-full",
+                                                gridCols === 2 ? "grid-cols-2" : "grid-cols-3"
+                                            )}>
+                                                {rowProducts.map((product) => (
+                                                    <ProductCard
+                                                        key={product.id}
+                                                        product={{
+                                                            ...product,
+                                                            price: Number(product.price),
+                                                            image: product.image ?? null
+                                                        }}
+                                                        onClick={() => addToCart(product)}
+                                                        touchMode={isTouchMode}
+                                                    />
+                                                ))}
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div
@@ -513,7 +521,9 @@ export default function POSTerminal() {
                                 }}
                             >
                                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                    const product = searchedProducts[virtualRow.index]!;
+                                    const product = searchedProducts[virtualRow.index];
+                                    if (!product) return null;
+                                    
                                     return (
                                         <div
                                             key={virtualRow.key}
