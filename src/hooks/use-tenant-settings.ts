@@ -22,8 +22,10 @@ export function useCurrency() {
         if (amount === undefined || amount === null) return `${currency}0.00`;
         const num = typeof amount === "string" ? parseFloat(amount) : amount;
         if (isNaN(num)) return `${currency}0.00`;
-        
-        return `${currency}${num.toFixed(2)}`;
+
+        return `${currency}${Intl.NumberFormat("en-US", {
+            maximumFractionDigits: 2,notation:"standard"
+        }).format(num)}`;
     };
 
     return {
