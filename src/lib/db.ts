@@ -10,6 +10,10 @@ export interface LocalProduct {
     stockQuantity: number;
     image?: string | null;
     tenantId: string;
+    // Search optimization fields
+    searchTokens?: string; // Concatenated lowercase search fields
+    salesCount?: number; // Track popularity for ranking
+    categoryId?: string | null; // For category-based boosting
 }
 
 export interface LocalCustomer {
@@ -52,28 +56,42 @@ export class PosDatabase extends Dexie {
     constructor() {
         super("AlswapPosDB");
         
-        this.version(2).stores({
-            products: "id, name, sku, barcode, tenantId", // Index fields for searching
+        this.version(3).stores({
+            products: "id, name, sku, barcode, tenantId, searchTokens, salesCount, categoryId", // Enhanced indices
             customers: "id, name, email, phone, tenantId",
             pendingOrders: "++id, synced, createdAt",
             settings: "key"
         }).upgrade(trans => {
-             // If we have old data with boolean synced, Dexie might handle it or we might need migration
-             // But for now, just bumping version to ensure schema is fresh or updated
-             // If we really wanted to migrate booleans:
-             // trans.table("pendingOrders").toCollection().modify(order => {
-             //    if (typeof order.synced === "boolean") order.synced = order.synced ? 1 : 0;
-             // });
-             // However, `upgrade` runs *after* schema change is applied but on old data? 
-             // Actually, bumping version is usually enough if indices are compatible or rebuilt.
-             // Boolean -> Number index might be tricky if data remains boolean.
-             // Let's explicitly migrate if needed.
-             return trans.table("pendingOrders").toCollection().modify((order: any) => {
-                 if (typeof order.synced === "boolean") {
-                     order.synced = order.synced ? 1 : 0;
-                 }
-             });
+            // Migrate synced field from boolean to number if needed
+            return trans.table("pendingOrders").toCollection().modify((order: any) => {
+                if (typeof order.synced === "boolean") {
+                    order.synced = order.synced ? 1 : 0;
+                }
+            });
         });
+    }
+
+    // Helper method to build search tokens when adding products
+    async addProductsWithTokens(products: Omit<LocalProduct, 'searchTokens' | 'salesCount'>[]) {
+        const productsWithTokens = products.map(p => ({
+            ...p,
+            searchTokens: [p.name, p.sku, p.barcode]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase(),
+            salesCount: p.salesCount ?? 0
+        }));
+        return this.products.bulkAdd(productsWithTokens as LocalProduct[]);
+    }
+
+    // Increment sales count for a product
+    async incrementSalesCount(productId: string, quantity: number) {
+        const product = await this.products.get(productId);
+        if (product) {
+            await this.products.update(productId, {
+                salesCount: (product.salesCount ?? 0) + quantity
+            });
+        }
     }
 }
 

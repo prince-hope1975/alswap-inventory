@@ -46,12 +46,12 @@ export function usePosSync() {
                 try {
                     await db.transaction("rw", db.products, db.customers, async () => {
                         // Clear existing data to avoid duplicates/stale data
-                        // In a more advanced version, we might diff, but for now full replace is safer
                         await db.products.clear();
                         await db.customers.clear();
 
                         if (offlineData.products.length > 0) {
-                            await db.products.bulkAdd(offlineData.products.map(p => ({
+                            // Use the new helper method that adds search tokens
+                            await db.addProductsWithTokens(offlineData.products.map(p => ({
                                 id: p.id,
                                 name: p.name,
                                 price: p.price,
@@ -60,6 +60,7 @@ export function usePosSync() {
                                 stockQuantity: p.stockQuantity,
                                 image: p.image,
                                 tenantId: p.tenantId,
+                                categoryId: p.categoryId ?? null,
                             })));
                         }
 

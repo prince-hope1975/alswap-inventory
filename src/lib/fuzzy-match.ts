@@ -52,10 +52,49 @@ export function similarityScore(str1: string, str2: string): number {
 }
 
 /**
+ * Calculate a more forgiving partial match score
+ * Checks if query appears within the target string, giving higher scores for closer matches
+ */
+export function partialMatchScore(query: string, target: string): number {
+    const q = query.toLowerCase().trim();
+    const t = target.toLowerCase().trim();
+    
+    if (!q || !t) return 0;
+    if (t.includes(q)) return 1; // Exact substring match
+    
+    // Split into words and check word-level matches
+    const queryWords = q.split(/\s+/);
+    const targetWords = t.split(/\s+/);
+    
+    let matchCount = 0;
+    for (const qWord of queryWords) {
+        for (const tWord of targetWords) {
+            if (tWord.includes(qWord) || qWord.includes(tWord)) {
+                matchCount++;
+                break;
+            }
+        }
+    }
+    
+    return matchCount / queryWords.length;
+}
+
+/**
+ * Combined score that considers both fuzzy matching and partial matching
+ */
+export function combinedScore(query: string, target: string): number {
+    const fuzzyScore = similarityScore(query, target);
+    const partialScore = partialMatchScore(query, target);
+    
+    // Weight partial matching higher for better user experience
+    return Math.max(fuzzyScore, partialScore * 0.9);
+}
+
+/**
  * Check if two strings are similar based on a threshold
  */
 export function isSimilar(str1: string, str2: string, threshold = 0.7): boolean {
-    return similarityScore(str1, str2) >= threshold;
+    return combinedScore(str1, str2) >= threshold;
 }
 
 /**
@@ -69,10 +108,45 @@ export function findSimilar(
     return candidates
         .map((candidate) => ({
             value: candidate,
-            score: similarityScore(target, candidate),
+            score: combinedScore(target, candidate),
         }))
         .filter((item) => item.score >= threshold)
         .sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Fuzzy search array of objects by multiple fields
+ */
+export function fuzzySearchArray<T>(
+    query: string,
+    items: T[],
+    searchFields: (keyof T)[],
+    threshold = 0.5
+): Array<T & { _searchScore: number }> {
+    if (!query.trim()) {
+        return items.map(item => ({ ...item, _searchScore: 1 }));
+    }
+
+    const results: Array<T & { _searchScore: number }> = [];
+
+    for (const item of items) {
+        let maxScore = 0;
+
+        for (const field of searchFields) {
+            const value = item[field];
+            if (typeof value === 'string' && value) {
+                const score = combinedScore(query, value);
+                maxScore = Math.max(maxScore, score);
+            }
+        }
+
+        if (maxScore >= threshold) {
+            results.push({ ...item, _searchScore: maxScore });
+        }
+    }
+
+    // Sort by score descending
+    return results.sort((a, b) => b._searchScore - a._searchScore);
 }
 
 /**

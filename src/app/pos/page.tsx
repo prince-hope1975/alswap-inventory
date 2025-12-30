@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { api } from "~/trpc/react";
 import { Search, ShoppingCart, X, Plus, Minus, User, UserX, LayoutGrid, List, Smartphone, Monitor, Trash2, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { ProductCard } from "../_components/pos/product-card";
+import { ProductListItem } from "../_components/pos/product-list-item";
 import { PaymentModal } from "../_components/pos/payment-modal";
 import { ReceiptModal } from "../_components/pos/receipt-modal";
 import { cn } from "~/lib/utils";
@@ -15,6 +16,8 @@ import { db } from "~/lib/db";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ErrorBoundary } from "~/components/error-boundary";
 import { ComponentErrorFallback } from "~/components/route-error-boundary";
+import { fuzzySearchArray } from "~/lib/fuzzy-match";
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 type CartItem = {
     productId: string;
@@ -24,6 +27,8 @@ type CartItem = {
     image: string | null;
     sku?: string | null;
 };
+
+type ViewMode = "grid" | "list";
 
 export default function POSTerminal() {
     const router = useRouter();
@@ -37,9 +42,13 @@ export default function POSTerminal() {
 
     // UI State
     const [isTouchMode, setIsTouchMode] = useState(false);
+    const [viewMode, setViewMode] = useState<ViewMode>("list"); // Default to list
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [lastOrder, setLastOrder] = useState<any>(null);
+
+    // Virtual scroll ref
+    const parentRef = useRef<HTMLDivElement>(null);
 
     // Sync Hook
     const { isOnline, isSyncing, pendingOrdersCount, pullData, pushData } = usePosSync();
@@ -50,10 +59,21 @@ export default function POSTerminal() {
         if (stored) {
             setIsTouchMode(stored === "true");
         } else {
-            // Simple heuristic for touch device
             const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
             setIsTouchMode(isTouch);
             localStorage.setItem("pos_touch_mode", String(isTouch));
+        }
+
+        // Load view mode preference
+        const storedView = localStorage.getItem("pos_view_mode");
+        if (storedView) {
+            setViewMode(storedView as ViewMode);
+        } else {
+            // Default: list for desktop, grid for touch
+            const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const defaultView = isTouch ? "grid" : "list";
+            setViewMode(defaultView);
+            localStorage.setItem("pos_view_mode", defaultView);
         }
     }, []);
 
@@ -61,6 +81,12 @@ export default function POSTerminal() {
         const newValue = !isTouchMode;
         setIsTouchMode(newValue);
         localStorage.setItem("pos_touch_mode", String(newValue));
+    };
+
+    const toggleViewMode = () => {
+        const newMode = viewMode === "grid" ? "list" : "grid";
+        setViewMode(newMode);
+        localStorage.setItem("pos_view_mode", newMode);
     };
 
     // Shift Management - Hybrid Approach
@@ -73,10 +99,8 @@ export default function POSTerminal() {
         const syncShift = async () => {
             if (currentShift) {
                 setShiftId(currentShift.id);
-                // Persist shift to local DB
                 await db.settings.put({ key: "currentShift", value: currentShift });
             } else if (!isOnline || shiftError) {
-                // Try to load from local DB
                 const cachedShift = await db.settings.get("currentShift");
                 if (cachedShift?.value) {
                     setShiftId(cachedShift.value.id);
@@ -86,21 +110,64 @@ export default function POSTerminal() {
         void syncShift();
     }, [currentShift, isOnline, shiftError]);
 
-    // Product Search - Local DB
-    const searchProductsResults = useLiveQuery(async () => {
-        let collection = db.products.toCollection();
+    // Product Search - Enhanced with Fuzzy Search
+    const allProducts = useLiveQuery(() => db.products.toArray(), []);
 
-        if (searchQuery) {
-            const lowerQuery = searchQuery.toLowerCase();
-            collection = db.products.filter(p =>
-                p.name.toLowerCase().includes(lowerQuery) ||
-                (p.sku?.toLowerCase().includes(lowerQuery) ?? false) ||
-                (p.barcode?.includes(lowerQuery) ?? false)
-            );
+    const searchedProducts = useMemo(() => {
+        if (!allProducts) return [];
+        
+        if (!searchQuery.trim()) {
+            // No search query - return all sorted by sales count
+            return allProducts
+                .sort((a, b) => (b.salesCount ?? 0) - (a.salesCount ?? 0))
+                .slice(0, 1000); // Limit to 1000 for performance
         }
 
-        return collection.limit(20).toArray();
-    }, [searchQuery]);
+        // Fuzzy search with very forgiving threshold
+        const results = fuzzySearchArray(
+            searchQuery,
+            allProducts,
+            ['name', 'sku', 'barcode'] as any,
+            0.4 // Very forgiving threshold
+        );
+
+        // Boost by category and sales
+        return results.sort((a, b) => {
+            // Primary sort by search score
+            const scoreDiff = b._searchScore - a._searchScore;
+            if (Math.abs(scoreDiff) > 0.1) return scoreDiff;
+            
+            // Secondary sort by sales count
+            return (b.salesCount ?? 0) - (a.salesCount ?? 0);
+        });
+    }, [allProducts, searchQuery]);
+
+    // Calculate grid columns based on mode
+    const gridCols = useMemo(() => {
+        if (viewMode === "list") return 1;
+        return isTouchMode ? 2 : 3; // 2 cols for touch, 3 for desktop in grid mode
+    }, [viewMode, isTouchMode]);
+
+    // For grid mode, we virtualize rows, not individual items
+    const virtualItems = useMemo(() => {
+        if (!searchedProducts) return [];
+        if (viewMode === "list") return searchedProducts;
+        
+        // Group products into rows for grid view
+        const rows: typeof searchedProducts[] = [];
+        for (let i = 0; i < searchedProducts.length; i += gridCols) {
+            rows.push(searchedProducts.slice(i, i + gridCols));
+        }
+        return rows;
+    }, [searchedProducts, viewMode, gridCols]);
+
+    // Virtual scrolling setup
+    const rowVirtualizer = useVirtualizer({
+        count: viewMode === "list" ? (searchedProducts?.length ?? 0) : virtualItems.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => (viewMode === "grid" ? 280 : 88), // Estimate card/list item height
+        overscan: 5,
+    });
 
 
     // Customer Search - Local DB
@@ -128,7 +195,12 @@ export default function POSTerminal() {
         }
     });
 
-    const handleOrderSuccess = (order: any) => {
+    const handleOrderSuccess = async (order: any) => {
+        // Update sales count for products
+        for (const item of cart) {
+            await db.incrementSalesCount(item.productId, item.quantity);
+        }
+
         setLastOrder({
             ...order,
             items: cart.map(c => ({
@@ -146,7 +218,6 @@ export default function POSTerminal() {
     };
 
     const handleOfflineOrder = async (paymentMethod?: string, amountPaid?: number) => {
-        // Fallback to offline save
         const tempId = `offline-${Date.now()}`;
         const orderData = {
             shiftId: shiftId ?? undefined,
@@ -161,36 +232,38 @@ export default function POSTerminal() {
         };
 
         try {
-            // Save to pending orders
             await db.pendingOrders.add({
                 orderData,
                 createdAt: new Date(),
-                synced: 0 // 0 = false
+                synced: 0
             });
 
-            // Optimistically update stock
+            // Update stock and sales count
             for (const item of cart) {
                 const product = await db.products.get(item.productId);
                 if (product) {
-                    await db.products.update(item.productId, {
-                        stockQuantity: Math.max(0, product.stockQuantity - item.quantity)
-                    });
+                    // Only decrement if stock is known (not -1)
+                    if (product.stockQuantity !== -1) {
+                        await db.products.update(item.productId, {
+                            stockQuantity: Math.max(0, product.stockQuantity - item.quantity)
+                        });
+                    }
+                    // Always increment sales count
+                    await db.incrementSalesCount(item.productId, item.quantity);
                 }
             }
 
-            // Create a fake order object for the receipt
             const fakeOrder = {
                 id: tempId,
                 totalAmount: cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toString(),
                 paymentMethod: paymentMethod ?? "CASH",
                 createdAt: new Date().toISOString(),
-                items: [], // Populated in handleOrderSuccess
+                items: [],
                 customer: selectedCustomer,
                 amountPaid: amountPaid
             };
 
             handleOrderSuccess(fakeOrder);
-            // toast.success("Order saved offline. Will sync when online.");
         } catch (e) {
             console.error("Failed to save offline order", e);
             alert("Failed to save order offline. Please check your device storage.");
@@ -219,10 +292,6 @@ export default function POSTerminal() {
                     sku: product.sku,
                 },
             ]);
-        }
-        // Don't clear search query in grid mode, annoying
-        if (!isTouchMode) {
-            setSearchQuery("");
         }
     };
 
@@ -330,6 +399,19 @@ export default function POSTerminal() {
                             )}
                         </div>
 
+                        {/* View Mode Toggle */}
+                        <button
+                            onClick={toggleViewMode}
+                            className={cn(
+                                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                            )}
+                            title={viewMode === "grid" ? "Switch to List View" : "Switch to Grid View"}
+                        >
+                            {viewMode === "grid" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+                            <span className="hidden sm:inline">{viewMode === "grid" ? "List" : "Grid"}</span>
+                        </button>
+
                         <button
                             onClick={toggleTouchMode}
                             className={cn(
@@ -361,45 +443,106 @@ export default function POSTerminal() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search products..."
+                            placeholder="Search products by name, SKU, or barcode..."
                             className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-lg shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                         />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Products Grid */}
-                <div className="flex-1 overflow-y-auto p-4 pt-0">
+                {/* Products Grid/List with Virtual Scrolling */}
+                <div ref={parentRef} className="flex-1 overflow-y-auto p-4 pt-0">
                     <ErrorBoundary
                         componentName="POSProductGrid"
                         fallback={<ComponentErrorFallback title="Grid Error" message="Failed to load product grid" />}
                     >
-                        {!searchProductsResults ? (
+                        {!searchedProducts ? (
                             <div className="flex h-full items-center justify-center">
                                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[var(--brand-primary-600)]"></div>
                             </div>
+                        ) : viewMode === "grid" ? (
+                            <div
+                                style={{
+                                    height: `${rowVirtualizer.getTotalSize()}px`,
+                                    width: '100%',
+                                    position: 'relative'
+                                }}
+                            >
+                                <div
+                                    className={cn(
+                                        "grid gap-4 absolute top-0 left-0 w-full",
+                                        isTouchMode ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                                    )}
+                                >
+                                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                        const product = searchedProducts[virtualRow.index]!;
+                                        return (
+                                            <div
+                                                key={virtualRow.key}
+                                                style={{
+                                                    height: '256px',
+                                                }}
+                                            >
+                                                <ProductCard
+                                                    product={{
+                                                        ...product,
+                                                        price: Number(product.price),
+                                                        image: product.image ?? null
+                                                    }}
+                                                    onClick={() => addToCart(product)}
+                                                    touchMode={isTouchMode}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         ) : (
-                            <div className={cn(
-                                "grid gap-4",
-                                isTouchMode ? "grid-cols-3 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                            )}>
-                                {searchProductsResults?.map((product) => (
-                                    <div key={product.id} className="h-64">
-                                        <ProductCard
-                                            product={{
-                                                ...product,
-                                                // Ensure price is number for display
-                                                price: Number(product.price),
-                                                image: product.image ?? null
+                            <div
+                                style={{
+                                    height: `${rowVirtualizer.getTotalSize()}px`,
+                                    width: '100%',
+                                    position: 'relative'
+                                }}
+                            >
+                                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                    const product = searchedProducts[virtualRow.index]!;
+                                    return (
+                                        <div
+                                            key={virtualRow.key}
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                width: '100%',
+                                                height: `${virtualRow.size}px`,
+                                                transform: `translateY(${virtualRow.start}px)`
                                             }}
-                                            onClick={() => addToCart(product)}
-                                        />
-                                    </div>
-                                ))}
-                                {searchProductsResults?.length === 0 && (
-                                    <div className="col-span-full flex h-64 items-center justify-center text-gray-500">
-                                        No products found
-                                    </div>
-                                )}
+                                        >
+                                            <ProductListItem
+                                                product={{
+                                                    ...product,
+                                                    price: Number(product.price),
+                                                    image: product.image ?? null
+                                                }}
+                                                onClick={() => addToCart(product)}
+                                                className="mb-2"
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {searchedProducts?.length === 0 && (
+                            <div className="flex h-64 items-center justify-center text-gray-500">
+                                No products found
                             </div>
                         )}
                     </ErrorBoundary>
