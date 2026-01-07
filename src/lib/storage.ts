@@ -17,8 +17,6 @@ class CloudinaryStorageService implements StorageService {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", this.uploadPreset);
-        // Apply server-side optimizations
-        formData.append("transformation", "q_auto,f_auto,c_limit,w_1200,h_1200");
 
         const response = await fetch(
             `https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload`,
