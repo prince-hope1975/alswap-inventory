@@ -30,7 +30,8 @@ class CloudinaryStorageService implements StorageService {
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.message || "Failed to upload image");
+            console.error("Cloudinary upload failed:", error);
+            throw new Error(error.error?.message || error.message || JSON.stringify(error) || "Failed to upload image");
         }
 
         const data = await response.json();

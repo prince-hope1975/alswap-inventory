@@ -200,7 +200,11 @@ export function MultiImageUpload({
                     setImages((prev) =>
                         prev.map((img) =>
                             img.id === itemId
-                                ? { ...img, isUploading: false, error: "Upload failed" }
+                                ? {
+                                    ...img,
+                                    isUploading: false,
+                                    error: error instanceof Error ? error.message : "Upload failed"
+                                }
                                 : img
                         )
                     );
