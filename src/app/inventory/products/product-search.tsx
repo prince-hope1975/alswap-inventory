@@ -59,10 +59,31 @@ export function ProductSearch() {
                     </div>
                 )}
             </div>
-            <button className="flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 dark:bg-gray-700 dark:text-white">
-                <Filter className="h-4 w-4" />
-                Filter
-            </button>
+            <div className="relative">
+                <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <select
+                    value={searchParams.get("hasImage") ?? "all"}
+                    onChange={(e) => {
+                        const params = new URLSearchParams(searchParams);
+                        if (e.target.value === "all") {
+                            params.delete("hasImage");
+                        } else {
+                            params.set("hasImage", e.target.value);
+                        }
+                        router.replace(`/inventory/products?${params.toString()}`);
+                    }}
+                    className="h-10 appearance-none rounded-md border border-gray-300 bg-white pl-9 pr-8 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                >
+                    <option value="all">All Products</option>
+                    <option value="true">With Images</option>
+                    <option value="false">Without Images</option>
+                </select>
+                <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
+            </div>
         </div>
     );
 }

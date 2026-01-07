@@ -120,12 +120,12 @@ export const inventoryRouter = createTRPCRouter({
 
             // Insert category associations (many-to-many)
             const categoryIdsToInsert = new Set<number>();
-            
+
             // Add primary category if provided
             if (input.categoryId) {
                 categoryIdsToInsert.add(input.categoryId);
             }
-            
+
             // Add additional categories
             if (input.categoryIds && input.categoryIds.length > 0) {
                 input.categoryIds.forEach(id => categoryIdsToInsert.add(id));
@@ -144,9 +144,13 @@ export const inventoryRouter = createTRPCRouter({
         }),
 
     listProducts: tenantProcedure
-        .input(z.object({ search: z.string().optional() }).optional())
+        .input(z.object({
+            search: z.string().optional(),
+            hasImage: z.boolean().optional()
+        }).optional())
         .query(async ({ ctx, input }) => {
             const search = input?.search;
+            const hasImage = input?.hasImage;
             const whereConditions = [eq(products.tenantId, ctx.tenantId)];
 
             if (search) {
@@ -157,6 +161,24 @@ export const inventoryRouter = createTRPCRouter({
                         ilike(products.barcode, `%${search}%`)
                     )!
                 );
+            }
+
+            if (hasImage !== undefined) {
+                if (hasImage) {
+                    whereConditions.push(
+                        and(
+                            sql`${products.image} IS NOT NULL`,
+                            sql`${products.image} != ''`
+                        )!
+                    );
+                } else {
+                    whereConditions.push(
+                        or(
+                            sql`${products.image} IS NULL`,
+                            eq(products.image, '')
+                        )!
+                    );
+                }
             }
 
             return ctx.db.query.products.findMany({
@@ -230,7 +252,7 @@ export const inventoryRouter = createTRPCRouter({
         )
         .mutation(async ({ ctx, input }) => {
             const updateData: Record<string, unknown> = {};
-            
+
             if (input.name !== undefined) updateData.name = input.name;
             if (input.description !== undefined) updateData.description = input.description || null;
             if (input.image !== undefined) updateData.image = input.image || null;
@@ -260,12 +282,12 @@ export const inventoryRouter = createTRPCRouter({
 
                 // Insert new associations
                 const categoryIdsToInsert = new Set<number>();
-                
+
                 // Add primary category if provided
                 if (input.categoryId !== undefined) {
                     categoryIdsToInsert.add(input.categoryId);
                 }
-                
+
                 // Add additional categories
                 input.categoryIds.forEach(id => categoryIdsToInsert.add(id));
 
@@ -389,21 +411,21 @@ export const inventoryRouter = createTRPCRouter({
 
             // Insert category associations for each product
             const categoryAssociations: { productId: string; categoryId: number }[] = [];
-            
+
             insertedProducts.forEach((product, index) => {
                 const inputProduct = input.products[index];
                 if (!inputProduct) return;
-                
+
                 const categoryIdsToInsert = new Set<number>();
-                
+
                 if (inputProduct.categoryId) {
                     categoryIdsToInsert.add(inputProduct.categoryId);
                 }
-                
+
                 if (inputProduct.categoryIds) {
                     inputProduct.categoryIds.forEach(id => categoryIdsToInsert.add(id));
                 }
-                
+
                 categoryIdsToInsert.forEach(categoryId => {
                     categoryAssociations.push({
                         productId: product.id,
@@ -431,7 +453,7 @@ export const inventoryRouter = createTRPCRouter({
             const product = await ctx.db.query.products.findFirst({
                 where: and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenantId)),
             });
-            
+
             if (!product) {
                 throw new Error("Product not found");
             }
@@ -459,7 +481,7 @@ export const inventoryRouter = createTRPCRouter({
             const product = await ctx.db.query.products.findFirst({
                 where: and(eq(products.id, input.productId), eq(products.tenantId, ctx.tenantId)),
             });
-            
+
             if (!product) {
                 throw new Error("Product not found");
             }
@@ -484,7 +506,7 @@ export const inventoryRouter = createTRPCRouter({
                 .where(eq(productCategories.categoryId, input.categoryId));
 
             const pIds = productIdsInCategory.map(p => p.productId);
-            
+
             if (pIds.length === 0) return [];
 
             return ctx.db.query.products.findMany({
@@ -655,7 +677,7 @@ export const inventoryRouter = createTRPCRouter({
                 names: z.array(z.string()),
             })
         )
-    
+
         .query(async ({ ctx, input }) => {
             const allProducts = await ctx.db.query.products.findMany({
                 where: eq(products.tenantId, ctx.tenantId),
@@ -682,14 +704,14 @@ export const inventoryRouter = createTRPCRouter({
 
             return duplicates;
         })
-        ,
+    ,
     checkDuplicatesMutation: tenantProcedure
         .input(
             z.object({
                 names: z.array(z.string()),
             })
         )
-    
+
         .mutation(async ({ ctx, input }) => {
             const allProducts = await ctx.db.query.products.findMany({
                 where: eq(products.tenantId, ctx.tenantId),
@@ -716,7 +738,7 @@ export const inventoryRouter = createTRPCRouter({
 
             return duplicates;
         })
-        ,
+    ,
 
     mergeProduct: tenantProcedure
         .input(
@@ -802,11 +824,11 @@ export const inventoryRouter = createTRPCRouter({
 
                 // Insert new associations
                 const categoryIdsToInsert = new Set<number>();
-                
+
                 if (input.newData.categoryId !== undefined) {
                     categoryIdsToInsert.add(input.newData.categoryId);
                 }
-                
+
                 input.newData.categoryIds.forEach(id => categoryIdsToInsert.add(id));
 
                 if (categoryIdsToInsert.size > 0) {
