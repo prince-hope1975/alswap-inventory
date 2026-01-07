@@ -1,4 +1,5 @@
 import imageCompression from "browser-image-compression";
+import heic2any from "heic2any";
 
 export interface CompressionOptions {
     /** Maximum file size in MB (default: 0.2 = 200KB) */
@@ -24,6 +25,32 @@ export async function compressImage(
         maxWidthOrHeight = 1200,
         useWebWorker = true,
     } = options;
+
+    // Convert HEIC/HEIF to JPEG first
+    if (
+        file.type === "image/heic" ||
+        file.type === "image/heif" ||
+        file.name.toLowerCase().endsWith(".heic") ||
+        file.name.toLowerCase().endsWith(".heif")
+    ) {
+        console.log(`Converting HEIC file: ${file.name}`);
+        try {
+            const convertedBlob = await heic2any({
+                blob: file,
+                toType: "image/jpeg",
+                quality: 0.85,
+            });
+
+            const jpegBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+            const newName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+            file = new File([jpegBlob as Blob], newName, { type: "image/jpeg" });
+
+            console.log(`Converted to JPEG: ${file.name}`);
+        } catch (error) {
+            console.error("HEIC conversion failed, proceeding with original:", error);
+        }
+    }
 
     // Skip compression if file is already under target size
     const fileSizeMB = file.size / (1024 * 1024);

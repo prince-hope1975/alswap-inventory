@@ -26,6 +26,7 @@ interface ImageItem {
     isUploading: boolean;
     progress: number;
     error?: string;
+    isHeic?: boolean;
 }
 
 interface MultiImageUploadProps {
@@ -156,12 +157,16 @@ export function MultiImageUpload({
             const filesToProcess = files.slice(0, availableSlots);
 
             // Create placeholder items for uploading images
-            const newItems: ImageItem[] = filesToProcess.map((file, index) => ({
-                id: `upload-${Date.now()}-${index}`,
-                url: URL.createObjectURL(file),
-                isUploading: true,
-                progress: 0,
-            }));
+            const newItems: ImageItem[] = filesToProcess.map((file, index) => {
+                const isHeic = file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif");
+                return {
+                    id: `upload-${Date.now()}-${index}`,
+                    url: isHeic ? "" : URL.createObjectURL(file),
+                    isUploading: true,
+                    progress: 0,
+                    isHeic,
+                };
+            });
 
             setImages((prev) => [...prev, ...newItems]);
 
@@ -215,7 +220,7 @@ export function MultiImageUpload({
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
         accept: {
-            "image/*": [".png", ".jpg", ".jpeg", ".webp"],
+            "image/*": [".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif"],
         },
         multiple: true,
         noClick: true,
@@ -377,8 +382,8 @@ export function MultiImageUpload({
             {/* Thumbnail Grid */}
             <div
                 className={`rounded-lg border-2 border-dashed p-3 transition-colors ${isDragActive
-                        ? "border-[var(--brand-primary-500)] bg-[var(--brand-primary-50)] dark:bg-[var(--brand-primary-900)]/20"
-                        : "border-gray-200 dark:border-gray-700"
+                    ? "border-[var(--brand-primary-500)] bg-[var(--brand-primary-50)] dark:bg-[var(--brand-primary-900)]/20"
+                    : "border-gray-200 dark:border-gray-700"
                     }`}
             >
                 <div className="flex flex-wrap gap-3">
@@ -387,12 +392,12 @@ export function MultiImageUpload({
                         <div
                             key={image.id}
                             className={`group relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all ${index === 0
-                                    ? "border-[var(--brand-primary-500)] ring-2 ring-[var(--brand-primary-200)] dark:ring-[var(--brand-primary-800)]"
-                                    : "border-gray-200 dark:border-gray-700"
+                                ? "border-[var(--brand-primary-500)] ring-2 ring-[var(--brand-primary-200)] dark:ring-[var(--brand-primary-800)]"
+                                : "border-gray-200 dark:border-gray-700"
                                 } ${image.error ? "border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20" : "bg-gray-50 dark:bg-gray-800"}`}
                         >
                             {/* Image Preview */}
-                            {!image.error && (
+                            {!image.error && image.url && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                     src={image.url}
@@ -410,8 +415,13 @@ export function MultiImageUpload({
 
                             {/* Loading Overlay */}
                             {image.isUploading && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                    <Loader2 className="h-6 w-6 animate-spin text-white" />
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 p-1 text-center">
+                                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                                    {image.isHeic && (
+                                        <span className="mt-1 text-[10px] leading-tight text-white">
+                                            Converting...
+                                        </span>
+                                    )}
                                 </div>
                             )}
 
