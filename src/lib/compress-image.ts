@@ -26,6 +26,8 @@ export async function compressImage(
         useWebWorker = true,
     } = options;
 
+    let fileToCompress = file;
+
     // Convert HEIC/HEIF to JPEG first
     if (
         file.type === "image/heic" ||
@@ -44,35 +46,43 @@ export async function compressImage(
             const jpegBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
             const newName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
             // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-            file = new File([jpegBlob as Blob], newName, { type: "image/jpeg" });
+            fileToCompress = new File([jpegBlob as Blob], newName, { type: "image/jpeg" });
 
-            console.log(`Converted to JPEG: ${file.name}`);
+            console.log(`Converted to JPEG: ${fileToCompress.name}`);
         } catch (error) {
-            console.error("HEIC conversion failed, proceeding with original:", error);
+            console.error("HEIC conversion failed, skipping compression to avoid crash:", error);
+            // Return original file so we can determine what to do (e.g. try uploading original)
+            // proceeding to imageCompression with HEIC will crash it, so we stop here.
+            return file;
         }
     }
 
     // Skip compression if file is already under target size
-    const fileSizeMB = file.size / (1024 * 1024);
+    const fileSizeMB = fileToCompress.size / (1024 * 1024);
     if (fileSizeMB <= maxSizeMB) {
         console.log(`File already under ${maxSizeMB * 1000}KB, skipping compression`);
-        return file;
+        return fileToCompress;
     }
 
-    console.log(`Compressing ${file.name}: ${(fileSizeMB * 1024).toFixed(0)}KB → target ${maxSizeMB * 1000}KB`);
+    console.log(`Compressing ${fileToCompress.name}: ${(fileSizeMB * 1024).toFixed(0)}KB → target ${maxSizeMB * 1000}KB`);
 
-    const compressedFile = await imageCompression(file, {
-        maxSizeMB,
-        maxWidthOrHeight,
-        useWebWorker,
-        fileType: "image/jpeg", // Convert to JPEG for better compression
-        initialQuality: 0.85,
-    });
+    try {
+        const compressedFile = await imageCompression(fileToCompress, {
+            maxSizeMB,
+            maxWidthOrHeight,
+            useWebWorker,
+            fileType: "image/jpeg", // Convert to JPEG for better compression
+            initialQuality: 0.85,
+        });
 
-    const compressedSizeMB = compressedFile.size / (1024 * 1024);
-    console.log(`Compressed ${file.name}: ${(compressedSizeMB * 1024).toFixed(0)}KB`);
+        const compressedSizeMB = compressedFile.size / (1024 * 1024);
+        console.log(`Compressed ${fileToCompress.name}: ${(compressedSizeMB * 1024).toFixed(0)}KB`);
 
-    return compressedFile;
+        return compressedFile;
+    } catch (error) {
+        console.error("Image compression failed, returning original:", error);
+        return fileToCompress;
+    }
 }
 
 /**

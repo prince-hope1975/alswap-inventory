@@ -408,8 +408,9 @@ export function MultiImageUpload({
 
                             {/* Error State */}
                             {image.error && (
-                                <div className="flex h-full items-center justify-center">
+                                <div className="flex h-full flex-col items-center justify-center p-1 text-center" title={image.error}>
                                     <X className="h-6 w-6 text-red-500" />
+                                    <span className="text-[10px] text-red-500 line-clamp-2 leading-tight">{image.error}</span>
                                 </div>
                             )}
 
