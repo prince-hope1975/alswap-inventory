@@ -50,10 +50,8 @@ export async function compressImage(
 
             console.log(`Converted to JPEG: ${fileToCompress.name}`);
         } catch (error) {
-            console.error("HEIC conversion failed, skipping compression to avoid crash:", error);
-            // Return original file so we can determine what to do (e.g. try uploading original)
-            // proceeding to imageCompression with HEIC will crash it, so we stop here.
-            return file;
+            console.error("HEIC conversion failed:", error);
+            throw new Error(`Failed to convert HEIC image: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     }
 
