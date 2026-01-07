@@ -7,7 +7,7 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
-import { ImageUpload } from "~/app/_components/image-upload";
+import { MultiImageUpload } from "~/app/_components/multi-image-upload";
 import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
 import { SimilarProductsPanel } from "./similar-products-panel";
 import { toast } from "~/lib/toast";
@@ -100,7 +100,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
     });
 
     // Extract existing category IDs from productCategories relation
-    const existingCategoryIds = initialData?.productCategories?.map(pc => pc.category.id) 
+    const existingCategoryIds = initialData?.productCategories?.map(pc => pc.category.id)
         ?? (initialData?.categoryId ? [initialData.categoryId] : []);
 
     const {
@@ -275,7 +275,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Categories
                             </label>
-                            
+
                             {/* Selected Categories Tags */}
                             {selectedCategoryIds.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">
@@ -307,10 +307,10 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                                         className="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-left shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                     >
                                         <span className="text-gray-500 dark:text-gray-400">
-                                            {categoriesLoading 
-                                                ? "Loading categories..." 
-                                                : selectedCategoryIds.length === 0 
-                                                    ? "Select categories" 
+                                            {categoriesLoading
+                                                ? "Loading categories..."
+                                                : selectedCategoryIds.length === 0
+                                                    ? "Select categories"
                                                     : `${selectedCategoryIds.length} selected`}
                                         </span>
                                         <ChevronDown className={`h-4 w-4 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
@@ -346,7 +346,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                                     </div>
                                 )}
                             </div>
-                            
+
                             {categoriesError && (
                                 <p className="mt-1 text-sm text-red-600">
                                     Error loading categories: {categoriesError.message}
@@ -361,66 +361,23 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Product Images
                             </label>
-                            <div className="mt-1 space-y-4">
-                                {/* Primary Image */}
-                                <div>
-                                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                                        Primary Image (shown in listings)
-                                    </p>
-                                    <ImageUpload
-                                        value={watch("image") || ""}
-                                        onChange={(url) => setValue("image", url)}
-                                    />
-                                    {errors.image && (
-                                        <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
-                                    )}
-                                </div>
-
-                                {/* Additional Images */}
-                                <div>
-                                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                                        Additional Images (optional)
-                                    </p>
-                                    <div className="space-y-2">
-                                        {(watch("images") || []).map((imageUrl, index) => (
-                                            <div key={index} className="flex items-center gap-2">
-                                                <div className="flex-1">
-                                                    <ImageUpload
-                                                        value={imageUrl}
-                                                        onChange={(url) => {
-                                                            const currentImages = watch("images") || [];
-                                                            const newImages = [...currentImages];
-                                                            newImages[index] = url;
-                                                            setValue("images", newImages);
-                                                        }}
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const currentImages = watch("images") || [];
-                                                        const newImages = currentImages.filter((_, i) => i !== index);
-                                                        setValue("images", newImages);
-                                                    }}
-                                                    className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/20"
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const currentImages = watch("images") || [];
-                                                setValue("images", [...currentImages, ""]);
-                                            }}
-                                            className="w-full rounded-md border border-dashed border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:bg-gray-800"
-                                        >
-                                            + Add Another Image
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                                First image is displayed in listings. Click any image to set as primary.
+                            </p>
+                            <MultiImageUpload
+                                value={[
+                                    ...(watch("image") ? [watch("image")!] : []),
+                                    ...(watch("images") || []),
+                                ].filter(Boolean)}
+                                onChange={(urls) => {
+                                    const [primary, ...additional] = urls;
+                                    setValue("image", primary || "");
+                                    setValue("images", additional);
+                                }}
+                            />
+                            {errors.image && (
+                                <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
+                            )}
                         </div>
                     </div>
                 </div>
