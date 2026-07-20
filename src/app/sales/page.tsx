@@ -159,6 +159,7 @@ export default function POSTerminal() {
         if (cart.length === 0) return;
 
         createOrder.mutate({
+            clientOrderId: crypto.randomUUID(),
             shiftId: shiftId ?? undefined,
             customerId: selectedCustomer?.id,
             items: cart.map((item) => ({

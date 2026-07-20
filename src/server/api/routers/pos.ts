@@ -1,13 +1,14 @@
 import { z } from "zod";
-import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, staffProcedure } from "~/server/api/trpc";
 import { shifts, orders, orderItems, products, customers } from "~/server/db/schema";
-import { eq, and, desc, or, ilike } from "drizzle-orm";
+import { eq, and, desc, or, ilike, inArray, gte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { PAYMENT_METHODS } from "~/lib/constants";
+import { prepareSale } from "~/lib/domain/sale";
 
 export const posRouter = createTRPCRouter({
     // Shift Management
-    openShift: tenantProcedure
+    openShift: staffProcedure
         .input(
             z.object({
                 startCash: z.number().min(0),
@@ -50,7 +51,7 @@ export const posRouter = createTRPCRouter({
             return shift;
         }),
 
-    closeShift: tenantProcedure
+    closeShift: staffProcedure
         .input(
             z.object({
                 shiftId: z.string(),
@@ -92,7 +93,7 @@ export const posRouter = createTRPCRouter({
             return updatedShift;
         }),
 
-    getCurrentShift: tenantProcedure.query(async ({ ctx }) => {
+    getCurrentShift: staffProcedure.query(async ({ ctx }) => {
         const shift = await ctx.db.query.shifts.findFirst({
             where: and(
                 eq(shifts.userId, ctx.session.user.id),
@@ -103,7 +104,7 @@ export const posRouter = createTRPCRouter({
         return shift;
     }),
 
-    listShifts: tenantProcedure.query(async ({ ctx }) => {
+    listShifts: staffProcedure.query(async ({ ctx }) => {
         const tenantId = ctx.session.user.tenantId;
         if (!tenantId) return [];
 
@@ -117,10 +118,11 @@ export const posRouter = createTRPCRouter({
     }),
 
     // Order Management
-    createOrder: tenantProcedure
+    createOrder: staffProcedure
         .input(
             z.object({
                 shiftId: z.string().optional(),
+                clientOrderId: z.string().uuid().optional(),
                 customerId: z.string().optional(),
                 items: z.array(
                     z.object({
@@ -147,77 +149,77 @@ export const posRouter = createTRPCRouter({
                 });
             }
 
-            // Calculate total
-            const totalAmount = input.items.reduce(
-                (sum, item) => sum + item.price * item.quantity,
-                0,
-            );
+            const clientOrderId = input.clientOrderId ?? crypto.randomUUID();
+            return ctx.db.transaction(async (tx) => {
+                const existing = await tx.query.orders.findFirst({
+                    where: and(eq(orders.tenantId, tenantId), eq(orders.clientOrderId, clientOrderId)),
+                });
+                if (existing) return existing;
 
-            // Create order
-            const [order] = await ctx.db
-                .insert(orders)
-                .values({
+                const productRows = await tx.query.products.findMany({
+                    where: and(
+                        eq(products.tenantId, tenantId),
+                        inArray(products.id, input.items.map((item) => item.productId)),
+                    ),
+                });
+                let sale;
+                try {
+                    sale = prepareSale({
+                        requested: input.items.map((item) => ({ ...item, clientPrice: item.price })),
+                        products: productRows.map((product) => ({
+                            id: product.id,
+                            price: Number(product.price),
+                            salePrice: product.salePrice == null ? null : Number(product.salePrice),
+                            stockQuantity: product.stockQuantity,
+                        })),
+                    });
+                } catch (error) {
+                    throw new TRPCError({
+                        code: "CONFLICT",
+                        message: error instanceof Error ? error.message : "Sale could not be prepared",
+                    });
+                }
+
+                const [order] = await tx.insert(orders).values({
                     tenantId,
+                    clientOrderId,
+                    createdByUserId: ctx.session.user.id,
                     shiftId: input.shiftId,
                     customerId: input.customerId,
-                    totalAmount: totalAmount.toString(),
+                    totalAmount: sale.total.toString(),
                     paymentMethod: input.paymentMethod,
                     status: "COMPLETED",
-                })
-                .returning();
+                }).returning();
+                if (!order) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });
 
-            if (!order) {
-                throw new TRPCError({
-                    code: "INTERNAL_SERVER_ERROR",
-                    message: "Failed to create order",
-                });
-            }
-
-            // Create order items and update stock
-            for (const item of input.items) {
-                await ctx.db.insert(orderItems).values({
-                    orderId: order.id,
-                    productId: item.productId,
-                    quantity: item.quantity,
-                    price: item.price.toString(),
-                });
-
-                // Deduct stock
-                const product = await ctx.db.query.products.findFirst({
-                    where: eq(products.id, item.productId),
-                });
-
-                if (product) {
-                    await ctx.db
-                        .update(products)
-                        .set({
-                            stockQuantity: Math.max(0, product.stockQuantity - item.quantity),
-                        })
-                        .where(eq(products.id, item.productId));
+                for (const line of sale.lines) {
+                    const [updated] = await tx.update(products)
+                        .set({ stockQuantity: sql`${products.stockQuantity} - ${line.quantity}` })
+                        .where(and(
+                            eq(products.id, line.productId),
+                            eq(products.tenantId, tenantId),
+                            gte(products.stockQuantity, line.quantity),
+                        ))
+                        .returning({ id: products.id });
+                    if (!updated) throw new TRPCError({ code: "CONFLICT", message: `Stock changed for ${line.productId}; review the cart.` });
+                    await tx.insert(orderItems).values({
+                        orderId: order.id,
+                        productId: line.productId,
+                        quantity: line.quantity,
+                        price: line.unitPrice.toString(),
+                    });
                 }
-            }
 
-            // Award loyalty points if customer exists (1 point per dollar spent, rounded)
-            if (input.customerId) {
-                const customer = await ctx.db.query.customers.findFirst({
-                    where: and(eq(customers.id, input.customerId), eq(customers.tenantId, tenantId)),
-                });
-
-                if (customer) {
-                    const pointsToAward = Math.floor(totalAmount);
-                    await ctx.db
-                        .update(customers)
-                        .set({
-                            loyaltyPoints: (customer.loyaltyPoints ?? 0) + pointsToAward,
-                        })
-                        .where(eq(customers.id, input.customerId));
+                if (input.customerId) {
+                    await tx.update(customers).set({
+                        loyaltyPoints: sql`coalesce(${customers.loyaltyPoints}, 0) + ${Math.floor(sale.total)}`,
+                    }).where(and(eq(customers.id, input.customerId), eq(customers.tenantId, tenantId)));
                 }
-            }
-
-            return order;
+                return order;
+            });
         }),
 
-    searchProducts: tenantProcedure
+    searchProducts: staffProcedure
         .input(
             z.object({
                 query: z.string(),
@@ -240,7 +242,7 @@ export const posRouter = createTRPCRouter({
             });
         }),
 
-    getOrder: tenantProcedure
+    getOrder: staffProcedure
         .input(z.object({ id: z.string() }))
         .query(async ({ ctx, input }) => {
             return ctx.db.query.orders.findFirst({
@@ -261,7 +263,7 @@ export const posRouter = createTRPCRouter({
             });
         }),
 
-    listOrders: tenantProcedure
+    listOrders: staffProcedure
         .input(
             z.object({
                 limit: z.number().default(50),
@@ -285,7 +287,7 @@ export const posRouter = createTRPCRouter({
             });
         }),
 
-    searchCustomers: tenantProcedure
+    searchCustomers: staffProcedure
         .input(z.object({ query: z.string() }))
         .query(async ({ ctx, input }) => {
             const tenantId = ctx.session.user.tenantId;
@@ -304,7 +306,7 @@ export const posRouter = createTRPCRouter({
             });
         }),
 
-    getOfflineData: tenantProcedure.query(async ({ ctx }) => {
+    getOfflineData: staffProcedure.query(async ({ ctx }) => {
         const tenantId = ctx.session.user.tenantId;
         if (!tenantId) return { products: [], customers: [] };
 

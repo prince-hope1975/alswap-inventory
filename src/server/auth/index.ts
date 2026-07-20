@@ -31,14 +31,14 @@ declare module "next-auth" {
 
   interface User {
     tenantId: string | null;
-    role: "ADMIN" | "MANAGER" | "CASHIER";
+    role: "ADMIN" | "MANAGER" | "CASHIER" | "USER";
   }
 }
 
 declare module "next-auth/adapters" {
   interface AdapterUser {
     tenantId: string | null;
-    role: "ADMIN" | "MANAGER" | "CASHIER";
+    role: "ADMIN" | "MANAGER" | "CASHIER" | "USER";
   }
 }
 

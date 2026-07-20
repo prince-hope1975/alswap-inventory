@@ -166,10 +166,10 @@ export function ReceiptModal({ isOpen, onClose, order }: ReceiptModalProps) {
                                 template={templateId}
                                 settings={{
                                     name: settings?.name || "STORE NAME",
-                                    logo: settings?.logo,
-                                    address: settings?.address,
-                                    phone: settings?.phone,
-                                    receiptFooter: settings?.receiptFooter,
+                                    logo: settings?.logo ?? undefined,
+                                    address: settings?.address ?? undefined,
+                                    phone: settings?.phone ?? undefined,
+                                    receiptFooter: settings?.receiptFooter ?? undefined,
                                 }}
                                 order={order}
                              />

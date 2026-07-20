@@ -76,6 +76,9 @@ export const crmRouter = createTRPCRouter({
                         orderBy: (orders, { desc }) => [desc(orders.createdAt)],
                         limit: 10,
                         with: {
+                            items: {
+                                with: { product: true },
+                            },
                             shift: {
                                 with: {
                                     user: true
@@ -147,4 +150,3 @@ export const crmRouter = createTRPCRouter({
             return { success: true, newPoints };
         })
 });
-

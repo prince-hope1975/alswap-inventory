@@ -1,5 +1,5 @@
 export type StoreConfig = {
-    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion";
+    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion" | "beauty";
     themeMode: "system" | "light" | "dark";
     showHero: boolean;
     showArticles: boolean;

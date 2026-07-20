@@ -6,12 +6,13 @@ import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
-import { ShoppingBag, Star, Zap } from "lucide-react";
+import { ShoppingBag, Star, Zap, Flame } from "lucide-react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StockBadge } from "../parts/stock-badge";
+import { MarketplaceHeroCarousel } from "../parts/marketplace-hero-carousel";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -109,22 +110,33 @@ export function MarketplaceTemplate({
                             </div>
                         </div>
 
-                        {/* Middle - Slider (Static for now) */}
-                        <div className="flex-1 bg-gray-900 rounded-lg overflow-hidden relative group">
-                            {/* Hero Image / Banner */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-primary-900)] opacity-90" />
-                            <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2070" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50" />
-
-                            <div className="relative z-10 p-12 h-full flex flex-col justify-center text-white">
-                                <h2 className="text-4xl font-bold mb-4">{config.heroTitle || "Official Store"}</h2>
-                                <p className="text-lg mb-6 max-w-lg">{config.heroDescription || "Get the best deals on electronics, fashion, and more. Fast delivery nationwide."}</p>
-                                <button 
-                                    onClick={() => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="bg-[var(--brand-primary-500)] hover:bg-[var(--brand-primary-600)] text-white px-8 py-3 rounded shadow-lg w-fit font-bold"
-                                >
-                                    Shop Now
-                                </button>
-                            </div>
+                        {/* Middle - Hero Carousel */}
+                        <div className="flex-1 rounded-lg overflow-hidden">
+                            <MarketplaceHeroCarousel
+                                slides={[
+                                    {
+                                        title: config.heroTitle || "Official Store",
+                                        description: config.heroDescription || "Get the best deals on electronics, fashion, and more. Fast delivery nationwide.",
+                                        image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2070",
+                                        ctaText: "Shop Now",
+                                        ctaAction: () => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' }),
+                                    },
+                                    {
+                                        title: "New Arrivals",
+                                        description: "Check out the latest products added to our store.",
+                                        image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=2070",
+                                        ctaText: "Browse New",
+                                        ctaAction: () => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' }),
+                                    },
+                                    {
+                                        title: "Quality Guaranteed",
+                                        description: "All products are carefully selected and quality checked.",
+                                        image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80&w=2070",
+                                        ctaText: "Learn More",
+                                        ctaAction: () => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' }),
+                                    },
+                                ]}
+                            />
                         </div>
 
                         {/* Right - Promo Boxes */}
@@ -178,12 +190,20 @@ export function MarketplaceTemplate({
                                         <StockBadge stockQuantity={product.stockQuantity} className="absolute top-2 left-2" />
                                     </div>
                                     <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>
-                                    <div className="font-bold text-sm sm:text-base">
-                                        {formatCurrency(product.price)}
-                                    </div>
-                                    <div className="text-xs text-gray-400 line-through">
-                                        {formatCurrency(Number(product.price) * 1.2)}
-                                    </div>
+                                    {product.salePrice ? (
+                                        <>
+                                            <div className="font-bold text-sm sm:text-base text-red-600 dark:text-red-400">
+                                                {formatCurrency(Number(product.salePrice))}
+                                            </div>
+                                            <div className="text-xs text-gray-400 line-through">
+                                                {formatCurrency(Number(product.price))}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="font-bold text-sm sm:text-base">
+                                            {formatCurrency(product.price)}
+                                        </div>
+                                    )}
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();

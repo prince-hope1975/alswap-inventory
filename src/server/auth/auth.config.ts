@@ -24,7 +24,7 @@ export const authConfig = {
       user: {
         ...session.user,
         id: token.id as string,
-        role: token.role as "ADMIN" | "MANAGER" | "CASHIER",
+        role: token.role as "ADMIN" | "MANAGER" | "CASHIER" | "USER",
         tenantId: token.tenantId as string | null,
       },
     }),
@@ -33,7 +33,6 @@ export const authConfig = {
     signIn: "/auth/signin",
   },
 } satisfies NextAuthConfig;
-
 
 
 

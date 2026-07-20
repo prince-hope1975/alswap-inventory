@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { useState } from "react";
 import { ShoppingCart } from "lucide-react";
 import { useCart } from "./cart-context";
 import { useCurrency } from "~/hooks/use-tenant-settings";
@@ -8,8 +8,10 @@ import { useCurrency } from "~/hooks/use-tenant-settings";
 type Product = {
     id: string;
     name: string;
-    price: string; // Decimal string from DB
+    price: string;
+    salePrice?: string | null;
     image?: string | null;
+    images?: string[] | null;
     category?: { name: string } | null;
     description?: string | null;
     stockQuantity: number | null;
@@ -18,18 +20,32 @@ type Product = {
 export function ProductCard({ product }: { product: Product }) {
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
+    const [isHovered, setIsHovered] = useState(false);
     const price = Number(product.price);
+    const salePrice = product.salePrice ? Number(product.salePrice) : null;
+    const displayPrice = salePrice ?? price;
+    const discountPercent = salePrice ? Math.round(((price - salePrice) / price) * 100) : 0;
     const isOutOfStock = product.stockQuantity === 0;
 
+    const allImages = [
+        ...(product.image ? [product.image] : []),
+        ...(product.images ?? []),
+    ];
+    const displayImage = isHovered && allImages.length > 1 ? allImages[1] : allImages[0];
+
     return (
-        <div className="group relative flex flex-col overflow-hidden rounded-2xl bg-white/5 border border-white/10 transition-all hover:border-white/20 hover:bg-white/10 hover:shadow-xl hover:shadow-purple-500/10">
+        <div
+            className="group relative flex flex-col overflow-hidden rounded-2xl bg-white/5 border border-white/10 transition-all hover:border-white/20 hover:bg-white/10 hover:shadow-xl hover:shadow-purple-500/10"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             <div className="aspect-square w-full overflow-hidden bg-gray-800/50 relative">
-                {product.image ? (
+                {displayImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={product.image}
+                        src={displayImage}
                         alt={product.name}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-gray-500">
@@ -37,7 +53,12 @@ export function ProductCard({ product }: { product: Product }) {
                     </div>
                 )}
 
-                {/* Quick Add Button Overlay */}
+                {salePrice && (
+                    <div className="absolute top-3 left-3 px-2 py-1 bg-red-500 text-white text-xs font-bold rounded">
+                        -{discountPercent}%
+                    </div>
+                )}
+
                 {!isOutOfStock && (
                     <button
                         onClick={(e) => {
@@ -45,7 +66,7 @@ export function ProductCard({ product }: { product: Product }) {
                             addItem({
                                 productId: product.id,
                                 name: product.name,
-                                price: price,
+                                price: displayPrice,
                                 image: product.image,
                             });
                         }}
@@ -69,10 +90,15 @@ export function ProductCard({ product }: { product: Product }) {
                 <p className="mb-3 text-sm text-gray-400 line-clamp-2">
                     {product.description || "No description available"}
                 </p>
-                <div className="mt-auto flex items-center justify-between">
+                <div className="mt-auto flex items-center gap-2">
                     <span className="text-xl font-bold text-white">
-                        {formatCurrency(price)}
+                        {formatCurrency(displayPrice)}
                     </span>
+                    {salePrice && (
+                        <span className="text-sm text-gray-400 line-through">
+                            {formatCurrency(price)}
+                        </span>
+                    )}
                 </div>
             </div>
         </div>

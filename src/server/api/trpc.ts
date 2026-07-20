@@ -132,6 +132,30 @@ export const protectedProcedure = t.procedure
     });
   });
 
+/** Any authenticated employee attached to a tenant. */
+export const staffProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (!ctx.session.user.tenantId || ctx.session.user.role === "USER") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Staff access required" });
+  }
+  return next({
+    ctx: {
+      session: {
+        ...ctx.session,
+        user: { ...ctx.session.user, tenantId: ctx.session.user.tenantId },
+      },
+      tenantId: ctx.session.user.tenantId,
+    },
+  });
+});
+
+/** Admins and managers: approvals, inventory, purchasing and reporting. */
+export const managerProcedure = staffProcedure.use(({ ctx, next }) => {
+  if (ctx.session.user.role !== "ADMIN" && ctx.session.user.role !== "MANAGER") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Manager access required" });
+  }
+  return next({ ctx: { ...ctx, isAdmin: ctx.session.user.role === "ADMIN" } });
+});
+
 /**
  * Tenant protected procedure
  *

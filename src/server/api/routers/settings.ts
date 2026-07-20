@@ -56,7 +56,7 @@ export const settingsRouter = createTRPCRouter({
                 // Send undefined/omit to keep existing value.
                 paystackSecretKey: z.string().optional(),
                 storeConfig: z.object({
-                    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion"]),
+                    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion", "beauty"]),
                     themeMode: z.enum(["system", "light", "dark"]),
                     showHero: z.boolean(),
                     showArticles: z.boolean(),
@@ -91,7 +91,7 @@ export const settingsRouter = createTRPCRouter({
                 paystackPublicKey?: string | null;
                 paystackSecretKey?: string | null;
                 storeConfig?: {
-                    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion";
+                    template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion" | "beauty";
                     themeMode: "system" | "light" | "dark";
                     showHero: boolean;
                     showArticles: boolean;
@@ -139,4 +139,3 @@ export const settingsRouter = createTRPCRouter({
             return { success: true };
         }),
 });
-

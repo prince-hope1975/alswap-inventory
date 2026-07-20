@@ -5,6 +5,7 @@ import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sendDeliveryOrderEmail } from "~/server/email";
 import { decryptString } from "~/server/utils/encryption";
+import { resolvePublicTenant } from "~/server/tenant";
 
 type DeliveryPricingConfig =
     | {
@@ -113,9 +114,7 @@ export const shopRouter = createTRPCRouter({
         // For now, we'll just get the first tenant as the "main" store
         // In a real multi-tenant app, this might depend on the domain
         // We prioritize the most recently updated tenant for development purposes
-        const tenant = await ctx.db.query.tenants.findFirst({
-            orderBy: desc(tenants.updatedAt),
-        });
+        const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
 
         // Check if any user exists to determine if setup is needed
         const userCount = await ctx.db.select({ count: sql<number>`count(*)` }).from(users);
@@ -147,9 +146,7 @@ export const shopRouter = createTRPCRouter({
             })
         )
         .query(async ({ ctx, input }) => {
-            const tenant = await ctx.db.query.tenants.findFirst({
-                orderBy: desc(tenants.updatedAt),
-            });
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) return [];
 
             const searchTerm = input.search?.trim();
@@ -172,6 +169,7 @@ export const shopRouter = createTRPCRouter({
                             p.barcode,
                             p.sku,
                             p.price,
+                            p."sale_price" as "salePrice",
                             p."cost_price" as "costPrice",
                             p."stockQuantity",
                             p."lowStockThreshold",
@@ -281,9 +279,7 @@ export const shopRouter = createTRPCRouter({
         }),
 
     getCategories: publicProcedure.query(async ({ ctx }) => {
-        const tenant = await ctx.db.query.tenants.findFirst({
-            orderBy: desc(tenants.updatedAt),
-        });
+        const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
         if (!tenant) return [];
 
         return ctx.db.query.categories.findMany({
@@ -295,8 +291,10 @@ export const shopRouter = createTRPCRouter({
     getProduct: publicProcedure
         .input(z.object({ id: z.string() }))
         .query(async ({ ctx, input }) => {
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+            if (!tenant) return null;
             return ctx.db.query.products.findFirst({
-                where: eq(products.id, input.id),
+                where: and(eq(products.id, input.id), eq(products.tenantId, tenant.id)),
                 with: {
                     category: true,
                     productCategories: {
@@ -311,9 +309,7 @@ export const shopRouter = createTRPCRouter({
     estimateDeliveryFee: publicProcedure
         .input(z.object({ deliveryAddress: z.string().min(5) }))
         .query(async ({ ctx, input }) => {
-            const tenant = await ctx.db.query.tenants.findFirst({
-                orderBy: desc(tenants.updatedAt),
-            });
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
             const out = await computeDeliveryFee({
@@ -343,9 +339,7 @@ export const shopRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ ctx, input }) => {
-            const tenant = await ctx.db.query.tenants.findFirst({
-                orderBy: desc(tenants.updatedAt),
-            });
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
             if (!tenant.paystackSecretKey || !tenant.paystackPublicKey) {
@@ -361,7 +355,7 @@ export const shopRouter = createTRPCRouter({
             let totalAmount = 0;
             for (const item of input.items) {
                 const product = await ctx.db.query.products.findFirst({
-                    where: eq(products.id, item.productId),
+                    where: and(eq(products.id, item.productId), eq(products.tenantId, tenant.id)),
                 });
                 if (!product) continue;
                 totalAmount += Number(product.price) * item.quantity;
@@ -441,9 +435,7 @@ export const shopRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ ctx, input }) => {
-            const tenant = await ctx.db.query.tenants.findFirst({
-                orderBy: desc(tenants.updatedAt),
-            });
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
             const deliveryMethod = input.deliveryMethod ?? "PICKUP";
@@ -464,7 +456,7 @@ export const shopRouter = createTRPCRouter({
 
             for (const item of input.items) {
                 const product = await ctx.db.query.products.findFirst({
-                    where: eq(products.id, item.productId),
+                    where: and(eq(products.id, item.productId), eq(products.tenantId, tenant.id)),
                 });
 
                 if (!product) continue;

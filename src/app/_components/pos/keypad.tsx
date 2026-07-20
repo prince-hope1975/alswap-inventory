@@ -1,6 +1,6 @@
 "use client";
 
-import { Delete, DeleteIcon } from "lucide-react";
+import { DeleteIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 
 interface KeypadProps {
@@ -26,12 +26,16 @@ export function Keypad({ onKeyPress, onDelete, onClear, className }: KeypadProps
             ))}
             <button
                 onClick={onDelete}
-                onLongPress={onClear} // Note: standard button doesn't have onLongPress, but we can simulate or just add a clear button
+                aria-label="Delete last digit"
                 className="flex h-14 items-center justify-center rounded-xl border-b-4 border-red-200 bg-red-50 text-red-600 active:border-b-0 active:bg-red-100 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400 dark:active:bg-red-900/30"
             >
                 <DeleteIcon className="h-6 w-6" />
             </button>
+            {onClear && (
+                <button type="button" onClick={onClear} className="col-span-3 min-h-11 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                    Clear amount
+                </button>
+            )}
         </div>
     );
 }
-

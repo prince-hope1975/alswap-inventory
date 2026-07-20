@@ -22,6 +22,7 @@ const productSchema = z.object({
     sku: z.string().optional(),
     barcode: z.string().optional(),
     price: z.number().min(0, "Price must be positive"),
+    salePrice: z.number().min(0, "Sale price must be positive").optional().nullable(),
     costPrice: z.number().min(0, "Cost price is required and must be positive"),
     stockQuantity: z.number().int().min(-1, "Stock must be -1 (unknown) or greater"),
     lowStockThreshold: z.number().int().min(0),
@@ -57,6 +58,7 @@ interface ProductFormProps {
         sku?: string | null;
         barcode?: string | null;
         price: string;
+        salePrice?: string | null;
         costPrice?: string | null;
         stockQuantity: number;
         lowStockThreshold?: number | null;
@@ -122,6 +124,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                 sku: initialData.sku ?? "",
                 barcode: initialData.barcode ?? "",
                 price: parseFloat(initialData.price),
+                salePrice: initialData.salePrice ? parseFloat(initialData.salePrice) : null,
                 costPrice: parseFloat(initialData.costPrice ?? "0"),
                 stockQuantity: initialData.stockQuantity,
                 lowStockThreshold: initialData.lowStockThreshold ?? 5,
@@ -130,6 +133,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                 name: "",
                 description: "",
                 price: 0,
+                salePrice: null,
                 costPrice: 0,
                 stockQuantity: 0,
                 lowStockThreshold: 5,
@@ -157,6 +161,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
             categoryIds: data.categoryIds || [],
             categoryId: data.categoryIds?.[0], // First category as primary for backward compat
             price: Number(data.price),
+            salePrice: data.salePrice ? Number(data.salePrice) : null,
             costPrice: Number(data.costPrice),
             image: data.image || undefined,
             description: data.description || undefined,
@@ -455,6 +460,25 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 The amount customers will be charged at checkout.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Sale Price ({currency})
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                {...register("salePrice", { valueAsNumber: true })}
+                                placeholder="Leave empty for no sale"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            />
+                            {errors.salePrice && (
+                                <p className="mt-1 text-sm text-red-600">{errors.salePrice.message}</p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Optional discounted price. Leave empty to use regular selling price.
                             </p>
                         </div>
 

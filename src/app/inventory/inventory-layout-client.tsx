@@ -19,6 +19,9 @@ import {
     X,
     Bell,
     ClipboardList,
+    Star,
+    Sun,
+    ScanLine,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { ThemeToggle } from "~/components/theme-toggle";
@@ -55,7 +58,11 @@ export function InventoryLayoutClient({
         { href: "/inventory/products", label: "Products", icon: Package },
         { href: "/inventory/categories", label: "Categories", icon: Layers },
         { href: "/inventory/orders", label: "Orders", icon: ClipboardList },
+        { href: "/inventory/solar", label: "Solar Projects", icon: Sun },
+        { href: "/inventory/documents", label: "Document OCR", icon: ScanLine },
         { href: "/inventory/customers", label: "Customers", icon: Users },
+        { href: "/inventory/reviews", label: "Reviews", icon: Star },
+        { href: "/inventory/articles", label: "Articles", icon: FileText },
         { href: "/inventory/notifications", label: "Notifications", icon: Bell },
         { href: "/inventory/users", label: "Users", icon: UserPlus },
         { href: "/inventory/analytics", label: "Analytics", icon: BarChart3 },
@@ -263,5 +270,3 @@ export function InventoryLayoutClient({
         </div>
     );
 }
-
-

@@ -10,6 +10,7 @@ import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { StockBadge } from "../parts/stock-badge";
+import { ChevronDown } from "lucide-react";
 import type { StoreConfig } from "~/types/store-config";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
@@ -56,10 +57,10 @@ export function ModernTemplate({
 }: ModernTemplateProps) {
     const tenant = shopDetails?.tenant;
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isFiltersOpen, setIsFiltersOpen] = useState(true);
 
     return (
-        <div className="min-h-screen bg-[#0f1016] text-white font-sans selection:bg-[var(--brand-primary-500)]/30">
-            {/* Navbar */}
+        <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#0f1016] to-[#0a0a0f] text-white font-sans selection:bg-[var(--brand-primary-500)]/30">
             <ShopNavbar
                 tenant={tenant}
                 search={search}
@@ -67,7 +68,6 @@ export function ModernTemplate({
                 showSearch={true}
             />
 
-            {/* Hero Section */}
             {config.showHero && (
                 <ShopHero
                     tenantName={config.heroTitle || tenant?.name}
@@ -79,32 +79,46 @@ export function ModernTemplate({
                 />
             )}
 
-            {/* Main Content */}
             <div id="products" className={`container mx-auto px-4 pb-24 ${!config.showHero ? 'pt-32' : ''}`}>
                 <div className="flex flex-col lg:flex-row gap-8">
-                    {/* Sidebar Filters */}
-                    <div className="lg:w-72 space-y-6">
+                    <div className="lg:w-80 space-y-6">
                         <ShopSidebar
                             categories={categories}
                             selectedCategory={selectedCategory}
                             setSelectedCategory={setSelectedCategory}
                         />
                         
-                        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
-                            <ShopFilters
-                                sortBy={sortBy}
-                                setSortBy={setSortBy}
-                                priceRange={priceRange}
-                                setPriceRange={setPriceRange}
-                                inStockOnly={inStockOnly}
-                                setInStockOnly={setInStockOnly}
-                                onClearFilters={onClearFilters}
-                            />
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+                            <button
+                                onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                                className="w-full flex items-center justify-between p-6 hover:bg-white/[0.02] transition-colors"
+                            >
+                                <span className="font-semibold text-white">Filters</span>
+                                <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${isFiltersOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isFiltersOpen && (
+                                <div className="px-6 pb-6">
+                                    <ShopFilters
+                                        sortBy={sortBy}
+                                        setSortBy={setSortBy}
+                                        priceRange={priceRange}
+                                        setPriceRange={setPriceRange}
+                                        inStockOnly={inStockOnly}
+                                        setInStockOnly={setInStockOnly}
+                                        onClearFilters={onClearFilters}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Product Grid */}
                     <div className="flex-1">
+                        <div className="mb-6 flex items-center justify-between">
+                            <h2 className="text-2xl font-bold text-white">
+                                {products ? `${products.length} Products` : 'Loading...'}
+                            </h2>
+                        </div>
+
                         {isLoading ? (
                             <ProductSkeletonGrid count={6} columns={3} />
                         ) : products && products.length > 0 ? (
@@ -125,7 +139,7 @@ export function ModernTemplate({
                                 ))}
                             </div>
                         ) : (
-                            <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-center">
+                            <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-center">
                                 <p className="text-lg font-medium text-gray-400">No products found</p>
                                 <button
                                     onClick={() => {
@@ -133,7 +147,7 @@ export function ModernTemplate({
                                         setSelectedCategory(undefined);
                                         onClearFilters();
                                     }}
-                                    className="mt-2 text-sm text-[var(--brand-primary-400)] hover:text-[var(--brand-primary-300)]"
+                                    className="mt-2 text-sm text-[var(--brand-primary-400)] hover:text-[var(--brand-primary-300)] transition-colors"
                                 >
                                     Clear filters
                                 </button>
@@ -143,7 +157,6 @@ export function ModernTemplate({
                 </div>
             </div>
             
-            {/* Product Detail Modal */}
             {selectedProduct && (
                 <ProductDetailModal
                     product={selectedProduct}

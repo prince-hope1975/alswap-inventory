@@ -9,6 +9,9 @@ const { auth } = NextAuth(authConfig);
  */
 const publicRoutes = [
   "/",
+  "/solar",
+  "/products",
+  "/articles",
   "/auth/signin",
   "/auth/signup",
   "/auth/forgot-password",
@@ -21,6 +24,7 @@ const publicRoutes = [
  */
 const publicApiRoutes = [
   "/api/auth",
+  "/api/solar",
   "/api/trpc",
 ];
 
@@ -51,7 +55,7 @@ export default auth((req) => {
   }
 
   // Allow public routes
-  if (publicRoutes.includes(pathname)) {
+  if (publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
     return NextResponse.next();
   }
 
@@ -71,13 +75,17 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // For all other routes, only admin users are allowed
-  if (session.user.role !== "ADMIN") {
-    console.error(`[Middleware] Non-admin access to ${pathname}, role: ${session.user.role}`);
-    // Check if the user is trying to access a route they shouldn't
-    // For now, redirecting to home
-    return NextResponse.redirect(new URL("/", req.url));
+  const role = session.user.role;
+  const cashierRoutes = ["/pos", "/sales", "/inventory/customers"];
+  const managerBlockedRoutes = ["/inventory/settings", "/inventory/users"];
+
+  if (role === "CASHIER" && !cashierRoutes.some((route) => pathname.startsWith(route))) {
+    return NextResponse.redirect(new URL("/pos", req.url));
   }
+  if (role === "MANAGER" && managerBlockedRoutes.some((route) => pathname.startsWith(route))) {
+    return NextResponse.redirect(new URL("/inventory", req.url));
+  }
+  if (role === "USER") return NextResponse.redirect(new URL("/", req.url));
 
   // Admin users can access all routes
   return NextResponse.next();

@@ -96,6 +96,7 @@ export function usePosSync() {
             for (const order of pendingOrders) {
                 try {
                     await createOrderMutation.mutateAsync({
+                        clientOrderId: order.orderData.clientOrderId,
                         shiftId: order.orderData.shiftId,
                         customerId: order.orderData.customerId,
                         items: order.orderData.items,
@@ -134,4 +135,3 @@ export function usePosSync() {
         pushData: syncPendingOrders,
     };
 }
-

@@ -1,7 +1,6 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
-import { Geist } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import { BrandColorProvider } from "~/lib/brand-colors";
@@ -16,11 +15,6 @@ export const metadata: Metadata = {
   description: "SPPD AMAKS Inventory & POS System",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
-
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-});
 
 export default async function RootLayout({
   children,
@@ -38,7 +32,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" className={`${geist.variable} dark`}>
+    <html lang="en" className="dark">
       <head>
         <ThemeScript />
         <style

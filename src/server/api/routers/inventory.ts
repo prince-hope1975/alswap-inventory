@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { createSlug } from "~/lib/domain/slug";
 
 import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
-import { products, categories, orders, orderItems, productCategories } from "~/server/db/schema";
+import { products, categories, orders, orderItems, productCategories, productVariants } from "~/server/db/schema";
 import { eq, and, desc, or, ilike, lte, sql, gte, inArray } from "drizzle-orm";
 
 export const inventoryRouter = createTRPCRouter({
@@ -75,6 +76,7 @@ export const inventoryRouter = createTRPCRouter({
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
                 price: z.number().min(0),
+                salePrice: z.number().min(0).optional().nullable(),
                 costPrice: z.number().min(0),
                 stockQuantity: z.number().int().min(-1).default(0), // -1 = unknown quantity
                 lowStockThreshold: z.number().int().default(5),
@@ -101,6 +103,7 @@ export const inventoryRouter = createTRPCRouter({
             // Insert product
             const [newProduct] = await ctx.db.insert(products).values({
                 name: input.name,
+                slug: `${createSlug(input.name)}-${crypto.randomUUID().slice(0, 6)}`,
                 description: input.description || null,
                 image: input.image || null,
                 images: input.images || null,
@@ -108,6 +111,7 @@ export const inventoryRouter = createTRPCRouter({
                 barcode: input.barcode,
                 sku: input.sku,
                 price: input.price.toString(),
+                salePrice: input.salePrice?.toString() ?? null,
                 costPrice: input.costPrice.toString(),
                 stockQuantity: input.stockQuantity,
                 lowStockThreshold: input.lowStockThreshold,
@@ -117,6 +121,17 @@ export const inventoryRouter = createTRPCRouter({
             if (!newProduct) {
                 throw new Error("Failed to create product");
             }
+
+            await ctx.db.insert(productVariants).values({
+                tenantId: ctx.tenantId,
+                productId: newProduct.id,
+                name: "Default",
+                sku: input.sku,
+                barcode: input.barcode,
+                retailPrice: input.price.toString(),
+                averageUnitCost: input.costPrice.toString(),
+                stockQuantity: input.stockQuantity.toString(),
+            });
 
             // Insert category associations (many-to-many)
             const categoryIdsToInsert = new Set<number>();
@@ -224,6 +239,7 @@ export const inventoryRouter = createTRPCRouter({
                 barcode: z.string().optional(),
                 sku: z.string().optional(),
                 price: z.number().min(0).optional(),
+                salePrice: z.number().min(0).optional().nullable(),
                 costPrice: z.number().min(0).optional(),
                 stockQuantity: z.number().int().min(-1).optional(), // -1 = unknown quantity
                 lowStockThreshold: z.number().int().optional(),
@@ -261,6 +277,7 @@ export const inventoryRouter = createTRPCRouter({
             if (input.barcode !== undefined) updateData.barcode = input.barcode;
             if (input.sku !== undefined) updateData.sku = input.sku;
             if (input.price !== undefined) updateData.price = input.price.toString();
+            if (input.salePrice !== undefined) updateData.salePrice = input.salePrice?.toString() ?? null;
             if (input.costPrice !== undefined) updateData.costPrice = input.costPrice.toString();
             if (input.stockQuantity !== undefined) updateData.stockQuantity = input.stockQuantity;
             if (input.lowStockThreshold !== undefined) updateData.lowStockThreshold = input.lowStockThreshold;
@@ -384,6 +401,7 @@ export const inventoryRouter = createTRPCRouter({
                         barcode: z.string().optional(),
                         sku: z.string().optional(),
                         price: z.number().min(0),
+                        salePrice: z.number().min(0).optional().nullable(),
                         costPrice: z.number().min(0),
                         stockQuantity: z.number().int().min(-1).default(0), // -1 = unknown quantity
                         lowStockThreshold: z.number().int().default(5),
@@ -394,6 +412,7 @@ export const inventoryRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             const productsToInsert = input.products.map((product) => ({
                 name: product.name,
+                slug: `${createSlug(product.name)}-${crypto.randomUUID().slice(0, 6)}`,
                 description: product.description || null,
                 image: product.image || null,
                 images: product.images || null,
@@ -401,6 +420,7 @@ export const inventoryRouter = createTRPCRouter({
                 barcode: product.barcode,
                 sku: product.sku,
                 price: product.price.toString(),
+                salePrice: product.salePrice?.toString() ?? null,
                 costPrice: product.costPrice.toString(),
                 stockQuantity: product.stockQuantity,
                 lowStockThreshold: product.lowStockThreshold,
@@ -408,6 +428,22 @@ export const inventoryRouter = createTRPCRouter({
             }));
 
             const insertedProducts = await ctx.db.insert(products).values(productsToInsert).returning();
+
+            if (insertedProducts.length > 0) {
+                await ctx.db.insert(productVariants).values(insertedProducts.map((product, index) => {
+                    const source = input.products[index]!;
+                    return {
+                        tenantId: ctx.tenantId,
+                        productId: product.id,
+                        name: "Default",
+                        sku: source.sku,
+                        barcode: source.barcode,
+                        retailPrice: source.price.toString(),
+                        averageUnitCost: source.costPrice.toString(),
+                        stockQuantity: source.stockQuantity.toString(),
+                    };
+                }));
+            }
 
             // Insert category associations for each product
             const categoryAssociations: { productId: string; categoryId: number }[] = [];

@@ -65,7 +65,7 @@ export default function UserManagementPage() {
         return (
             user.name?.toLowerCase().includes(query) ||
             user.email.toLowerCase().includes(query) ||
-            user.role.toLowerCase().includes(query)
+            (user.role ?? "CASHIER").toLowerCase().includes(query)
         );
     });
 
@@ -182,7 +182,8 @@ export default function UserManagementPage() {
                             </tr>
                         ) : (
                             filteredUsers.map((user) => {
-                                const RoleIcon = roleIcons[user.role];
+                                const normalizedRole = user.role === "ADMIN" || user.role === "MANAGER" || user.role === "CASHIER" ? user.role : "CASHIER";
+                                const RoleIcon = roleIcons[normalizedRole];
                                 return (
                                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                         <td className="whitespace-nowrap px-6 py-4">
@@ -196,13 +197,13 @@ export default function UserManagementPage() {
                                         <td className="whitespace-nowrap px-6 py-4">
                                             <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium">
                                                 <RoleIcon className="h-3 w-3" />
-                                                {roleLabels[user.role]}
+                                                {roleLabels[normalizedRole]}
                                             </span>
                                         </td>
                                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                                             <div className="flex justify-end gap-2">
                                                 <button
-                                                    onClick={() => openEditModal(user)}
+                                                    onClick={() => openEditModal({ ...user, role: normalizedRole })}
                                                     className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
                                                 >
                                                     <Pencil className="h-4 w-4" />
@@ -318,4 +319,3 @@ export default function UserManagementPage() {
         </div>
     );
 }
-

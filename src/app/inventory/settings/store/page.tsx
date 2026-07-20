@@ -13,7 +13,7 @@ import { LocationPicker } from "~/app/_components/maps/location-picker";
 
 // Schema matching the one in settings router
 const storeSettingsSchema = z.object({
-    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion"]),
+    template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion", "beauty"]),
     themeMode: z.enum(["system", "light", "dark"]),
     showHero: z.boolean(),
     showArticles: z.boolean(),
@@ -431,6 +431,12 @@ export default function StoreSettingsPage() {
                                         desc: "Sales-optimized layout with urgency elements, trust signals, and prominent CTAs. Best for promotions.",
                                         color: "bg-gradient-to-br from-orange-500 to-red-600"
                                     },
+                                    {
+                                        id: "beauty",
+                                        name: "Beauty Editorial",
+                                        desc: "High-fidelity skincare experience with ritual-led browsing, ingredient storytelling, and premium editorial composition.",
+                                        color: "bg-gradient-to-br from-[#b8c7a3] via-[#f4eee8] to-[#c8b5a6] !text-stone-800"
+                                    },
                                 ].map((template) => (
                                     <label
                                         key={template.id}
@@ -590,7 +596,7 @@ export default function StoreSettingsPage() {
                                 <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 dark:text-white">Show Articles/Blog</span>
-                                        <span className="block text-xs text-gray-500 dark:text-gray-400">Enable the articles section (Coming Soon).</span>
+                                        <span className="block text-xs text-gray-500 dark:text-gray-400">Enable the articles section on your storefront.</span>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" className="sr-only peer" {...register("showArticles")} />

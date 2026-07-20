@@ -13,7 +13,7 @@ export interface LocalProduct {
     // Search optimization fields
     searchTokens?: string; // Concatenated lowercase search fields
     salesCount?: number; // Track popularity for ranking
-    categoryId?: string | null; // For category-based boosting
+    categoryId?: number | null; // For category-based boosting
 }
 
 export interface LocalCustomer {
@@ -28,6 +28,7 @@ export interface LocalCustomer {
 export interface PendingOrder {
     id?: number; // Auto-incremented
     orderData: {
+        clientOrderId: string;
         shiftId?: string;
         customerId?: string;
         items: {
@@ -72,7 +73,7 @@ export class PosDatabase extends Dexie {
     }
 
     // Helper method to build search tokens when adding products
-    async addProductsWithTokens(products: Omit<LocalProduct, 'searchTokens' | 'salesCount'>[]) {
+    async addProductsWithTokens(products: Omit<LocalProduct, 'searchTokens'>[]) {
         const productsWithTokens = products.map(p => ({
             ...p,
             searchTokens: [p.name, p.sku, p.barcode]
@@ -96,4 +97,3 @@ export class PosDatabase extends Dexie {
 }
 
 export const db = new PosDatabase();
-

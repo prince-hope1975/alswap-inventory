@@ -8,20 +8,25 @@ import Link from "next/link";
 
 type Customer = {
     id: string;
+    tenantId: string;
+    createdAt: Date;
     name: string;
     email: string | null;
     phone: string | null;
     loyaltyPoints: number | null;
 };
 
-export function CustomerList() {
+export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Customer[] }) {
     const router = useRouter();
     const [search, setSearch] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [formData, setFormData] = useState({ name: "", email: "", phone: "" });
 
-    const { data: customers = [], refetch } = api.crm.listCustomers.useQuery({ search });
+    const { data: customers = [], refetch } = api.crm.listCustomers.useQuery(
+        { search },
+        { initialData: search ? undefined : initialCustomers },
+    );
 
     const createMutation = api.crm.createCustomer.useMutation({
         onSuccess: () => {
@@ -236,4 +241,3 @@ export function CustomerList() {
         </div>
     );
 }
-

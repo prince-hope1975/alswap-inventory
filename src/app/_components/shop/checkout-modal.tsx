@@ -1,12 +1,20 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useCart } from "./cart-context";
 import { api } from "~/trpc/react";
 import { X, Loader2, MapPin, Truck, CreditCard, Wallet } from "lucide-react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
-import { LocationPicker } from "~/app/_components/maps/location-picker";
 import { toAppleMapsDirectionsUrl, toGoogleMapsDirectionsUrl } from "~/lib/maps";
+
+const LocationPicker = dynamic(
+    () => import("~/app/_components/maps/location-picker").then((module) => module.LocationPicker),
+    {
+        ssr: false,
+        loading: () => <div className="h-80 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" aria-label="Loading map" />,
+    },
+);
 
 type PaystackSetupOptions = {
     key: string;

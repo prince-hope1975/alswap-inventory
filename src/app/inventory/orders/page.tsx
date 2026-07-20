@@ -8,7 +8,7 @@ import { CheckCircle, RefreshCw, X } from "lucide-react";
 type OrderStatus = "PENDING" | "COMPLETED" | "CANCELLED";
 type DeliveryMethod = "PICKUP" | "DELIVERY";
 
-function Badge({ children, tone }: { children: string; tone: "gray" | "green" | "yellow" | "red" | "blue" }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: "gray" | "green" | "yellow" | "red" | "blue" }) {
   const toneCls =
     tone === "green"
       ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
@@ -299,7 +299,7 @@ export default function OrdersPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => updateStatus.mutate({ id: selected.data.id, status: "PENDING" })}
+                      onClick={() => updateStatus.mutate({ id: selected.data!.id, status: "PENDING" })}
                       disabled={updateStatus.isPending}
                       className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
                     >
@@ -307,7 +307,7 @@ export default function OrdersPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateStatus.mutate({ id: selected.data.id, status: "COMPLETED" })}
+                      onClick={() => updateStatus.mutate({ id: selected.data!.id, status: "COMPLETED" })}
                       disabled={updateStatus.isPending}
                       className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50"
                     >
@@ -316,7 +316,7 @@ export default function OrdersPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateStatus.mutate({ id: selected.data.id, status: "CANCELLED" })}
+                      onClick={() => updateStatus.mutate({ id: selected.data!.id, status: "CANCELLED" })}
                       disabled={updateStatus.isPending}
                       className="rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
                     >
@@ -332,7 +332,6 @@ export default function OrdersPage() {
     </div>
   );
 }
-
 
 
 

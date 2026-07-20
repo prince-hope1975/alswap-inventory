@@ -64,6 +64,20 @@
       "when": 1767017751495,
       "tag": "0008_loving_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780231828499,
+      "tag": "0009_add-sale-price-reviews-articles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784546871174,
+      "tag": "0010_bizarre_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

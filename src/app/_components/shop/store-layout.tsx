@@ -14,9 +14,11 @@ import { MarketplaceTemplate } from "./templates/marketplace-template";
 import { MinimalTemplate } from "./templates/minimal-template";
 import { BoutiqueTemplate } from "./templates/boutique-template";
 import { ConversionTemplate } from "./templates/conversion-template";
+import { BeautyTemplate } from "./templates/beauty-template";
 import { ShoppingCart, X } from "lucide-react";
 import { type RouterOutputs } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { StorefrontArticles } from "./parts/storefront-articles";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -188,7 +190,11 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
             {config.template === "minimal" && <MinimalTemplate {...commonProps} />}
             {config.template === "boutique" && <BoutiqueTemplate {...commonProps} />}
             {config.template === "conversion" && <ConversionTemplate {...commonProps} />}
-            {!["modern", "classic", "marketplace", "minimal", "boutique", "conversion"].includes(config.template) && <ModernTemplate {...commonProps} />}
+            {config.template === "beauty" && <BeautyTemplate {...commonProps} />}
+            {!["modern", "classic", "marketplace", "minimal", "boutique", "conversion", "beauty"].includes(config.template) && <ModernTemplate {...commonProps} />}
+
+            {/* Articles Section */}
+            {config.showArticles && <StorefrontArticles limit={6} />}
 
             {/* Global Cart Drawer */}
             {isCartOpen && (

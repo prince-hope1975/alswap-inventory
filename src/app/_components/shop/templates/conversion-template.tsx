@@ -113,16 +113,15 @@ function ConversionProductCard({
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
     const price = Number(product.price);
-    const originalPrice = price * 1.25; // Simulated original price
-    const salePercentage = Math.round(((originalPrice - price) / originalPrice) * 100);
+    const salePrice = product.salePrice ? Number(product.salePrice) : null;
+    const displayPrice = salePrice ?? price;
+    const salePercentage = salePrice ? Math.round(((price - salePrice) / price) * 100) : 0;
     const isOutOfStock = product.stockQuantity === 0;
 
     return (
         <div className="group relative flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl dark:hover:shadow-black/30 hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-300">
-            {/* Sale Badge */}
             {salePercentage > 0 && <SaleBadge percentage={salePercentage} />}
             
-            {/* Image */}
             <div 
                 className="relative aspect-square overflow-hidden bg-gray-50 dark:bg-gray-900 cursor-pointer"
                 onClick={onQuickView}
@@ -140,7 +139,6 @@ function ConversionProductCard({
                     </div>
                 )}
                 
-                {/* Quick View Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     <span className="rounded-full bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white">
                         Quick View
@@ -148,16 +146,13 @@ function ConversionProductCard({
                 </div>
             </div>
 
-            {/* Content */}
             <div className="flex flex-1 flex-col p-4">
-                {/* Category */}
                 {product.category && (
                     <span className="mb-1.5 text-xs font-medium text-[var(--brand-primary-600)] dark:text-[var(--brand-primary-400)] uppercase tracking-wide">
                         {product.category.name}
                     </span>
                 )}
                 
-                {/* Name */}
                 <h3 
                     className="mb-2 text-base font-semibold text-gray-900 dark:text-white line-clamp-2 cursor-pointer hover:text-[var(--brand-primary-600)] dark:hover:text-[var(--brand-primary-400)] transition-colors"
                     onClick={onQuickView}
@@ -165,40 +160,28 @@ function ConversionProductCard({
                     {product.name}
                 </h3>
                 
-                {/* Ratings placeholder */}
-                <div className="mb-3 flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                        <Star 
-                            key={i} 
-                            className={`h-4 w-4 ${i < 4 ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200 dark:text-gray-600'}`} 
-                        />
-                    ))}
-                    <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400">(124)</span>
-                </div>
-                
-                {/* Price */}
                 <div className="mb-3 flex items-baseline gap-2">
                     <span className="text-xl font-bold text-gray-900 dark:text-white">
-                        {formatCurrency(price)}
+                        {formatCurrency(displayPrice)}
                     </span>
-                    <span className="text-sm text-gray-400 dark:text-gray-500 line-through">
-                        {formatCurrency(originalPrice)}
-                    </span>
+                    {salePrice && (
+                        <span className="text-sm text-gray-400 dark:text-gray-500 line-through">
+                            {formatCurrency(price)}
+                        </span>
+                    )}
                 </div>
                 
-                {/* Stock Indicator */}
                 <div className="mb-4">
                     <StockIndicator quantity={product.stockQuantity} />
                 </div>
                 
-                {/* Add to Cart Button */}
                 <button
                     onClick={() => {
                         if (!isOutOfStock) {
                             addItem({
                                 productId: product.id,
                                 name: product.name,
-                                price: price,
+                                price: displayPrice,
                                 image: product.image,
                             });
                         }
@@ -260,13 +243,13 @@ export function ConversionTemplate({
             />
 
             {/* Urgency Banner */}
-            <div className="fixed top-20 left-0 right-0 z-30 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 py-2.5 text-center">
+            <div className="fixed top-20 left-0 right-0 z-30 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 py-3 text-center shadow-lg">
                 <div className="container mx-auto flex items-center justify-center gap-3 px-4">
-                    <Flame className="h-4 w-4 text-yellow-300 animate-pulse" />
-                    <span className="text-sm font-bold text-white tracking-wide">
-                        FLASH SALE - UP TO 25% OFF - LIMITED TIME ONLY
+                    <Flame className="h-5 w-5 text-yellow-300 animate-pulse" />
+                    <span className="text-sm font-bold text-white tracking-wider">
+                        {config.heroTitle || "FLASH SALE - LIMITED TIME DEALS - SHOP NOW"}
                     </span>
-                    <Flame className="h-4 w-4 text-yellow-300 animate-pulse" />
+                    <Flame className="h-5 w-5 text-yellow-300 animate-pulse" />
                 </div>
             </div>
 

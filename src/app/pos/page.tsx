@@ -189,10 +189,7 @@ export default function POSTerminal() {
         onSuccess: (order) => {
             handleOrderSuccess(order);
         },
-        onError: async (error) => {
-            console.error("Online order creation failed, attempting offline save:", error);
-            await handleOfflineOrder();
-        }
+        onError: (error) => console.error("Online order creation failed:", error),
     });
 
     const handleOrderSuccess = async (order: any) => {
@@ -217,9 +214,9 @@ export default function POSTerminal() {
         setShowReceiptModal(true);
     };
 
-    const handleOfflineOrder = async (paymentMethod?: string, amountPaid?: number) => {
-        const tempId = `offline-${Date.now()}`;
+    const handleOfflineOrder = async (paymentMethod?: string, amountPaid?: number, clientOrderId = crypto.randomUUID()) => {
         const orderData = {
+            clientOrderId,
             shiftId: shiftId ?? undefined,
             customerId: selectedCustomer?.id,
             items: cart.map((item) => ({
@@ -254,7 +251,7 @@ export default function POSTerminal() {
             }
 
             const fakeOrder = {
-                id: tempId,
+                id: `offline-${clientOrderId}`,
                 totalAmount: cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toString(),
                 paymentMethod: paymentMethod ?? "CASH",
                 createdAt: new Date().toISOString(),
@@ -317,9 +314,11 @@ export default function POSTerminal() {
 
     const handlePaymentConfirm = async (paymentMethod: string, amountPaid: number) => {
         if (cart.length === 0) return;
+        const clientOrderId = crypto.randomUUID();
 
         if (isOnline) {
             createOrder.mutate({
+                clientOrderId,
                 shiftId: shiftId ?? undefined,
                 customerId: selectedCustomer?.id,
                 items: cart.map((item) => ({
@@ -330,10 +329,10 @@ export default function POSTerminal() {
                 paymentMethod: paymentMethod as any,
                 amountPaid: amountPaid,
             }, {
-                onError: () => handleOfflineOrder(paymentMethod, amountPaid)
+                onError: () => handleOfflineOrder(paymentMethod, amountPaid, clientOrderId)
             });
         } else {
-            await handleOfflineOrder(paymentMethod, amountPaid);
+            await handleOfflineOrder(paymentMethod, amountPaid, clientOrderId);
         }
     };
 
