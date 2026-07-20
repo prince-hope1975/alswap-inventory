@@ -19,6 +19,7 @@ import { ShoppingCart, X } from "lucide-react";
 import { type RouterOutputs } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { StorefrontArticles } from "./parts/storefront-articles";
+import { resolveStorefrontTheme } from "~/lib/domain/storefront-theme";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -93,21 +94,11 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     // Handle Theme Mode
     useEffect(() => {
         const root = document.documentElement;
-        if (config.themeMode === 'dark') {
+        const resolvedTheme = resolveStorefrontTheme(config.themeMode, localStorage.getItem("theme"));
+        if (resolvedTheme === 'dark') {
             root.classList.add('dark');
-        } else if (config.themeMode === 'light') {
+        } else {
             root.classList.remove('dark');
-        }
-        else if (config.themeMode === 'system') {
-            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const localTheme = localStorage.getItem('theme'); // 'theme' key from ThemeScript
-
-            // If local storage is set, respect it, otherwise system
-            if (localTheme === 'dark' || (!localTheme && systemPrefersDark)) {
-                root.classList.add('dark');
-            } else {
-                root.classList.remove('dark');
-            }
         }
     }, [config.themeMode]);
 

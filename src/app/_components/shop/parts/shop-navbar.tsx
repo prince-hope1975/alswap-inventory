@@ -24,7 +24,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
-        <nav className={`fixed top-0 left-0 right-0 z-40 border-b border-white/5 bg-[#0f1016]/80 backdrop-blur-md ${className}`}>
+        <nav className={`fixed top-0 left-0 right-0 z-40 border-b border-[#14212b]/15 bg-[#f6f4ee]/95 text-[#14212b] backdrop-blur-md dark:border-white/10 dark:bg-[#0a1117]/95 dark:text-white ${className}`}>
             <div className="container mx-auto flex h-20 items-center justify-between px-4">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-2">
@@ -48,14 +48,14 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                 </Link>
 
                 {/* Primary Nav (desktop) */}
-                <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-300">
-                    <Link href="/shop" className="hover:text-white transition-colors">
+                <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-[#41515c] dark:text-gray-300">
+                    <Link href="/shop" className="hover:text-[#0b6e99] dark:hover:text-white transition-colors">
                         Shop
                     </Link>
-                    <Link href="/about" className="hover:text-white transition-colors">
+                    <Link href="/about" className="hover:text-[#0b6e99] dark:hover:text-white transition-colors">
                         About Us
                     </Link>
-                    <Link href="/find-us" className="hover:text-white transition-colors">
+                    <Link href="/find-us" className="hover:text-[#0b6e99] dark:hover:text-white transition-colors">
                         Find Us
                     </Link>
                 </div>
@@ -70,7 +70,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                                 placeholder="Search products..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full rounded-full bg-white/5 border border-white/10 py-2.5 pl-10 pr-4 text-sm text-white placeholder-gray-500 focus:border-[var(--brand-primary-500)] focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary-500)] transition-all"
+                                className="w-full rounded-full bg-white border border-[#14212b]/15 py-2.5 pl-10 pr-4 text-sm text-[#14212b] placeholder-gray-500 focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary-500)] dark:bg-white/5 dark:border-white/10 dark:text-white dark:focus:bg-white/10 transition-all"
                             />
                         </div>
                     </div>
@@ -88,14 +88,14 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                         <div className="hidden md:flex items-center gap-4">
                             <Link
                                 href="/inventory"
-                                className="flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+                                className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-[#14212b] hover:bg-[#dcecf2] dark:bg-white/5 dark:text-white dark:hover:bg-white/10 transition-colors"
                             >
                                 <LayoutDashboard className="h-4 w-4" />
                                 Dashboard
                             </Link>
                             <button
                                 onClick={() => signOut()}
-                                className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                                className="text-sm font-medium text-[#5c6870] hover:text-[#14212b] dark:text-gray-400 dark:hover:text-white transition-colors"
                             >
                                 Sign Out
                             </button>
@@ -106,7 +106,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                     ) : (
                         <button
                             onClick={() => signIn()}
-                            className="hidden md:flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                            className="hidden md:flex items-center gap-2 text-sm font-medium text-[#5c6870] hover:text-[#14212b] dark:text-gray-400 dark:hover:text-white transition-colors"
                         >
                             <User className="h-4 w-4" />
                             Sign In
@@ -116,7 +116,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                     {/* Cart Trigger */}
                     <button
                         onClick={() => setIsCartOpen(true)}
-                        className="relative rounded-full bg-white/5 p-2.5 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+                        className="relative rounded-full bg-white p-2.5 text-[#41515c] hover:bg-[#dcecf2] hover:text-[#14212b] dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white transition-colors"
                     >
                         <ShoppingCart className="h-5 w-5" />
                         {totalItems > 0 && (
@@ -129,7 +129,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                     {/* Mobile Menu Trigger */}
                     <button
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        className="md:hidden rounded-full p-2 text-gray-300 hover:bg-white/10"
+                        className="md:hidden rounded-full p-2 text-[#41515c] hover:bg-[#dcecf2] dark:text-gray-300 dark:hover:bg-white/10"
                     >
                         {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                     </button>
@@ -138,7 +138,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
 
             {/* Mobile Search & Menu */}
             {isMobileMenuOpen && (
-                <div className="border-t border-white/5 bg-[#0f1016] p-4 md:hidden">
+                <div className="border-t border-[#14212b]/15 bg-[#f6f4ee] p-4 dark:border-white/5 dark:bg-[#0a1117] md:hidden">
                     {showSearch && (
                         <div className="mb-4 relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -147,7 +147,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                                 placeholder="Search products..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full rounded-lg bg-white/5 border border-white/10 py-2.5 pl-10 pr-4 text-sm text-white focus:border-[var(--brand-primary-500)] focus:outline-none"
+                                className="w-full rounded-lg bg-white border border-[#14212b]/15 py-2.5 pl-10 pr-4 text-sm text-[#14212b] focus:border-[var(--brand-primary-500)] focus:outline-none dark:bg-white/5 dark:border-white/10 dark:text-white"
                             />
                         </div>
                     )}

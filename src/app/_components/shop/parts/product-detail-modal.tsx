@@ -168,7 +168,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                       onClick={() => setCurrentImageIndex(idx)}
                       className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
                         idx === currentImageIndex
-                          ? "border-purple-600 dark:border-purple-400"
+                          ? "border-[#0b6e99] dark:border-[#8dc5dc]"
                           : "border-transparent hover:border-gray-300 dark:hover:border-gray-600"
                       }`}
                     >
@@ -182,7 +182,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 
             <div className="space-y-6">
               {product.category && (
-                <div className="inline-block px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-sm font-medium">
+                <div className="inline-block px-3 py-1 rounded-full bg-[#dcecf2] dark:bg-[#112b3c]/30 text-[#07597d] dark:text-[#b8dbea] text-sm font-medium">
                   {product.category.name}
                 </div>
               )}
@@ -212,7 +212,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
               )}
 
               <div className="flex items-baseline gap-3">
-                <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                <div className="text-3xl font-bold text-[#0b6e99] dark:text-[#8dc5dc]">
                   {formatCurrency(displayPrice)}
                 </div>
                 {salePrice && (
@@ -310,7 +310,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 
                   <button
                     onClick={handleAddToCart}
-                    className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-lg shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
+                    className="w-full py-4 px-6 rounded-xl bg-[#0b6e99] hover:bg-[#07597d] text-white font-bold text-lg shadow-lg shadow-[#167da8]/25 hover:shadow-[#167da8]/40 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
                   >
                     <ShoppingCart className="h-6 w-6" />
                     Add to Cart
@@ -325,7 +325,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                   </h3>
                   <button
                     onClick={() => setShowReviewForm(!showReviewForm)}
-                    className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium"
+                    className="text-sm text-[#0b6e99] dark:text-[#8dc5dc] hover:text-[#07597d] dark:hover:text-[#b8dbea] font-medium"
                   >
                     {showReviewForm ? "Cancel" : "Write a Review"}
                   </button>
@@ -461,7 +461,7 @@ function ReviewForm({
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
           required
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#167da8] focus:border-transparent"
         />
       </div>
 
@@ -474,7 +474,7 @@ function ReviewForm({
           value={customerEmail}
           onChange={(e) => setCustomerEmail(e.target.value)}
           required
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#167da8] focus:border-transparent"
         />
       </div>
 
@@ -486,7 +486,7 @@ function ReviewForm({
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#167da8] focus:border-transparent"
         />
       </div>
 
@@ -498,14 +498,14 @@ function ReviewForm({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={4}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#167da8] focus:border-transparent"
         />
       </div>
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-2 px-4 bg-[#0b6e99] hover:bg-[#07597d] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isSubmitting ? "Submitting..." : "Submit Review"}
       </button>

@@ -56,7 +56,7 @@ export function MobileBottomNav({
           <div className="relative">
             <ShoppingCart className="h-5 w-5 text-gray-700 dark:text-gray-300" />
             {totalItems > 0 && (
-              <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold flex items-center justify-center">
+              <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-[#0b6e99] text-white text-xs font-bold flex items-center justify-center">
                 {totalItems > 9 ? '9+' : totalItems}
               </span>
             )}

@@ -77,7 +77,7 @@ export function CategoryCarousel({
           onClick={() => setSelectedCategory(undefined)}
           className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all snap-start ${
             selectedCategory === undefined
-              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
+              ? "bg-[#0b6e99] text-white shadow-lg"
               : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
           }`}
         >
@@ -91,7 +91,7 @@ export function CategoryCarousel({
             onClick={() => setSelectedCategory(category.id)}
             className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all snap-start whitespace-nowrap ${
               selectedCategory === category.id
-                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg"
+                ? "bg-[#0b6e99] text-white shadow-lg"
                 : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
           >

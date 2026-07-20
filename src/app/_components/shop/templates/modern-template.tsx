@@ -60,12 +60,13 @@ export function ModernTemplate({
     const [isFiltersOpen, setIsFiltersOpen] = useState(true);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#0f1016] to-[#0a0a0f] text-white font-sans selection:bg-[var(--brand-primary-500)]/30">
+        <div className="min-h-screen bg-[#f6f4ee] text-[#14212b] font-sans selection:bg-[#f5a623]/40 dark:bg-[#0a1117] dark:text-white">
             <ShopNavbar
                 tenant={tenant}
                 search={search}
                 setSearch={setSearch}
                 showSearch={true}
+                className="bg-[#f6f4ee]/95 dark:bg-[#0a1117]/95"
             />
 
             {config.showHero && (
@@ -88,12 +89,12 @@ export function ModernTemplate({
                             setSelectedCategory={setSelectedCategory}
                         />
                         
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl overflow-hidden">
+                        <div className="rounded-2xl border border-[#14212b]/15 bg-white overflow-hidden dark:border-white/10 dark:bg-white/[0.03]">
                             <button
                                 onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-                                className="w-full flex items-center justify-between p-6 hover:bg-white/[0.02] transition-colors"
+                                className="w-full flex items-center justify-between p-6 hover:bg-[#dcecf2]/50 dark:hover:bg-white/[0.02] transition-colors"
                             >
-                                <span className="font-semibold text-white">Filters</span>
+                                <span className="font-semibold text-[#14212b] dark:text-white">Filters</span>
                                 <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${isFiltersOpen ? 'rotate-180' : ''}`} />
                             </button>
                             {isFiltersOpen && (
@@ -114,7 +115,7 @@ export function ModernTemplate({
 
                     <div className="flex-1">
                         <div className="mb-6 flex items-center justify-between">
-                            <h2 className="text-2xl font-bold text-white">
+                            <h2 className="text-2xl font-bold text-[#14212b] dark:text-white">
                                 {products ? `${products.length} Products` : 'Loading...'}
                             </h2>
                         </div>
@@ -139,7 +140,7 @@ export function ModernTemplate({
                                 ))}
                             </div>
                         ) : (
-                            <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-center">
+                            <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-[#14212b]/15 bg-white text-center dark:border-white/10 dark:bg-white/[0.03]">
                                 <p className="text-lg font-medium text-gray-400">No products found</p>
                                 <button
                                     onClick={() => {

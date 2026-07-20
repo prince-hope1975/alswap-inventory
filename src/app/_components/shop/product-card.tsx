@@ -35,11 +35,11 @@ export function ProductCard({ product }: { product: Product }) {
 
     return (
         <div
-            className="group relative flex flex-col overflow-hidden rounded-2xl bg-white/5 border border-white/10 transition-all hover:border-white/20 hover:bg-white/10 hover:shadow-xl hover:shadow-sky-950/20"
+            className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-[#14212b]/15 transition-all hover:border-[#0b6e99]/40 hover:shadow-xl hover:shadow-sky-950/10 dark:bg-white/5 dark:border-white/10 dark:hover:border-white/20 dark:hover:bg-white/10"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="aspect-square w-full overflow-hidden bg-gray-800/50 relative">
+            <div className="aspect-square w-full overflow-hidden bg-[#e7e4dc] dark:bg-gray-800/50 relative">
                 {displayImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -84,14 +84,14 @@ export function ProductCard({ product }: { product: Product }) {
                         {product.category.name}
                     </span>
                 )}
-                <h3 className="mb-1 text-lg font-semibold text-white line-clamp-1" title={product.name}>
+                <h3 className="mb-1 text-lg font-semibold text-[#14212b] dark:text-white line-clamp-1" title={product.name}>
                     {product.name}
                 </h3>
                 <p className="mb-3 text-sm text-gray-400 line-clamp-2">
                     {product.description || "No description available"}
                 </p>
                 <div className="mt-auto flex items-center gap-2">
-                    <span className="text-xl font-bold text-white">
+                    <span className="text-xl font-bold text-[#14212b] dark:text-white">
                         {formatCurrency(displayPrice)}
                     </span>
                     {salePrice && (

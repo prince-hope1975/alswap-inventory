@@ -68,7 +68,7 @@ export function MobileFilterDrawer({
                   }}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     selectedCategory === undefined
-                      ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                      ? "bg-[#0b6e99] text-white"
                       : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                   }`}
                 >
@@ -82,7 +82,7 @@ export function MobileFilterDrawer({
                     }}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                       selectedCategory === category.id
-                        ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                        ? "bg-[#0b6e99] text-white"
                         : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                     }`}
                   >
@@ -121,7 +121,7 @@ export function MobileFilterDrawer({
           </button>
           <button
             onClick={onClose}
-            className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+            className="w-full py-3 px-6 rounded-xl bg-[#0b6e99] text-white font-semibold shadow-lg hover:shadow-xl transition-all"
           >
             Show Results
           </button>

@@ -9,21 +9,20 @@ interface ShopHeroProps {
 
 export function ShopHero({ tenantName, description, onShopNow, className = "" }: ShopHeroProps) {
     return (
-        <div className={`relative pt-32 pb-16 md:pt-48 md:pb-32 overflow-hidden ${className}`}>
+        <div className={`relative overflow-hidden bg-[#112b3c] pb-16 pt-32 text-white md:pb-20 md:pt-40 ${className}`}>
             <div className="absolute inset-0 z-0">
-                <div className="absolute top-0 left-1/4 w-[800px] h-[600px] bg-[var(--brand-primary-600)]/20 blur-[150px] rounded-full opacity-60 animate-pulse" />
-                <div className="absolute bottom-0 right-1/4 w-[700px] h-[500px] bg-blue-600/15 blur-[130px] rounded-full opacity-50 animate-pulse" style={{ animationDelay: '1s' }} />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-amber-500/10 blur-[120px] rounded-full opacity-40 animate-pulse" style={{ animationDelay: '2s' }} />
+                <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(#fff_1px,transparent_1px),linear-gradient(90deg,#fff_1px,transparent_1px)] [background-size:48px_48px]" />
+                <div className="absolute -right-20 top-10 h-72 w-72 rounded-full border-[48px] border-[#f5a623]/15" />
             </div>
 
             <div className="container relative z-10 mx-auto px-4 text-center">
-                <span className="inline-block mb-6 rounded-full border border-[var(--brand-primary-500)]/30 bg-[var(--brand-primary-500)]/10 px-5 py-2 text-sm font-medium text-[var(--brand-primary-300)] backdrop-blur-sm">
+                <span className="inline-block mb-5 border border-white/20 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[#8dc5dc]">
                     {tenantName || "New Collection Available"}
                 </span>
-                <h1 className="mb-8 text-5xl font-extrabold tracking-tight text-white sm:text-7xl lg:text-8xl">
+                <h1 className="mb-6 text-4xl font-black tracking-[-0.045em] text-white sm:text-6xl lg:text-7xl">
                     Electrical products for <span className="text-[#f5a623]">real work</span>
                 </h1>
-                <p className="mx-auto mb-12 max-w-2xl text-lg text-gray-400 leading-relaxed">
+                <p className="mx-auto mb-8 max-w-2xl text-base text-white/65 leading-relaxed sm:text-lg">
                     {description || "Browse dependable cables, lighting, tools, power equipment and accessories with local store support."}
                 </p>
                 <div className="flex justify-center gap-4">

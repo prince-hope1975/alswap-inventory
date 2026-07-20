@@ -58,15 +58,15 @@ export function ShopFilters({
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-            <SlidersHorizontal className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          <div className="p-1.5 rounded-lg bg-[#dcecf2] dark:bg-[#0b6e99]/20">
+            <SlidersHorizontal className="h-4 w-4 text-[#0b6e99] dark:text-[#8dc5dc]" />
           </div>
           <h3 className="font-bold text-base text-gray-900 dark:text-white">Filters</h3>
         </div>
         {hasActiveFilters && (
           <button
             onClick={onClearFilters}
-            className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-semibold flex items-center gap-1 hover:gap-1.5 transition-all"
+            className="text-xs text-[#0b6e99] dark:text-[#8dc5dc] hover:text-[#07597d] font-semibold flex items-center gap-1 hover:gap-1.5 transition-all"
           >
             <X className="h-3.5 w-3.5" />
             Clear All
@@ -82,7 +82,7 @@ export function ShopFilters({
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortOption)}
-          className="w-full px-3.5 py-2.5 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-purple-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all cursor-pointer hover:border-gray-300 dark:hover:border-gray-600"
+          className="w-full px-3.5 py-2.5 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-[#0b6e99] focus:ring-2 focus:ring-[#dcecf2] transition-all cursor-pointer hover:border-gray-300 dark:hover:border-gray-600"
         >
           <option value="newest">⭐ Newest First</option>
           <option value="name-asc">🔤 Name: A to Z</option>
@@ -109,7 +109,7 @@ export function ShopFilters({
               onBlur={() => setLocalMinPrice(priceRange[0].toString())}
               min="0"
               max={priceRange[1]}
-              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-purple-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all"
+              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-[#0b6e99] focus:ring-2 focus:ring-[#dcecf2] transition-all"
               placeholder="0"
             />
           </div>
@@ -124,7 +124,7 @@ export function ShopFilters({
               onBlur={() => setLocalMaxPrice(priceRange[1].toString())}
               min={priceRange[0]}
               max={maxPrice}
-              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-purple-500 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all"
+              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-[#0b6e99] focus:ring-2 focus:ring-[#dcecf2] transition-all"
               placeholder={maxPrice.toString()}
             />
           </div>
@@ -144,7 +144,7 @@ export function ShopFilters({
                 setLocalMaxPrice(value.toString());
               }
             }}
-            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-purple-600 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg hover:[&::-webkit-slider-thumb]:bg-purple-700 transition-all"
+            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-[#0b6e99] [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0b6e99] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg hover:[&::-webkit-slider-thumb]:bg-[#07597d] transition-all"
           />
           <div className="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
             <span>₦{priceRange[0].toLocaleString()}</span>
@@ -160,10 +160,10 @@ export function ShopFilters({
             type="checkbox"
             checked={inStockOnly}
             onChange={(e) => setInStockOnly(e.target.checked)}
-            className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer transition-all"
+            className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-[#0b6e99] focus:ring-2 focus:ring-[#0b6e99] focus:ring-offset-0 cursor-pointer transition-all"
           />
           <div className="flex-1">
-            <span className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-[#0b6e99] dark:group-hover:text-[#8dc5dc] transition-colors">
               In Stock Only
             </span>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -175,4 +175,3 @@ export function ShopFilters({
     </div>
   );
 }
-

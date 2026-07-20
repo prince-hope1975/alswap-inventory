@@ -193,7 +193,7 @@ async function loadPaystackScript(): Promise<void> {
                         </p>
                         <button
                             onClick={onClose}
-                            className="w-full rounded-xl bg-purple-600 py-3 font-semibold text-white transition hover:bg-purple-500"
+                            className="w-full rounded-xl bg-[#0b6e99] py-3 font-semibold text-white transition hover:bg-[#167da8]"
                         >
                             Continue Shopping
                         </button>
@@ -224,7 +224,7 @@ async function loadPaystackScript(): Promise<void> {
                                     onClick={() => setDeliveryMethod("PICKUP")}
                                     className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition ${
                                         deliveryMethod === "PICKUP"
-                                            ? "bg-purple-600 text-white"
+                                            ? "bg-[#0b6e99] text-white"
                                             : "bg-white text-gray-800 border border-gray-200 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-200 dark:border-white/10 dark:hover:bg-white/10"
                                     }`}
                                 >
@@ -236,7 +236,7 @@ async function loadPaystackScript(): Promise<void> {
                                     onClick={() => setDeliveryMethod("DELIVERY")}
                                     className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition ${
                                         deliveryMethod === "DELIVERY"
-                                            ? "bg-purple-600 text-white"
+                                            ? "bg-[#0b6e99] text-white"
                                             : "bg-white text-gray-800 border border-gray-200 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-200 dark:border-white/10 dark:hover:bg-white/10"
                                     }`}
                                 >
@@ -252,7 +252,7 @@ async function loadPaystackScript(): Promise<void> {
                                         rows={2}
                                         value={deliveryAddress}
                                         onChange={(e) => setDeliveryAddress(e.target.value)}
-                                        className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
+                                        className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-[#167da8] focus:outline-none focus:ring-1 focus:ring-[#167da8] dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
                                         placeholder="Enter your full delivery address"
                                     />
                                 </div>
@@ -312,7 +312,7 @@ async function loadPaystackScript(): Promise<void> {
                                 type="text"
                                 value={details.name}
                                 onChange={(e) => setDetails({ ...details, name: e.target.value })}
-                                className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
+                                className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-[#167da8] focus:outline-none focus:ring-1 focus:ring-[#167da8] dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
                                 placeholder="John Doe"
                             />
                         </div>
@@ -322,7 +322,7 @@ async function loadPaystackScript(): Promise<void> {
                                 type="email"
                                 value={details.email}
                                 onChange={(e) => setDetails({ ...details, email: e.target.value })}
-                                className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
+                                className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-[#167da8] focus:outline-none focus:ring-1 focus:ring-[#167da8] dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
                                 placeholder="john@example.com"
                             />
                         </div>
@@ -332,7 +332,7 @@ async function loadPaystackScript(): Promise<void> {
                                 type="tel"
                                 value={details.phone}
                                 onChange={(e) => setDetails({ ...details, phone: e.target.value })}
-                                className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
+                                className="w-full rounded-xl bg-white border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-[#167da8] focus:outline-none focus:ring-1 focus:ring-[#167da8] dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-gray-500"
                                 placeholder="+234..."
                             />
                         </div>

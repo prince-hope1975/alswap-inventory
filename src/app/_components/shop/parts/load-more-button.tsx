@@ -17,7 +17,7 @@ export function LoadMoreButton({ onClick, isLoading, hasMore, className = "" }: 
       <button
         onClick={onClick}
         disabled={isLoading}
-        className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-[1.02]"
+        className="px-8 py-3 rounded-xl bg-[#0b6e99] hover:bg-[#07597d] text-white font-semibold shadow-lg shadow-[#167da8]/25 hover:shadow-[#167da8]/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-[1.02]"
       >
         {isLoading ? (
           <>
