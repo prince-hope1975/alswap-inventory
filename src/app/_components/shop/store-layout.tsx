@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { api } from "~/trpc/react";
 import { useCart } from "./cart-context";
 import { CheckoutModal } from "./checkout-modal";
@@ -182,7 +182,14 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     };
 
     return (
-        <div>
+        <div style={{
+            "--brand-primary-300": "#8dc5dc",
+            "--brand-primary-400": "#45a0c6",
+            "--brand-primary-500": "#167da8",
+            "--brand-primary-600": "#0b6e99",
+            "--brand-primary-700": "#07597d",
+            "--brand-primary-800": "#112b3c",
+        } as CSSProperties}>
             {/* Template Resolver */}
             {config.template === "modern" && <ModernTemplate {...commonProps} />}
             {config.template === "classic" && <ClassicTemplate {...commonProps} />}
@@ -203,7 +210,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                         className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity"
                         onClick={() => setIsCartOpen(false)}
                     />
-                    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[#1a1b2e] dark:bg-gray-900 shadow-2xl border-l border-white/10 dark:border-gray-800 transform transition-transform duration-300 ease-in-out font-sans">
+                    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[#112b3c] shadow-2xl border-l border-white/10 transform transition-transform duration-300 ease-in-out font-sans">
                         <div className="flex h-full flex-col">
                             <div className="flex items-center justify-between border-b border-white/10 dark:border-gray-800 p-6">
                                 <h2 className="text-xl font-bold text-white">Shopping Cart ({totalItems})</h2>
@@ -242,7 +249,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                                 <div className="flex flex-1 flex-col justify-between">
                                                     <div>
                                                         <h3 className="font-medium text-white line-clamp-1">{item.name}</h3>
-                                                        <p className="text-sm text-purple-400">{formatCurrency(item.price)}</p>
+                                                        <p className="text-sm text-[#8dc5dc]">{formatCurrency(item.price)}</p>
                                                     </div>
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-3 rounded-lg bg-white/5 px-2 py-1">
@@ -275,7 +282,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                             </div>
 
                             {items.length > 0 && (
-                                <div className="border-t border-white/10 dark:border-gray-800 p-6 bg-[#1a1b2e] dark:bg-gray-900">
+                                <div className="border-t border-white/10 p-6 bg-[#112b3c]">
                                     <div className="mb-4 flex items-center justify-between text-lg font-bold text-white">
                                         <span>Total</span>
                                         <span>{formatCurrency(totalAmount)}</span>
@@ -285,7 +292,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                             setIsCartOpen(false);
                                             setIsCheckoutOpen(true);
                                         }}
-                                        className="w-full rounded-xl bg-linear-to-r from-purple-600 to-blue-600 py-4 font-bold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-purple-500/40 hover:scale-[1.02]"
+                                        className="w-full rounded-xl bg-[#f5a623] py-4 font-bold text-[#14212b] shadow-lg transition-all hover:bg-[#ffc04d] hover:scale-[1.02]"
                                     >
                                         Proceed to Checkout
                                     </button>

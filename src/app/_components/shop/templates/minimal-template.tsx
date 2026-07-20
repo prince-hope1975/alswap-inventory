@@ -75,19 +75,19 @@ export function MinimalTemplate({
                 {config.showHero && (
                     <div className="mb-32 text-center max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
                         <span className="text-xs font-bold tracking-[0.3em] uppercase text-[var(--brand-primary-600)] mb-8 block">
-                            New Collection 2024
+                            Electrical essentials
                         </span>
                         <h1 className="text-6xl md:text-8xl font-light tracking-tight mb-10 leading-[1.1]">
-                            {config.heroTitle || <>Essentials for <span className="font-serif italic text-[var(--brand-primary-600)]">modern</span> living.</>}
+                            {config.heroTitle || <>Reliable equipment for <span className="font-serif italic text-[var(--brand-primary-600)]">real</span> work.</>}
                         </h1>
                         <p className="text-xl text-zinc-500 font-light mb-12 max-w-2xl mx-auto leading-relaxed">
-                            {config.heroDescription || "Curated items for your everyday life. Simple, functional, and beautiful objects that spark joy."}
+                            {config.heroDescription || "Cables, lighting, tools, power equipment and accessories selected for homes, businesses and project sites."}
                         </p>
                         <button
                             onClick={() => document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' })}
                             className="group inline-flex items-center gap-3 border-b-2 border-zinc-900 dark:border-white pb-2 text-sm font-medium tracking-wide hover:text-[var(--brand-primary-600)] hover:border-[var(--brand-primary-600)] transition-colors"
                         >
-                            Explore Collection <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                            Browse products <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </button>
                     </div>
                 )}

@@ -49,7 +49,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
 
                 {/* Primary Nav (desktop) */}
                 <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-300">
-                    <Link href="/" className="hover:text-white transition-colors">
+                    <Link href="/shop" className="hover:text-white transition-colors">
                         Shop
                     </Link>
                     <Link href="/about" className="hover:text-white transition-colors">

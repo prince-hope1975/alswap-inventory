@@ -9,6 +9,7 @@ const { auth } = NextAuth(authConfig);
  */
 const publicRoutes = [
   "/",
+  "/shop",
   "/solar",
   "/products",
   "/articles",

@@ -1,21 +1,21 @@
-import { HydrateClient, api } from "~/trpc/server";
-import { CartProvider } from "./_components/shop/cart-context";
-import { StoreLayout } from "./_components/shop/store-layout";
+import type { Metadata } from "next";
+
+import { ElectricalHome } from "./_components/home/electrical-home";
+import { api } from "~/trpc/server";
+
+export const metadata: Metadata = {
+  title: "Electrical supplies, tools and solar solutions",
+  description: "Electrical retail, project sourcing and solar solutions for homes, businesses and installers.",
+};
 
 export default async function Home() {
   const shopDetails = await api.shop.getShopDetails();
-  const categories = await api.shop.getCategories();
-  const products = await api.shop.getProducts({ limit: 20 }); // Default limit matches UI
+  const tenant = shopDetails.tenant;
 
-  return (
-    <HydrateClient>
-      <CartProvider>
-        <StoreLayout
-          initialShopDetails={shopDetails}
-          initialCategories={categories}
-          initialProducts={products}
-        />
-      </CartProvider>
-    </HydrateClient>
-  );
+  return <ElectricalHome tenant={{
+    name: tenant?.name ?? "Electrical Store",
+    phone: tenant?.phone,
+    address: tenant?.address,
+    logo: tenant?.logo,
+  }} />;
 }
