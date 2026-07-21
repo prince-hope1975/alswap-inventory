@@ -10,9 +10,14 @@ import { CheckCircle, RefreshCw, LayoutTemplate, Palette, Globe, ShieldCheck, Ex
 import Link from "next/link";
 import type { StoreConfig } from "~/types/store-config";
 import { LocationPicker } from "~/app/_components/maps/location-picker";
+import { normalizeConfiguredDomain } from "~/lib/domain/tenant-resolution";
 
 // Schema matching the one in settings router
 const storeSettingsSchema = z.object({
+    customDomain: z.string().max(255).refine(
+        (value) => value.trim() === "" || normalizeConfiguredDomain(value) !== null,
+        "Enter a hostname only, for example shop.example.com",
+    ),
     template: z.enum(["modern", "classic", "marketplace", "minimal", "boutique", "conversion", "beauty"]),
     themeMode: z.enum(["system", "light", "dark"]),
     showHero: z.boolean(),
@@ -56,10 +61,11 @@ export default function StoreSettingsPage() {
         setValue,
         watch,
         reset,
-        formState: { isDirty },
+        formState: { errors, isDirty },
     } = useForm<StoreSettingsFormValues>({
         resolver: zodResolver(storeSettingsSchema),
         defaultValues: {
+            customDomain: "",
             template: "modern",
             themeMode: "system",
             showHero: true,
@@ -75,6 +81,7 @@ export default function StoreSettingsPage() {
             if (config) {
                 const dp = config.deliveryPricing;
                 reset({
+                    customDomain: settings.customDomain ?? "",
                     template: config.template || "modern",
                     themeMode: config.themeMode || "system",
                     showHero: config.showHero ?? true,
@@ -99,6 +106,7 @@ export default function StoreSettingsPage() {
 
     const onSubmit = (data: StoreSettingsFormValues) => {
         const {
+            customDomain,
             pickupLocationName,
             pickupAddress,
             pickupLat,
@@ -114,6 +122,7 @@ export default function StoreSettingsPage() {
 
         updateSettings.mutate({
             name: settings?.name || "", // Name is required by mutation but strictly read-only here
+            customDomain,
             location: pickupLocationName || undefined,
             address: pickupAddress || undefined,
             latitude: pickupLat == null ? undefined : pickupLat,
@@ -141,6 +150,9 @@ export default function StoreSettingsPage() {
     const pickupLat = watch("pickupLat");
     const pickupLng = watch("pickupLng");
     const pickupAddress = watch("pickupAddress");
+    const configuredDomain = watch("customDomain");
+    const normalizedDomain = normalizeConfiguredDomain(configuredDomain);
+    const storefrontUrl = normalizedDomain ? `https://${normalizedDomain}` : "/";
 
     const mapValue = useMemo(() => {
         if (pickupLat == null || pickupLng == null || Number.isNaN(Number(pickupLat)) || Number.isNaN(Number(pickupLng))) return null;
@@ -167,7 +179,7 @@ export default function StoreSettingsPage() {
                     </p>
                 </div>
                 <Link
-                    href="/"
+                    href={storefrontUrl}
                     target="_blank"
                     className="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
                 >
@@ -178,6 +190,48 @@ export default function StoreSettingsPage() {
 
             <div className="max-w-5xl">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+
+                    {/* Storefront Domain */}
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="border-b border-gray-100 p-6 dark:border-gray-700 md:p-8">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                                    <Globe className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Storefront Domain</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Connect the hostname customers use to open this store.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-4 p-6 md:p-8">
+                            <label htmlFor="customDomain" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Custom hostname
+                            </label>
+                            <div className="flex min-h-12 items-center rounded-lg border border-gray-300 bg-gray-50 focus-within:border-sky-600 focus-within:ring-2 focus-within:ring-sky-600/20 dark:border-gray-600 dark:bg-gray-700">
+                                <span className="border-r border-gray-300 px-3 text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">https://</span>
+                                <input
+                                    id="customDomain"
+                                    type="text"
+                                    inputMode="url"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    aria-invalid={errors.customDomain ? "true" : "false"}
+                                    aria-describedby="custom-domain-help custom-domain-error"
+                                    {...register("customDomain")}
+                                    placeholder="shop.example.com"
+                                    className="min-h-12 w-full bg-transparent px-3 text-sm text-gray-900 outline-none dark:text-white dark:placeholder-gray-400"
+                                />
+                            </div>
+                            {errors.customDomain && <p id="custom-domain-error" role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">{errors.customDomain.message}</p>}
+                            <div id="custom-domain-help" className="grid gap-3 text-sm leading-6 text-gray-600 dark:text-gray-300 sm:grid-cols-2">
+                                <p className="rounded-lg bg-sky-50 p-4 dark:bg-sky-950/30"><strong className="block text-gray-900 dark:text-white">DNS required</strong>Point this hostname to the deployed application before sharing it.</p>
+                                <p className="rounded-lg bg-amber-50 p-4 dark:bg-amber-950/30"><strong className="block text-gray-900 dark:text-white">Changing domains</strong>The previous hostname stops resolving to this store after you save.</p>
+                            </div>
+                            {normalizedDomain && <a href={storefrontUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-sky-700 hover:underline dark:text-sky-300">Open https://{normalizedDomain} <ExternalLink className="h-4 w-4" /></a>}
+                        </div>
+                    </div>
 
                     {/* Pickup Location */}
                     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -606,6 +660,8 @@ export default function StoreSettingsPage() {
                             </div>
                         </div>
                     </div>
+
+                    {updateSettings.error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{updateSettings.error.message}</div>}
 
                     {/* Actions */}
                     <div className="fixed bottom-0 left-0 right-0 z-50 animate-in slide-in-from-bottom duration-300 md:left-64">

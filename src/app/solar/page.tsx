@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { api } from "~/trpc/server";
+import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
 import { SolarEstimator } from "./solar-estimator";
 
 export const metadata: Metadata = {
@@ -101,7 +102,9 @@ const faqs = [
 export default async function SolarPage() {
   const shopDetails = await api.shop.getShopDetails();
   const tenant = shopDetails.tenant;
-  const storeName = tenant?.name ?? "Electrical Store";
+  if (!tenant) return <PublicStoreUnavailable />;
+
+  const storeName = tenant.name;
   const phoneHref = tenant?.phone
     ? `tel:${tenant.phone.replace(/\s+/g, "")}`
     : "/find-us";

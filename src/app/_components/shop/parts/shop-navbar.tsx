@@ -43,7 +43,7 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                         </div>
                     )}
                     <span className="text-xl font-bold tracking-tight hidden sm:block">
-                        {tenant?.name || "Alswap Store"}
+                        {tenant?.name || "Store"}
                     </span>
                 </Link>
 

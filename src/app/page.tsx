@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ElectricalHome } from "./_components/home/electrical-home";
+import { PublicStoreUnavailable } from "./_components/shop/public-store-unavailable";
 import { api } from "~/trpc/server";
 
 export const metadata: Metadata = {
@@ -12,10 +13,12 @@ export default async function Home() {
   const shopDetails = await api.shop.getShopDetails();
   const tenant = shopDetails.tenant;
 
+  if (!tenant) return <PublicStoreUnavailable />;
+
   return <ElectricalHome tenant={{
-    name: tenant?.name ?? "Electrical Store",
-    phone: tenant?.phone,
-    address: tenant?.address,
-    logo: tenant?.logo,
+    name: tenant.name,
+    phone: tenant.phone,
+    address: tenant.address,
+    logo: tenant.logo,
   }} />;
 }

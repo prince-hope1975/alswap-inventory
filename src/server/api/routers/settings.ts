@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
 import { tenants } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { generateColorVariants } from "~/lib/color-utils";
+import { normalizeConfiguredDomain } from "~/lib/domain/tenant-resolution";
 import { encryptString } from "~/server/utils/encryption";
 
 export const settingsRouter = createTRPCRouter({
@@ -39,6 +41,10 @@ export const settingsRouter = createTRPCRouter({
         .input(
             z.object({
                 name: z.string().min(1),
+                customDomain: z.string().trim().max(255).refine(
+                    (value) => value === "" || normalizeConfiguredDomain(value) !== null,
+                    "Enter a hostname only, for example shop.example.com",
+                ).optional(),
                 brandColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
                 primaryColorLight: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
                 primaryColorDark: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
@@ -76,6 +82,7 @@ export const settingsRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             const updateData: {
                 name: string;
+                customDomain?: string | null;
                 brandColor?: string | null;
                 primaryColorLight?: string | null;
                 primaryColorDark?: string | null;
@@ -109,6 +116,23 @@ export const settingsRouter = createTRPCRouter({
             } = {
                 name: input.name,
             };
+
+            if (input.customDomain !== undefined) {
+                const customDomain = normalizeConfiguredDomain(input.customDomain);
+                if (customDomain) {
+                    const existingDomain = await ctx.db.query.tenants.findFirst({
+                        where: and(eq(tenants.customDomain, customDomain), ne(tenants.id, ctx.tenantId)),
+                        columns: { id: true },
+                    });
+                    if (existingDomain) {
+                        throw new TRPCError({
+                            code: "CONFLICT",
+                            message: "That storefront domain is already assigned to another store.",
+                        });
+                    }
+                }
+                updateData.customDomain = customDomain;
+            }
 
             if (input.brandColor !== undefined) updateData.brandColor = input.brandColor;
             if (input.primaryColorLight !== undefined) updateData.primaryColorLight = input.primaryColorLight || null;

@@ -20,6 +20,7 @@ import { type RouterOutputs } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { StorefrontArticles } from "./parts/storefront-articles";
 import { resolveStorefrontTheme } from "~/lib/domain/storefront-theme";
+import { PublicStoreUnavailable } from "./public-store-unavailable";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -171,6 +172,8 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         setInStockOnly,
         onClearFilters: handleClearFilters,
     };
+
+    if (!isShopLoading && shopDetails && !tenant) return <PublicStoreUnavailable />;
 
     return (
         <div style={{

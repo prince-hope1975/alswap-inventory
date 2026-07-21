@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { api } from "~/trpc/react";
 import { toAppleMapsDirectionsUrl, toGoogleMapsDirectionsUrl, toGoogleMapsQueryUrl } from "~/lib/maps";
 import { useQuery } from "@tanstack/react-query";
+import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
 
 const LocationPicker = dynamic(
   () => import("~/app/_components/maps/location-picker").then((mod) => mod.LocationPicker),
@@ -36,6 +37,8 @@ export default function FindUsPage() {
     staleTime: 60_000,
     retry: 1,
   });
+
+  if (!isLoading && data && !tenant) return <PublicStoreUnavailable />;
 
   return (
     <main className="min-h-screen bg-[#0f1016] text-white">
@@ -117,5 +120,4 @@ export default function FindUsPage() {
     </main>
   );
 }
-
 
