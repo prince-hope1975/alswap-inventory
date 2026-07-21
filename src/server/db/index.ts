@@ -1,5 +1,8 @@
-import { drizzle } from "drizzle-orm/postgres-js";
+import { neonConfig, Pool } from "@neondatabase/serverless";
+import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless";
+import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import ws from "ws";
 
 import { env } from "~/env";
 import * as schema from "./schema";
@@ -9,10 +12,33 @@ import * as schema from "./schema";
  * update.
  */
 const globalForDb = globalThis as unknown as {
-  conn: postgres.Sql | undefined;
+  postgresConnection: postgres.Sql | undefined;
+  neonPool: Pool | undefined;
 };
 
-const conn = globalForDb.conn ?? postgres(env.DATABASE_URL);
-if (env.NODE_ENV !== "production") globalForDb.conn = conn;
+function createPostgresDatabase() {
+  const connection =
+    globalForDb.postgresConnection ?? postgres(env.DATABASE_URL);
+  if (env.NODE_ENV !== "production")
+    globalForDb.postgresConnection = connection;
+  return drizzlePostgres(connection, { schema });
+}
 
-export const db = drizzle(conn, { schema });
+type Database = ReturnType<typeof createPostgresDatabase>;
+
+function createNeonWebSocketDatabase(): Database {
+  neonConfig.webSocketConstructor = ws;
+
+  const pool =
+    globalForDb.neonPool ?? new Pool({ connectionString: env.DATABASE_URL });
+  if (env.NODE_ENV !== "production") globalForDb.neonPool = pool;
+
+  // Both Drizzle adapters expose the same PostgreSQL query surface. Keep one
+  // exported DB type so existing routers remain transport-agnostic.
+  return drizzleNeon(pool, { schema }) as unknown as Database;
+}
+
+export const db =
+  env.DATABASE_TRANSPORT === "websocket"
+    ? createNeonWebSocketDatabase()
+    : createPostgresDatabase();

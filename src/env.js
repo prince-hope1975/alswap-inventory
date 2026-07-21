@@ -14,8 +14,11 @@ export const env = createEnv({
     // AUTH_DISCORD_ID: z.string(),
     // AUTH_DISCORD_SECRET: z.string(),
     RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default("Alswap Inventory <onboarding@mail.amachree.dev>"),
+    EMAIL_FROM: z
+      .string()
+      .default("Alswap Inventory <onboarding@mail.amachree.dev>"),
     DATABASE_URL: z.string().url(),
+    DATABASE_TRANSPORT: z.enum(["tcp", "websocket"]).default("tcp"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -43,9 +46,12 @@ export const env = createEnv({
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
     DATABASE_URL: process.env.DATABASE_URL,
+    DATABASE_TRANSPORT: process.env.DATABASE_TRANSPORT,
     NODE_ENV: process.env.NODE_ENV,
-    NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-    NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+    NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:
+      process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET:
+      process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
