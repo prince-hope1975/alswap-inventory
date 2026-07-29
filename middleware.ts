@@ -13,6 +13,8 @@ const publicRoutes = [
   "/solar",
   "/products",
   "/articles",
+  "/about",
+  "/find-us",
   "/auth/signin",
   "/auth/signup",
   "/auth/forgot-password",
@@ -34,6 +36,10 @@ const publicApiRoutes = [
  */
 const publicAssetPatterns = [
   /\.(ico|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot)$/,
+  // Crawler-facing files. The matcher below does not exclude these extensions,
+  // so without this pattern robots.txt and sitemap.xml fall through to the auth
+  // gate and get redirected to "/" for anonymous requests — i.e. for Googlebot.
+  /\.(txt|xml|webmanifest)$/,
   /^\/_next\//,
   /^\/favicon\.ico$/,
 ];
@@ -41,10 +47,6 @@ const publicAssetPatterns = [
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
-
-  // Using console.error to ensure it bypasses some stdout buffering in certain dev environments
-  console.error(`[Middleware] Processing ${pathname}`);
-  console.error(`[Middleware] Session user:`, session?.user);
 
   // Allow public assets
   if (
@@ -67,7 +69,6 @@ export default auth((req) => {
 
   // If not authenticated, redirect to home page
   if (!session?.user) {
-    console.error(`[Middleware] Unauthorized access to ${pathname}, redirecting to /`);
     return NextResponse.redirect(new URL("/", req.url));
   }
 

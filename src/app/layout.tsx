@@ -4,30 +4,50 @@ import { type Metadata } from "next";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import { BrandColorProvider } from "~/lib/brand-colors";
+import { requestBaseUrl } from "~/lib/seo/base-url";
 import { api } from "~/trpc/server";
 import { getBrandColorStyles } from "~/lib/brand-colors-server";
 import { ThemeScript } from "~/components/theme-script";
 import { SessionProvider } from "next-auth/react";
 import { ErrorBoundary } from "~/components/error-boundary";
 
-export const metadata: Metadata = {
-  title: "SPPD AMAKS",
-  description: "SPPD AMAKS Inventory & POS System",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const base = await requestBaseUrl();
+  let storeName = "Alswap";
+  try {
+    const { tenant } = await api.shop.getShopDetails();
+    if (tenant?.name) storeName = tenant.name;
+  } catch {
+    // Storefront is still resolvable without branding; fall back to the default.
+  }
+  return {
+    // Without metadataBase every relative canonical in the app resolves
+    // against http://localhost:3000.
+    metadataBase: new URL(base),
+    title: { default: storeName, template: `%s | ${storeName}` },
+    description: `${storeName} — electrical, electronics and solar supplies.`,
+    icons: [{ rel: "icon", url: "/favicon.ico" }],
+  };
+}
 
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Get initial brand colors for SSR
+  // Get initial brand colors for SSR.
+  //
+  // This deliberately uses the public shop procedure rather than
+  // settings.getTenantSettings, which is a tenantProcedure requiring an ADMIN
+  // session — it threw for every anonymous visitor, so the storefront always
+  // fell back to default colors instead of the tenant's own.
   let initialBrandStyles = "";
   try {
-    const settings = await api.settings.getTenantSettings();
-    const primaryLight = settings.primaryColorLight ?? "#9333EA";
-    const primaryDark = settings.primaryColorDark ?? "#A855F7";
-    initialBrandStyles = getBrandColorStyles(primaryLight, primaryDark);
+    const { tenant } = await api.shop.getShopDetails();
+    initialBrandStyles = getBrandColorStyles(
+      tenant?.primaryColorLight ?? "#9333EA",
+      tenant?.primaryColorDark ?? "#A855F7",
+    );
   } catch {
-    // Fallback to defaults if settings not available
+    // Fallback to defaults if the tenant cannot be resolved for this host.
     initialBrandStyles = getBrandColorStyles();
   }
 

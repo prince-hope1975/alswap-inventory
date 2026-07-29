@@ -18,7 +18,8 @@ async function getArticle(slug: string) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const result = await getArticle((await params).slug);
   if (!result) return { title: "Article not found" };
-  return { title: `${result.article.title} | ${result.tenant.name}`, description: result.article.excerpt, alternates: { canonical: `/articles/${result.article.slug}` }, openGraph: { title: result.article.title, description: result.article.excerpt ?? undefined, images: result.article.coverImage ? [result.article.coverImage] : undefined, type: "article" } };
+  // The store name is appended by the root layout's title template.
+  return { title: result.article.title, description: result.article.excerpt, alternates: { canonical: `/articles/${result.article.slug}` }, openGraph: { title: result.article.title, description: result.article.excerpt ?? undefined, images: result.article.coverImage ? [result.article.coverImage] : undefined, type: "article" } };
 }
 
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {

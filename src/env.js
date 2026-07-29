@@ -19,6 +19,13 @@ export const env = createEnv({
       .default("Alswap Inventory <onboarding@mail.amachree.dev>"),
     DATABASE_URL: z.string().url(),
     DATABASE_TRANSPORT: z.enum(["tcp", "websocket"]).default("tcp"),
+    /**
+     * Host label of the single commerce surface, e.g. "shop". Canonical URLs
+     * and the Merchant Center feed resolve to `<COMMERCE_SUBDOMAIN>.<root>`.
+     * Leave unset until subdomain surfaces ship — the root domain is then the
+     * commerce host.
+     */
+    COMMERCE_SUBDOMAIN: z.string().optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -47,6 +54,7 @@ export const env = createEnv({
     EMAIL_FROM: process.env.EMAIL_FROM,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_TRANSPORT: process.env.DATABASE_TRANSPORT,
+    COMMERCE_SUBDOMAIN: process.env.COMMERCE_SUBDOMAIN,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:
       process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,

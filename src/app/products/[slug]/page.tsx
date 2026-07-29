@@ -24,7 +24,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const result = await getProduct(slug);
   if (!result) return { title: "Product not found" };
   const { product, tenant } = result;
-  const title = `${product.name} | ${tenant.name}`;
+  // The store name is appended by the root layout's title template.
+  const title = product.name;
   const description = product.description?.slice(0, 155) ?? `Buy ${product.name} from ${tenant.name}. Check availability, pricing and delivery options.`;
   return {
     title,

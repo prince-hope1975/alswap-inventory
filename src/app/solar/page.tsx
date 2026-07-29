@@ -25,7 +25,7 @@ import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unav
 import { SolarEstimator } from "./solar-estimator";
 
 export const metadata: Metadata = {
-  title: "Solar system sizing and installation survey | SPPD AMAKS",
+  title: "Solar system sizing and installation survey",
   description:
     "Estimate the inverter, battery and solar panels needed for your home, shop or office, then request a verified installation survey.",
   alternates: { canonical: "/solar" },
