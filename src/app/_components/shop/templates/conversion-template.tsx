@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { type RouterOutputs } from "~/trpc/react";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
+import { productPath } from "~/lib/domain/slug";
 import type { StoreConfig } from "~/types/store-config";
 import { 
     ShoppingCart, 
@@ -153,11 +155,14 @@ function ConversionProductCard({
                     </span>
                 )}
                 
-                <h3 
-                    className="mb-2 text-base font-semibold text-gray-900 dark:text-white line-clamp-2 cursor-pointer hover:text-[var(--brand-primary-600)] dark:hover:text-[var(--brand-primary-400)] transition-colors"
-                    onClick={onQuickView}
-                >
-                    {product.name}
+                {/* Real permalink so the product page has an indexable inbound link. */}
+                <h3 className="mb-2 text-base font-semibold text-gray-900 dark:text-white line-clamp-2">
+                    <Link
+                        href={productPath(product)}
+                        className="cursor-pointer hover:text-[var(--brand-primary-600)] dark:hover:text-[var(--brand-primary-400)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-600)]"
+                    >
+                        {product.name}
+                    </Link>
                 </h3>
                 
                 <div className="mb-3 flex items-baseline gap-2">

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { adminNotifications, products, categories, orders, orderItems, tenants, users, productCategories } from "~/server/db/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { toRows } from "~/server/db/rows";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sendDeliveryOrderEmail } from "~/server/email";
 import { decryptString } from "~/server/utils/encryption";
@@ -206,8 +207,9 @@ export const shopRouter = createTRPCRouter({
                     LIMIT ${input.limit}
                 `);
 
-                // Get product IDs from results (results is an array of rows)
-                const rows = results as unknown as { id: string }[];
+                // The two supported drizzle transports return different shapes
+                // here, so normalise before reading rows.
+                const rows = toRows<{ id: string }>(results);
                 const productIds = rows.map((r) => r.id);
                 
                 if (productIds.length === 0) return [];
@@ -295,6 +297,31 @@ export const shopRouter = createTRPCRouter({
             if (!tenant) return null;
             return ctx.db.query.products.findFirst({
                 where: and(eq(products.id, input.id), eq(products.tenantId, tenant.id)),
+                with: {
+                    category: true,
+                    productCategories: {
+                        with: {
+                            category: true,
+                        },
+                    },
+                },
+            });
+        }),
+
+    /**
+     * Look a product up by its canonical slug, falling back to the id so that
+     * links minted before slugs were required keep resolving.
+     */
+    getProductBySlug: publicProcedure
+        .input(z.object({ slug: z.string().min(1) }))
+        .query(async ({ ctx, input }) => {
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+            if (!tenant) return null;
+            return ctx.db.query.products.findFirst({
+                where: and(
+                    eq(products.tenantId, tenant.id),
+                    or(eq(products.slug, input.slug), eq(products.id, input.slug)),
+                ),
                 with: {
                     category: true,
                     productCategories: {

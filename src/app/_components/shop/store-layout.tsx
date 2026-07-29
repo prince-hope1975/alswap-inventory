@@ -30,6 +30,9 @@ interface StoreLayoutProps {
     initialShopDetails?: ShopDetails;
     initialProducts?: Products;
     initialCategories?: Categories;
+    /** Seeded from the URL so a crawled/shared /shop?search=... renders filtered. */
+    initialSearch?: string;
+    initialCategoryId?: number;
 }
 
 // Debounce hook for search
@@ -49,12 +52,12 @@ function useDebounce<T>(value: T, delay: number): T {
     return debouncedValue;
 }
 
-export function StoreLayout({ initialShopDetails, initialProducts, initialCategories }: StoreLayoutProps) {
+export function StoreLayout({ initialShopDetails, initialProducts, initialCategories, initialSearch, initialCategoryId }: StoreLayoutProps) {
     const { items, totalItems, isCartOpen, setIsCartOpen, removeItem, updateQuantity, totalAmount } = useCart();
     const { formatCurrency } = useCurrency();
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-    const [search, setSearch] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState<number | undefined>(undefined);
+    const [search, setSearch] = useState(initialSearch ?? "");
+    const [selectedCategory, setSelectedCategory] = useState<number | undefined>(initialCategoryId);
     
     // Filter and sort state
     const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -78,7 +81,9 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
         categoryId: selectedCategory,
         limit: 100,
     }, {
-        initialData: (debouncedSearch === "" && selectedCategory === undefined) ? initialProducts : undefined,
+        // The server already ran this exact query for the initial URL, so reuse
+        // its result instead of refetching on mount.
+        initialData: (debouncedSearch === (initialSearch ?? "") && selectedCategory === initialCategoryId) ? initialProducts : undefined,
         // Keep previous data while loading new results
         placeholderData: (prev: Products | undefined) => prev,
     });

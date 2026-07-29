@@ -13,7 +13,10 @@ const config = {
         ignoreDuringBuilds: true,
     },
     images: {
-        domains: ["res.cloudinary.com"],
+        // `domains` is deprecated in Next 15 in favour of remotePatterns.
+        remotePatterns: [
+            { protocol: "https", hostname: "res.cloudinary.com", pathname: "/**" },
+        ],
     },
 };
 

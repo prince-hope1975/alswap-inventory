@@ -3,7 +3,8 @@ import { createSlug } from "~/lib/domain/slug";
 
 import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
 import { products, categories, orders, orderItems, productCategories, productVariants } from "~/server/db/schema";
-import { eq, and, desc, or, ilike, lte, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, ne, or, ilike, lte, sql, gte, inArray } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 
 export const inventoryRouter = createTRPCRouter({
     // --- Categories ---
@@ -231,6 +232,11 @@ export const inventoryRouter = createTRPCRouter({
             z.object({
                 id: z.string(),
                 name: z.string().min(1).optional(),
+                // Deliberately NOT derived from `name`: the slug is the product's
+                // public URL, and silently rewriting it on every rename would
+                // break inbound links and discard accumulated ranking. Callers
+                // must opt in to a URL change.
+                slug: z.string().min(1).max(255).optional(),
                 description: z.string().optional(),
                 image: z.string().url().optional().or(z.literal("")),
                 images: z.array(z.string().url()).optional(),
@@ -270,6 +276,20 @@ export const inventoryRouter = createTRPCRouter({
             const updateData: Record<string, unknown> = {};
 
             if (input.name !== undefined) updateData.name = input.name;
+            if (input.slug !== undefined) {
+                const slug = createSlug(input.slug);
+                if (!slug) {
+                    throw new TRPCError({ code: "BAD_REQUEST", message: "Enter a URL slug with at least one letter or number." });
+                }
+                const clash = await ctx.db.query.products.findFirst({
+                    where: and(eq(products.tenantId, ctx.tenantId), eq(products.slug, slug), ne(products.id, input.id)),
+                    columns: { id: true },
+                });
+                if (clash) {
+                    throw new TRPCError({ code: "CONFLICT", message: "Another product already uses that URL slug." });
+                }
+                updateData.slug = slug;
+            }
             if (input.description !== undefined) updateData.description = input.description || null;
             if (input.image !== undefined) updateData.image = input.image || null;
             if (input.images !== undefined) updateData.images = input.images;

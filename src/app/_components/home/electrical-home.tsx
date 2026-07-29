@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -56,8 +57,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
         <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-5 px-5 lg:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label={`${tenant.name} home`}>
             {tenant.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={tenant.logo} alt="" className="h-11 w-11 rounded-sm object-contain" />
+              <Image src={tenant.logo} alt="" width={44} height={44} className="h-11 w-11 rounded-sm object-contain" />
             ) : (
               <span className="grid h-11 w-11 place-items-center bg-[#f5a623] text-[#14212b]"><PlugZap className="h-6 w-6" /></span>
             )}

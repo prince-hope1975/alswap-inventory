@@ -1,13 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { useCart } from "./cart-context";
+import { productPath } from "~/lib/domain/slug";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 
 type Product = {
     id: string;
     name: string;
+    slug?: string | null;
     price: string;
     salePrice?: string | null;
     image?: string | null;
@@ -41,11 +45,12 @@ export function ProductCard({ product }: { product: Product }) {
         >
             <div className="aspect-square w-full overflow-hidden bg-[#e7e4dc] dark:bg-gray-800/50 relative">
                 {displayImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <Image
                         src={displayImage}
                         alt={product.name}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-gray-500">
@@ -84,8 +89,20 @@ export function ProductCard({ product }: { product: Product }) {
                         {product.category.name}
                     </span>
                 )}
+                {/*
+                  * The card body opens a quick-look modal, which gives crawlers
+                  * nothing to follow. The title is a real permalink so every
+                  * product has an indexable inbound link; stopPropagation keeps
+                  * the click from also firing the parent's modal handler.
+                  */}
                 <h3 className="mb-1 text-lg font-semibold text-[#14212b] dark:text-white line-clamp-1" title={product.name}>
-                    {product.name}
+                    <Link
+                        href={productPath(product)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-600)]"
+                    >
+                        {product.name}
+                    </Link>
                 </h3>
                 <p className="mb-3 text-sm text-gray-400 line-clamp-2">
                     {product.description || "No description available"}

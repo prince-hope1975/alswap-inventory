@@ -227,7 +227,8 @@ export const products = createTable(
     categoryId: d.integer().references(() => categories.id),
     supplierId: d.varchar({ length: 255 }).references(() => suppliers.id),
     name: d.varchar({ length: 255 }).notNull(),
-    slug: d.varchar({ length: 255 }),
+    // Required: it is the canonical URL segment for the product page.
+    slug: d.varchar({ length: 255 }).notNull(),
     description: d.text(),
     image: d.varchar({ length: 255 }),
     images: d.json().$type<string[]>(),

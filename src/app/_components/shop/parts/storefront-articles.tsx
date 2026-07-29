@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { api } from "~/trpc/react";
 import { Calendar, User } from "lucide-react";
 
@@ -73,8 +74,14 @@ export function StorefrontArticles({ limit = 6 }: StorefrontArticlesProps) {
               )}
 
               <div className="p-6">
+                {/* Article cards had no anchor at all, leaving every article page orphaned. */}
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-[var(--brand-primary-600)] dark:group-hover:text-[var(--brand-primary-400)] transition-colors">
-                  {article.title}
+                  <Link
+                    href={`/articles/${article.slug}`}
+                    className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-600)]"
+                  >
+                    {article.title}
+                  </Link>
                 </h3>
 
                 {article.excerpt && (
