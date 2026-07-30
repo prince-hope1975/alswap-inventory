@@ -6,6 +6,9 @@ import { products, categories, orders, orderItems, productCategories, productVar
 import { eq, and, desc, ne, or, ilike, lte, sql, gte, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
+const productConditionInput = z.enum(["NEW", "USED", "REFURBISHED"]);
+const productVisibilityInput = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
+
 export const inventoryRouter = createTRPCRouter({
     // --- Categories ---
 
@@ -81,6 +84,16 @@ export const inventoryRouter = createTRPCRouter({
                 costPrice: z.number().min(0),
                 stockQuantity: z.number().int().min(-1).default(0), // -1 = unknown quantity
                 lowStockThreshold: z.number().int().default(5),
+                condition: productConditionInput.default("NEW"),
+                conditionNotes: z.string().optional(),
+                visibility: productVisibilityInput.default("PUBLISHED"),
+                brand: z.string().optional(),
+                gtin: z.string().max(14).optional(),
+                mpn: z.string().max(70).optional(),
+                googleProductCategory: z.string().optional(),
+                feedEligible: z.boolean().default(true),
+                serialNumber: z.string().optional(),
+                warrantyMonths: z.number().int().min(0).optional(),
             }).refine(
                 (data) => {
                     // Skip validation if quantity is unknown (-1)
@@ -116,6 +129,16 @@ export const inventoryRouter = createTRPCRouter({
                 costPrice: input.costPrice.toString(),
                 stockQuantity: input.stockQuantity,
                 lowStockThreshold: input.lowStockThreshold,
+                condition: input.condition,
+                conditionNotes: input.conditionNotes || null,
+                visibility: input.visibility,
+                brand: input.brand || null,
+                gtin: input.gtin || null,
+                mpn: input.mpn || null,
+                googleProductCategory: input.googleProductCategory || null,
+                feedEligible: input.feedEligible,
+                serialNumber: input.serialNumber || null,
+                warrantyMonths: input.warrantyMonths ?? null,
                 tenantId: ctx.tenantId,
             }).returning();
 
@@ -249,6 +272,16 @@ export const inventoryRouter = createTRPCRouter({
                 costPrice: z.number().min(0).optional(),
                 stockQuantity: z.number().int().min(-1).optional(), // -1 = unknown quantity
                 lowStockThreshold: z.number().int().optional(),
+                condition: productConditionInput.optional(),
+                conditionNotes: z.string().optional(),
+                visibility: productVisibilityInput.optional(),
+                brand: z.string().optional(),
+                gtin: z.string().max(14).optional(),
+                mpn: z.string().max(70).optional(),
+                googleProductCategory: z.string().optional(),
+                feedEligible: z.boolean().optional(),
+                serialNumber: z.string().optional(),
+                warrantyMonths: z.number().int().min(0).optional(),
             }).refine(
                 (data) => {
                     // Only validate if both fields are provided
@@ -301,6 +334,16 @@ export const inventoryRouter = createTRPCRouter({
             if (input.costPrice !== undefined) updateData.costPrice = input.costPrice.toString();
             if (input.stockQuantity !== undefined) updateData.stockQuantity = input.stockQuantity;
             if (input.lowStockThreshold !== undefined) updateData.lowStockThreshold = input.lowStockThreshold;
+            if (input.condition !== undefined) updateData.condition = input.condition;
+            if (input.conditionNotes !== undefined) updateData.conditionNotes = input.conditionNotes || null;
+            if (input.visibility !== undefined) updateData.visibility = input.visibility;
+            if (input.brand !== undefined) updateData.brand = input.brand || null;
+            if (input.gtin !== undefined) updateData.gtin = input.gtin || null;
+            if (input.mpn !== undefined) updateData.mpn = input.mpn || null;
+            if (input.googleProductCategory !== undefined) updateData.googleProductCategory = input.googleProductCategory || null;
+            if (input.feedEligible !== undefined) updateData.feedEligible = input.feedEligible;
+            if (input.serialNumber !== undefined) updateData.serialNumber = input.serialNumber || null;
+            if (input.warrantyMonths !== undefined) updateData.warrantyMonths = input.warrantyMonths;
 
             // Update product
             if (Object.keys(updateData).length > 0) {
@@ -425,6 +468,8 @@ export const inventoryRouter = createTRPCRouter({
                         costPrice: z.number().min(0),
                         stockQuantity: z.number().int().min(-1).default(0), // -1 = unknown quantity
                         lowStockThreshold: z.number().int().default(5),
+                        condition: productConditionInput.default("NEW"),
+                        brand: z.string().optional(),
                     })
                 ),
             })
@@ -444,6 +489,8 @@ export const inventoryRouter = createTRPCRouter({
                 costPrice: product.costPrice.toString(),
                 stockQuantity: product.stockQuantity,
                 lowStockThreshold: product.lowStockThreshold,
+                condition: product.condition,
+                brand: product.brand || null,
                 tenantId: ctx.tenantId,
             }));
 

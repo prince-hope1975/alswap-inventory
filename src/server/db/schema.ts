@@ -53,6 +53,8 @@ export const solarLeadStatus = pgEnum("solar_lead_status", [
   "COMPLETED",
   "LOST",
 ]);
+export const productCondition = pgEnum("product_condition", ["NEW", "USED", "REFURBISHED"]);
+export const productVisibility = pgEnum("product_visibility", ["DRAFT", "PUBLISHED", "ARCHIVED"]);
 
 // --- Multi-tenancy Core ---
 
@@ -230,7 +232,7 @@ export const products = createTable(
     // Required: it is the canonical URL segment for the product page.
     slug: d.varchar({ length: 255 }).notNull(),
     description: d.text(),
-    image: d.varchar({ length: 255 }),
+    image: d.varchar({ length: 500 }),
     images: d.json().$type<string[]>(),
     barcode: d.varchar({ length: 255 }), // Scannable code
     sku: d.varchar({ length: 255 }),
@@ -242,12 +244,25 @@ export const products = createTable(
     lowStockThreshold: d.integer().default(5),
     baseUnit: d.varchar("base_unit", { length: 32 }).default("piece").notNull(),
     specifications: d.json().$type<Record<string, string | number | boolean>>(),
+    condition: productCondition("condition").default("NEW").notNull(),
+    conditionNotes: d.text("condition_notes"),
+    visibility: productVisibility("visibility").default("PUBLISHED").notNull(),
+    brand: d.varchar({ length: 255 }),
+    gtin: d.varchar({ length: 14 }),
+    mpn: d.varchar({ length: 70 }),
+    googleProductCategory: d.varchar("google_product_category", { length: 255 }),
+    feedEligible: d.boolean("feed_eligible").default(true).notNull(),
+    serialNumber: d.varchar("serial_number", { length: 120 }),
+    warrantyMonths: d.integer("warranty_months"),
+    // NULL = owned by the tenant. Populated once C2C seller listings ship.
+    sellerId: d.varchar("seller_id", { length: 255 }).references(() => users.id),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
   (t) => [
     index("product_tenant_idx").on(t.tenantId),
     index("product_barcode_idx").on(t.barcode),
+    index("product_seller_idx").on(t.sellerId),
     uniqueIndex("product_tenant_slug_idx").on(t.tenantId, t.slug),
   ],
 );
@@ -467,6 +482,7 @@ export const orderItems = createTable(
     quantity: d.integer().notNull(),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(), // Price at time of sale
   }),
+  (t) => [index("order_item_order_idx").on(t.orderId)],
 );
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({

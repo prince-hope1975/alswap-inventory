@@ -2,11 +2,17 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { adminNotifications, products, categories, orders, orderItems, tenants, users, productCategories } from "~/server/db/schema";
 import { toRows } from "~/server/db/rows";
-import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sendDeliveryOrderEmail } from "~/server/email";
 import { decryptString } from "~/server/utils/encryption";
 import { resolvePublicTenant } from "~/server/tenant";
+
+/** Storefront checkout honors salePrice, same rule as the POS (`prepareSale` in `~/lib/domain/sale.ts`). */
+function effectiveUnitPrice(product: { price: string; salePrice: string | null }): number {
+    const salePrice = product.salePrice == null ? null : Number(product.salePrice);
+    return salePrice != null && salePrice >= 0 ? salePrice : Number(product.price);
+}
 
 type DeliveryPricingConfig =
     | {
@@ -189,8 +195,9 @@ export const shopRouter = createTRPCRouter({
                         FROM "alswap-inventory_product" p
                         LEFT JOIN "alswap-inventory_product_category" pc ON p.id = pc."productId"
                         LEFT JOIN "alswap-inventory_category" c ON pc."categoryId" = c.id
-                        WHERE 
+                        WHERE
                             p."tenantId" = ${tenant.id}
+                            AND p.visibility = 'PUBLISHED'
                             AND (
                                 -- Trigram similarity match (fuzzy)
                                 p.name % ${searchTerm}
@@ -249,6 +256,7 @@ export const shopRouter = createTRPCRouter({
                 return ctx.db.query.products.findMany({
                     where: and(
                         eq(products.tenantId, tenant.id),
+                        eq(products.visibility, "PUBLISHED"),
                         inArray(products.id, pIds)
                     ),
                     with: {
@@ -266,7 +274,7 @@ export const shopRouter = createTRPCRouter({
 
             // Default: return all products for tenant
             return ctx.db.query.products.findMany({
-                where: eq(products.tenantId, tenant.id),
+                where: and(eq(products.tenantId, tenant.id), eq(products.visibility, "PUBLISHED")),
                 with: {
                     category: true,
                     productCategories: {
@@ -296,7 +304,11 @@ export const shopRouter = createTRPCRouter({
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) return null;
             return ctx.db.query.products.findFirst({
-                where: and(eq(products.id, input.id), eq(products.tenantId, tenant.id)),
+                where: and(
+                    eq(products.id, input.id),
+                    eq(products.tenantId, tenant.id),
+                    eq(products.visibility, "PUBLISHED"),
+                ),
                 with: {
                     category: true,
                     productCategories: {
@@ -320,6 +332,7 @@ export const shopRouter = createTRPCRouter({
             return ctx.db.query.products.findFirst({
                 where: and(
                     eq(products.tenantId, tenant.id),
+                    eq(products.visibility, "PUBLISHED"),
                     or(eq(products.slug, input.slug), eq(products.id, input.slug)),
                 ),
                 with: {
@@ -385,7 +398,7 @@ export const shopRouter = createTRPCRouter({
                     where: and(eq(products.id, item.productId), eq(products.tenantId, tenant.id)),
                 });
                 if (!product) continue;
-                totalAmount += Number(product.price) * item.quantity;
+                totalAmount += effectiveUnitPrice(product) * item.quantity;
             }
             const deliveryFeeOut = await computeDeliveryFee({
                 tenant,
@@ -479,7 +492,7 @@ export const shopRouter = createTRPCRouter({
 
             // Calculate total
             let totalAmount = 0;
-            const orderItemsData = [];
+            const orderItemsData: { productId: string; quantity: number; price: string; unlimitedStock: boolean }[] = [];
 
             for (const item of input.items) {
                 const product = await ctx.db.query.products.findFirst({
@@ -488,12 +501,22 @@ export const shopRouter = createTRPCRouter({
 
                 if (!product) continue;
 
-                const price = Number(product.price);
-                totalAmount += price * item.quantity;
+                // stockQuantity === -1 means "unknown/unlimited" (see inventory.ts); anything
+                // else is a real count that must cover the requested quantity.
+                if (product.stockQuantity !== -1 && product.stockQuantity < item.quantity) {
+                    throw new TRPCError({
+                        code: "CONFLICT",
+                        message: `${product.name} doesn't have enough stock available.`,
+                    });
+                }
+
+                const unitPrice = effectiveUnitPrice(product);
+                totalAmount += unitPrice * item.quantity;
                 orderItemsData.push({
                     productId: product.id,
                     quantity: item.quantity,
-                    price: product.price,
+                    price: unitPrice.toString(),
+                    unlimitedStock: product.stockQuantity === -1,
                 });
             }
 
@@ -553,29 +576,51 @@ export const shopRouter = createTRPCRouter({
                 }
             }
 
-            const [newOrder] = await ctx.db.insert(orders).values({
-                tenantId: tenant.id,
-                totalAmount: totalAmount.toString(),
-                status: paymentMethod === "PAYSTACK" ? "COMPLETED" : "PENDING",
-                paymentMethod,
-                deliveryMethod,
-                deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : null,
-                deliveryFee: deliveryMethod === "DELIVERY" ? deliveryFeeOut.fee.toString() : null,
-                customerName: input.customerDetails.name,
-                customerEmail: input.customerDetails.email,
-                customerPhone: input.customerDetails.phone ?? null,
-            }).returning();
+            const newOrder = await ctx.db.transaction(async (tx) => {
+                const [order] = await tx.insert(orders).values({
+                    tenantId: tenant.id,
+                    totalAmount: totalAmount.toString(),
+                    status: paymentMethod === "PAYSTACK" ? "COMPLETED" : "PENDING",
+                    paymentMethod,
+                    deliveryMethod,
+                    deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : null,
+                    deliveryFee: deliveryMethod === "DELIVERY" ? deliveryFeeOut.fee.toString() : null,
+                    customerName: input.customerDetails.name,
+                    customerEmail: input.customerDetails.email,
+                    customerPhone: input.customerDetails.phone ?? null,
+                }).returning();
 
-            if (!newOrder) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });
+                if (!order) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });
 
-            if (orderItemsData.length > 0) {
-                await ctx.db.insert(orderItems).values(
-                    orderItemsData.map(item => ({
-                        orderId: newOrder.id,
-                        ...item
-                    }))
-                );
-            }
+                for (const item of orderItemsData) {
+                    await tx.insert(orderItems).values({
+                        orderId: order.id,
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        price: item.price,
+                    });
+
+                    if (item.unlimitedStock) continue;
+
+                    const [updated] = await tx.update(products)
+                        .set({ stockQuantity: sql`${products.stockQuantity} - ${item.quantity}` })
+                        .where(and(
+                            eq(products.id, item.productId),
+                            eq(products.tenantId, tenant.id),
+                            gte(products.stockQuantity, item.quantity),
+                        ))
+                        .returning({ id: products.id });
+
+                    if (!updated) {
+                        throw new TRPCError({
+                            code: "CONFLICT",
+                            message: "Stock changed while processing your order; please review your cart.",
+                        });
+                    }
+                }
+
+                return order;
+            });
 
             // Notify admins if this is a delivery order
             if (deliveryMethod === "DELIVERY") {

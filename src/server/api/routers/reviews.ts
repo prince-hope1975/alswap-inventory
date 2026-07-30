@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure, tenantProcedure } from "~/server/api/trpc";
 import { reviews, products, tenants } from "~/server/db/schema";
 import { eq, and, desc, sql, avg } from "drizzle-orm";
+import { resolvePublicTenant } from "~/server/tenant";
 
 export const reviewsRouter = createTRPCRouter({
   createReview: publicProcedure
@@ -50,11 +51,17 @@ export const reviewsRouter = createTRPCRouter({
       })
     )
     .query(async ({ ctx, input }) => {
+      const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+      if (!tenant) return { reviews: [], total: 0 };
+
+      const conditions = and(
+        eq(reviews.productId, input.productId),
+        eq(reviews.tenantId, tenant.id),
+        eq(reviews.isApproved, true)
+      );
+
       const allReviews = await ctx.db.query.reviews.findMany({
-        where: and(
-          eq(reviews.productId, input.productId),
-          eq(reviews.isApproved, true)
-        ),
+        where: conditions,
         orderBy: desc(reviews.createdAt),
         limit: input.limit,
         offset: input.offset,
@@ -63,12 +70,7 @@ export const reviewsRouter = createTRPCRouter({
       const [countResult] = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(reviews)
-        .where(
-          and(
-            eq(reviews.productId, input.productId),
-            eq(reviews.isApproved, true)
-          )
-        );
+        .where(conditions);
 
       return {
         reviews: allReviews,
@@ -79,6 +81,9 @@ export const reviewsRouter = createTRPCRouter({
   getAverageRating: publicProcedure
     .input(z.object({ productId: z.string() }))
     .query(async ({ ctx, input }) => {
+      const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+      if (!tenant) return { average: null, count: 0 };
+
       const [result] = await ctx.db
         .select({
           average: avg(reviews.rating),
@@ -88,6 +93,7 @@ export const reviewsRouter = createTRPCRouter({
         .where(
           and(
             eq(reviews.productId, input.productId),
+            eq(reviews.tenantId, tenant.id),
             eq(reviews.isApproved, true)
           )
         );
