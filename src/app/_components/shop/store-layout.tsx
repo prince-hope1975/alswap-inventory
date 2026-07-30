@@ -33,6 +33,12 @@ interface StoreLayoutProps {
     /** Seeded from the URL so a crawled/shared /shop?search=... renders filtered. */
     initialSearch?: string;
     initialCategoryId?: number;
+    /**
+     * Fixed for the life of the page: the `used.` surface rewrites `/` to
+     * `/shop?condition=USED,REFURBISHED`, and dropping it on the first client
+     * refetch would quietly hand back the whole catalogue.
+     */
+    initialCondition?: ("NEW" | "USED" | "REFURBISHED")[];
 }
 
 // Debounce hook for search
@@ -52,7 +58,7 @@ function useDebounce<T>(value: T, delay: number): T {
     return debouncedValue;
 }
 
-export function StoreLayout({ initialShopDetails, initialProducts, initialCategories, initialSearch, initialCategoryId }: StoreLayoutProps) {
+export function StoreLayout({ initialShopDetails, initialProducts, initialCategories, initialSearch, initialCategoryId, initialCondition }: StoreLayoutProps) {
     const { items, totalItems, isCartOpen, setIsCartOpen, removeItem, updateQuantity, totalAmount } = useCart();
     const { formatCurrency } = useCurrency();
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -79,6 +85,7 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
     const { data: products, isLoading: isProductsLoading } = api.shop.getProducts.useQuery({
         search: debouncedSearch || undefined,
         categoryId: selectedCategory,
+        condition: initialCondition,
         limit: 100,
     }, {
         // The server already ran this exact query for the initial URL, so reuse

@@ -26,6 +26,13 @@ export const env = createEnv({
      * commerce host.
      */
     COMMERCE_SUBDOMAIN: z.string().optional(),
+    /**
+     * Dot-prefixed root domain the session cookie is scoped to, e.g.
+     * ".sppd.amachree.dev", so a session on app.<root> is sent to shop.<root>.
+     * Leave unset in local development: a dot-domain cookie is rejected
+     * outright on *.localhost, which would silently break sign-in.
+     */
+    AUTH_COOKIE_DOMAIN: z.string().optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -55,6 +62,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_TRANSPORT: process.env.DATABASE_TRANSPORT,
     COMMERCE_SUBDOMAIN: process.env.COMMERCE_SUBDOMAIN,
+    AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:
       process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,

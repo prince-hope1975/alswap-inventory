@@ -148,6 +148,8 @@ export const shopRouter = createTRPCRouter({
             z.object({
                 search: z.string().optional(),
                 categoryId: z.number().optional(),
+                // Drives the `used.` surface, which pre-filters to non-new stock.
+                condition: z.array(z.enum(["NEW", "USED", "REFURBISHED"])).min(1).optional(),
                 limit: z.number().min(1).max(100).default(50),
                 cursor: z.string().optional(),
             })
@@ -157,6 +159,12 @@ export const shopRouter = createTRPCRouter({
             if (!tenant) return [];
 
             const searchTerm = input.search?.trim();
+            const conditions = input.condition;
+            // Applied to every branch below, including the raw pg_trgm CTE —
+            // missing one silently shows new stock on the used surface.
+            const conditionFilter = conditions
+                ? inArray(products.condition, conditions)
+                : undefined;
 
             // If there's a search term, use fuzzy search with pg_trgm
             if (searchTerm && searchTerm.length > 0) {
@@ -198,6 +206,12 @@ export const shopRouter = createTRPCRouter({
                         WHERE
                             p."tenantId" = ${tenant.id}
                             AND p.visibility = 'PUBLISHED'
+                            ${conditions
+                        ? sql`AND p.condition IN (${sql.join(
+                            conditions.map((value) => sql`${value}`),
+                            sql`, `,
+                        )})`
+                        : sql``}
                             AND (
                                 -- Trigram similarity match (fuzzy)
                                 p.name % ${searchTerm}
@@ -257,7 +271,8 @@ export const shopRouter = createTRPCRouter({
                     where: and(
                         eq(products.tenantId, tenant.id),
                         eq(products.visibility, "PUBLISHED"),
-                        inArray(products.id, pIds)
+                        inArray(products.id, pIds),
+                        conditionFilter
                     ),
                     with: {
                         category: true,
@@ -274,7 +289,11 @@ export const shopRouter = createTRPCRouter({
 
             // Default: return all products for tenant
             return ctx.db.query.products.findMany({
-                where: and(eq(products.tenantId, tenant.id), eq(products.visibility, "PUBLISHED")),
+                where: and(
+                    eq(products.tenantId, tenant.id),
+                    eq(products.visibility, "PUBLISHED"),
+                    conditionFilter
+                ),
                 with: {
                     category: true,
                     productCategories: {
