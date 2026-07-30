@@ -22,6 +22,40 @@ describe("tenant host resolution", () => {
     ).toBe("store");
   });
 
+  it("resolves a surface subdomain to the tenant that owns the root domain", () => {
+    const tenants = [
+      { id: "other", slug: "other", customDomain: "example.org" },
+      { id: "store", slug: "alswap-1784546871174", customDomain: "alswap.com.ng" },
+    ];
+    for (const host of [
+      "alswap.com.ng",
+      "shop.alswap.com.ng",
+      "used.alswap.com.ng",
+      "solar.alswap.com.ng",
+      "app.alswap.com.ng",
+    ]) {
+      expect(selectTenantForHost(host, tenants)).toBe("store");
+    }
+  });
+
+  it("does not resolve an unrelated domain that merely shares a surface label", () => {
+    expect(
+      selectTenantForHost("shop.someoneelse.com", [
+        { id: "store", slug: "alswap", customDomain: "alswap.com.ng" },
+      ]),
+    ).toBeNull();
+  });
+
+  it("falls back to the first tenant on every *.localhost surface", () => {
+    const tenants = [
+      { id: "first", slug: "first", customDomain: null },
+      { id: "second", slug: "second", customDomain: null },
+    ];
+    for (const host of ["localhost:3000", "shop.localhost:3000", "app.localhost"]) {
+      expect(selectTenantForHost(host, tenants)).toBe("first");
+    }
+  });
+
   it("normalizes a configured storefront hostname", () => {
     expect(normalizeConfiguredDomain("  WWW.SPPD.Amachree.Dev  ")).toBe(
       "sppd.amachree.dev",

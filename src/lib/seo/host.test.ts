@@ -5,6 +5,7 @@ import {
   commerceBaseUrlFromHost,
   portFromRawHost,
   registrableRootFromHost,
+  resolveSurfaceRoute,
   surfaceLabelFromHost,
 } from "./host";
 
@@ -39,6 +40,59 @@ describe("surfaceLabelFromHost", () => {
   it("returns null for the apex and unknown labels", () => {
     expect(surfaceLabelFromHost("alswap.com.ng")).toBeNull();
     expect(surfaceLabelFromHost("mail.alswap.com.ng")).toBeNull();
+  });
+});
+
+describe("resolveSurfaceRoute", () => {
+  it("maps each surface root to its landing route", () => {
+    expect(resolveSurfaceRoute("shop.alswap.com.ng", "/").pathname).toBe("/shop");
+    expect(resolveSurfaceRoute("solar.alswap.com.ng", "/").pathname).toBe("/solar");
+    expect(resolveSurfaceRoute("app.alswap.com.ng", "/").pathname).toBe("/inventory");
+  });
+
+  it("pre-filters the used surface to non-new stock", () => {
+    const route = resolveSurfaceRoute("used.alswap.com.ng", "/");
+    expect(route.pathname).toBe("/shop");
+    expect(new URLSearchParams(route.search).get("condition")).toBe(
+      "USED,REFURBISHED",
+    );
+  });
+
+  it("merges surface params with the incoming query instead of replacing it", () => {
+    const route = resolveSurfaceRoute("used.alswap.com.ng", "/", "search=generator");
+    const params = new URLSearchParams(route.search);
+    expect(params.get("search")).toBe("generator");
+    expect(params.get("condition")).toBe("USED,REFURBISHED");
+  });
+
+  it("lets an explicit condition win over the surface default", () => {
+    const route = resolveSurfaceRoute("used.alswap.com.ng", "/", "condition=NEW");
+    expect(new URLSearchParams(route.search).get("condition")).toBe("NEW");
+  });
+
+  it("never rewrites a path other than the root", () => {
+    const route = resolveSurfaceRoute("used.alswap.com.ng", "/products/abc");
+    expect(route).toMatchObject({
+      surface: "used",
+      pathname: "/products/abc",
+      rewritten: false,
+    });
+  });
+
+  it("leaves the apex untouched", () => {
+    expect(resolveSurfaceRoute("alswap.com.ng", "/")).toMatchObject({
+      surface: null,
+      pathname: "/",
+      rewritten: false,
+    });
+  });
+
+  it("resolves surfaces in local development", () => {
+    expect(resolveSurfaceRoute("app.localhost:3000", "/")).toMatchObject({
+      surface: "app",
+      pathname: "/inventory",
+      rewritten: true,
+    });
   });
 });
 

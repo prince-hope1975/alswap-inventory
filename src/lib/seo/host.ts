@@ -1,4 +1,19 @@
-import { normalizeRequestHost } from "~/lib/domain/tenant-resolution";
+/**
+ * Canonical form of a `Host` / `X-Forwarded-Host` header value: first hop only,
+ * lower-cased, without port or leading `www.`.
+ *
+ * Lives here rather than in `tenant-resolution.ts` because tenant resolution
+ * now depends on surface parsing (below), and the reverse dependency would be
+ * a cycle. `tenant-resolution.ts` re-exports it for existing callers.
+ */
+export function normalizeRequestHost(rawHost: string | null | undefined) {
+  return (rawHost ?? "")
+    .split(",")[0]!
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/:\d+$/, "")
+    .replace(/^www\./, "");
+}
 
 /**
  * Host labels that identify a *surface* of the business rather than a distinct
@@ -41,6 +56,63 @@ export function surfaceLabelFromHost(
   return SURFACE_LABELS.includes(first as SurfaceLabel)
     ? (first as SurfaceLabel)
     : null;
+}
+
+/**
+ * Where a surface sends its bare root path. `null` means "leave the route tree
+ * alone" — every surface serves the same routes, only `/` differs.
+ */
+const SURFACE_ROOT_ROUTE: Record<SurfaceLabel, { pathname: string; params?: Record<string, string> }> = {
+  shop: { pathname: "/shop" },
+  solar: { pathname: "/solar" },
+  used: { pathname: "/shop", params: { condition: "USED,REFURBISHED" } },
+  app: { pathname: "/inventory" },
+};
+
+export interface SurfaceRoute {
+  surface: SurfaceLabel | null;
+  /** Pathname the request should be treated as, for auth *and* for rewriting. */
+  pathname: string;
+  /** Query string to rewrite to, without the leading "?". Empty when unchanged. */
+  search: string;
+  /** True when the resolved route differs from what was requested. */
+  rewritten: boolean;
+}
+
+/**
+ * Resolve which surface a host represents and what route its request maps to.
+ *
+ * Only `/` is remapped. Every other path is served identically on every
+ * surface, so `used.<root>/products/abc` must not be rewritten into
+ * `/shop/products/abc`.
+ *
+ * Pure and edge-safe by design: the middleware must run its auth and role
+ * checks against the *returned* pathname, so that decision has to be
+ * computable without touching the request object.
+ */
+export function resolveSurfaceRoute(
+  rawHost: string | null | undefined,
+  pathname: string,
+  search = "",
+): SurfaceRoute {
+  const surface = surfaceLabelFromHost(rawHost);
+  if (!surface || pathname !== "/") {
+    return { surface, pathname, search: "", rewritten: false };
+  }
+
+  const target = SURFACE_ROOT_ROUTE[surface];
+  // Merge rather than replace: `used.<root>/?search=generator` has to keep its
+  // search term while still gaining the condition filter.
+  const params = new URLSearchParams(search);
+  for (const [key, value] of Object.entries(target.params ?? {})) {
+    if (!params.has(key)) params.set(key, value);
+  }
+  return {
+    surface,
+    pathname: target.pathname,
+    search: params.toString(),
+    rewritten: true,
+  };
 }
 
 /**

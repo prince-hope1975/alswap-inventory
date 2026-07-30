@@ -1,3 +1,11 @@
+import {
+  isLocalHost,
+  normalizeRequestHost,
+  registrableRootFromHost,
+} from "~/lib/seo/host";
+
+export { normalizeRequestHost };
+
 export interface TenantHostCandidate {
   id: string;
   slug: string;
@@ -28,38 +36,43 @@ export function normalizeConfiguredDomain(
   return normalized;
 }
 
-export function normalizeRequestHost(rawHost: string | null | undefined) {
-  return (rawHost ?? "")
-    .split(",")[0]!
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/:\d+$/, "")
-    .replace(/^www\./, "");
-}
-
+/**
+ * Resolve the tenant serving a host.
+ *
+ * Subdomains here identify a *surface* of one tenant (`shop.`, `used.`,
+ * `solar.`, `app.`), not separate tenants, so matching happens on the
+ * registrable root domain and the surface label is discarded.
+ *
+ * The old first-label-vs-`tenant.slug` match is gone deliberately: signup mints
+ * slugs as `${name}-${Date.now()}` (`auth.ts:33-41`), so `shop.alswap.com.ng`
+ * could never match `alswap-1784546871174`. It matched nothing in practice and
+ * would now shadow the root-domain match.
+ */
 export function selectTenantForHost(
   host: string,
   tenants: TenantHostCandidate[],
 ) {
   const normalized = normalizeRequestHost(host);
-  const customDomain = tenants.find(
+  const exact = tenants.find(
     (tenant) =>
-      normalizeRequestHost(tenant.customDomain) === normalized &&
-      !!tenant.customDomain,
+      !!tenant.customDomain &&
+      normalizeRequestHost(tenant.customDomain) === normalized,
   );
-  if (customDomain) return customDomain.id;
+  if (exact) return exact.id;
 
-  const subdomain = normalized.split(".")[0];
-  const slugMatch = tenants.find(
-    (tenant) => tenant.slug.toLocaleLowerCase() === subdomain,
+  // `shop.alswap.com.ng` -> `alswap.com.ng`, which is what `customDomain` holds.
+  const root = registrableRootFromHost(normalized);
+  const rootMatch = tenants.find(
+    (tenant) =>
+      !!tenant.customDomain &&
+      normalizeRequestHost(tenant.customDomain) === root,
   );
-  if (slugMatch) return slugMatch.id;
+  if (rootMatch) return rootMatch.id;
 
-  if (
-    normalized === "localhost" ||
-    normalized === "127.0.0.1" ||
-    normalized.endsWith(".vercel.app")
-  ) {
+  // Development fallback. `isLocalHost` covers `*.localhost`, which is how the
+  // surfaces are exercised locally (`shop.localhost:3000` resolves to 127.0.0.1
+  // in Chrome and Firefox with no hosts-file edit).
+  if (isLocalHost(root) || root.endsWith(".vercel.app")) {
     return tenants[0]?.id ?? null;
   }
   return null;
