@@ -23,8 +23,15 @@ export default async function FindUsPage() {
 
   const lat = tenant.latitude ? Number(tenant.latitude) : undefined;
   const lng = tenant.longitude ? Number(tenant.longitude) : undefined;
+  // (0, 0) is "null island" in the Gulf of Guinea, not a real pickup point —
+  // it's what an unset lat/lng looks like once coerced through `Number()`,
+  // and publishing it as LocalBusiness geo would misinform Google Maps.
   const hasCoords =
-    lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng);
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0);
 
   const localBusinessJsonLd = buildLocalBusiness({
     name: tenant.name,
