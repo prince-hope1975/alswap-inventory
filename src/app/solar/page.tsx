@@ -22,6 +22,7 @@ import {
 
 import { api } from "~/trpc/server";
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
+import { JsonLd } from "~/lib/seo/json-ld";
 import { SolarEstimator } from "./solar-estimator";
 
 export const metadata: Metadata = {
@@ -123,10 +124,7 @@ export default async function SolarPage() {
       id="main-content"
       className="min-h-screen overflow-hidden bg-[#f5f3ed] text-[#14212b]"
     >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <JsonLd data={faqSchema} />
 
       <div className="bg-[#112b3c] px-4 py-2 text-center text-xs font-bold tracking-[0.14em] text-white uppercase sm:text-sm">
         Practical solar sizing for homes, shops and offices
