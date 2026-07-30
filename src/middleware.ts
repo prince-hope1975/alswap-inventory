@@ -86,6 +86,9 @@ export default auth((req) => {
   const proceed = () => {
     if (!route.rewritten) {
       const headers = new Headers(req.headers);
+      // Drop any inbound value before setting our own: the surface header is
+      // trusted downstream, so a client must not be able to supply it.
+      headers.delete(SURFACE_HEADER);
       if (surface) headers.set(SURFACE_HEADER, surface);
       return tag(NextResponse.next({ request: { headers } }), surface);
     }
