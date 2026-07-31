@@ -20,13 +20,26 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     // Storefront is still resolvable without branding; fall back to the default.
   }
+  const description = `${storeName} — electrical, electronics and solar supplies.`;
   return {
     // Without metadataBase every relative canonical in the app resolves
     // against http://localhost:3000.
     metadataBase: new URL(base),
     title: { default: storeName, template: `%s | ${storeName}` },
-    description: `${storeName} — electrical, electronics and solar supplies.`,
-    icons: [{ rel: "icon", url: "/favicon.ico" }],
+    description,
+    // icon.png / apple-icon.png / opengraph-image.png are file-convention
+    // routes Next wires up automatically — no `icons:` entry needed here.
+    openGraph: {
+      siteName: storeName,
+      title: storeName,
+      description,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: storeName,
+      description,
+    },
   };
 }
 
