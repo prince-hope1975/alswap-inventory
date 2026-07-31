@@ -37,6 +37,7 @@ const publicApiRoutes = [
   "/api/auth",
   "/api/solar",
   "/api/trpc",
+  "/api/feed",
 ];
 
 /**

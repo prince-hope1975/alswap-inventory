@@ -158,6 +158,31 @@ export function buildLocalBusiness(input: {
   };
 }
 
+export function buildService(input: {
+  name: string;
+  description?: string | null;
+  url: string;
+  providerName: string;
+  areaServed?: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": `${input.url}#service`,
+    name: input.name,
+    description: input.description ?? undefined,
+    url: input.url,
+    areaServed: input.areaServed ?? undefined,
+    provider: { "@type": "Organization", name: input.providerName },
+    // Solar is made-to-order from a supplier, not stocked — PreOrder is the
+    // honest availability state, not InStock.
+    offers: {
+      "@type": "Offer",
+      availability: "https://schema.org/PreOrder",
+    },
+  };
+}
+
 export function buildWebSite(input: {
   name: string;
   url: string;

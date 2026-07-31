@@ -23,6 +23,8 @@ import {
 import { api } from "~/trpc/server";
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
 import { JsonLd } from "~/lib/seo/json-ld";
+import { canonicalUrl } from "~/lib/seo/base-url";
+import { buildService } from "~/lib/seo/builders";
 import { SolarEstimator } from "./solar-estimator";
 
 export const metadata: Metadata = {
@@ -118,6 +120,14 @@ export default async function SolarPage() {
       acceptedAnswer: { "@type": "Answer", text: faq.answer },
     })),
   };
+  const serviceSchema = buildService({
+    name: "Solar system sizing and installation survey",
+    description:
+      "Load-based solar sizing with a site survey to confirm the final inverter, battery and panel design.",
+    url: await canonicalUrl("/solar"),
+    providerName: storeName,
+    areaServed: tenant.location ?? undefined,
+  });
 
   return (
     <main
@@ -125,6 +135,7 @@ export default async function SolarPage() {
       className="min-h-screen overflow-hidden bg-[#f5f3ed] text-[#14212b]"
     >
       <JsonLd data={faqSchema} />
+      <JsonLd data={serviceSchema} />
 
       <div className="bg-[#112b3c] px-4 py-2 text-center text-xs font-bold tracking-[0.14em] text-white uppercase sm:text-sm">
         Practical solar sizing for homes, shops and offices
