@@ -131,6 +131,24 @@ describe("commerceBaseUrlFromHost", () => {
     }
   });
 
+  // Every other fixture here is three-label (alswap.com.ng). The domain
+  // actually being shipped is two-label, which is the shape that would break
+  // if surface stripping ever counted labels instead of matching them.
+  it("handles a two-label root domain", () => {
+    expect(registrableRootFromHost("shop.sppdamaks.com")).toBe("sppdamaks.com");
+    expect(surfaceLabelFromHost("used.sppdamaks.com")).toBe("used");
+    expect(commerceBaseUrlFromHost("used.sppdamaks.com", "shop")).toBe(
+      "https://shop.sppdamaks.com",
+    );
+    expect(commerceBaseUrlFromHost("sppdamaks.com", "shop")).toBe(
+      "https://shop.sppdamaks.com",
+    );
+    // www is normalized away, so the canonical stays on the apex.
+    expect(commerceBaseUrlFromHost("www.sppdamaks.com", "shop")).toBe(
+      "https://shop.sppdamaks.com",
+    );
+  });
+
   it("uses the root domain when no commerce subdomain is configured", () => {
     expect(commerceBaseUrlFromHost("used.alswap.com.ng", undefined)).toBe(
       "https://alswap.com.ng",
