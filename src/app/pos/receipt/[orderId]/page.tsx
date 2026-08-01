@@ -21,6 +21,7 @@ export default async function ReceiptPage(props: {
             order={order}
             storeName={branding.name}
             currency={branding.currency}
+            footer={branding.receiptFooter}
         />
     );
 }

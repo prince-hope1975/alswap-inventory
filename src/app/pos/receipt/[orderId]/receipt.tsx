@@ -9,6 +9,8 @@ interface ReceiptProps {
     // that hook calls the ADMIN-only settings router, so a cashier printing a
     // receipt silently got the default symbol.
     currency: string;
+    /** tenants.receipt_footer — the two default lines are only a fallback. */
+    footer: string | null;
     order: {
         id: string;
         createdAt: Date;
@@ -24,7 +26,7 @@ interface ReceiptProps {
     };
 }
 
-export function Receipt({ storeName, currency, order }: ReceiptProps) {
+export function Receipt({ storeName, currency, footer, order }: ReceiptProps) {
     const formatCurrency = (amount: number | string | undefined | null) => {
         if (amount === undefined || amount === null) return `${currency}0.00`;
         const num = typeof amount === "string" ? parseFloat(amount) : amount;
@@ -75,8 +77,17 @@ export function Receipt({ storeName, currency, order }: ReceiptProps) {
             </div>
 
             <div className="mt-8 text-center text-xs">
-                <p>Thank you for your business!</p>
-                <p>Please visit again.</p>
+                {footer?.trim() ? (
+                    footer
+                        .trim()
+                        .split("\n")
+                        .map((line, index) => <p key={index}>{line}</p>)
+                ) : (
+                    <>
+                        <p>Thank you for your business!</p>
+                        <p>Please visit again.</p>
+                    </>
+                )}
             </div>
             
             <style jsx global>{`

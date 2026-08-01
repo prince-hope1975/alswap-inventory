@@ -15,6 +15,7 @@ export type TenantBranding = {
   logo: string | null;
   currency: string;
   brandColor: string;
+  receiptFooter: string | null;
 };
 
 /**
@@ -35,6 +36,7 @@ export async function getTenantBranding(): Promise<TenantBranding> {
       logo: tenant?.logo ?? null,
       currency: tenant?.currency ?? "₦",
       brandColor: tenant?.brandColor ?? "#000000",
+      receiptFooter: tenant?.receiptFooter ?? null,
     };
   } catch {
     return {
@@ -43,6 +45,7 @@ export async function getTenantBranding(): Promise<TenantBranding> {
       logo: null,
       currency: "₦",
       brandColor: "#000000",
+      receiptFooter: null,
     };
   }
 }

@@ -6,7 +6,11 @@ import { eq, and, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { sendPasswordResetEmail } from "~/server/email";
 import { resolvePublicTenant } from "~/server/tenant";
-import { baseUrlFromHost, portFromRawHost } from "~/lib/seo/host";
+import {
+    baseUrlFromHost,
+    portFromRawHost,
+    registrableRootFromHost,
+} from "~/lib/seo/host";
 
 export const authRouter = createTRPCRouter({
     register: publicProcedure
@@ -101,17 +105,31 @@ export const authRouter = createTRPCRouter({
                 expires,
             });
 
-            // Both derived from the request, not from env: NEXT_PUBLIC_APP_URL
+            // Link host is request-derived, not env-derived: NEXT_PUBLIC_APP_URL
             // is a single value, so on a multi-surface deployment it sends the
             // user to the wrong host (or to localhost when unset).
+            //
+            // The Host header is attacker-controlled, and this token grants
+            // account takeover, so the host is only honoured when it belongs to
+            // the resolved tenant's own domain; anything else falls back to the
+            // tenant's configured domain and the link never leaves it.
             const rawHost =
                 ctx.headers.get("x-forwarded-host") ?? ctx.headers.get("host") ?? "";
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+            const tenantRoot = tenant?.customDomain
+                ? registrableRootFromHost(tenant.customDomain)
+                : null;
+            const baseUrl =
+                tenantRoot && registrableRootFromHost(rawHost) === tenantRoot
+                    ? baseUrlFromHost(rawHost, portFromRawHost(rawHost))
+                    : tenantRoot
+                      ? `https://${tenant!.customDomain!}`
+                      : (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000");
 
             await sendPasswordResetEmail({
                 email: input.email,
                 token,
-                baseUrl: baseUrlFromHost(rawHost, portFromRawHost(rawHost)),
+                baseUrl,
                 tenantName: tenant?.name ?? null,
             });
 
