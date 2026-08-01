@@ -162,7 +162,7 @@ export default function SettingsPage() {
                                 <input
                                     {...register("name")}
                                     className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2.5 shadow-sm transition-colors focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)]/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                    placeholder="e.g. Alswap Stores"
+                                    placeholder="e.g. Acme Stores"
                                 />
                                 {errors.name && (
                                     <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>

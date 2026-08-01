@@ -1,5 +1,5 @@
 import { auth } from "~/server/auth";
-import { api } from "~/trpc/server";
+import { getTenantBranding } from "~/lib/tenant-branding";
 import { RouterProvider } from "~/lib/routerProvider";
 import { InventoryLayoutClient } from "./inventory-layout-client";
 import { RouteErrorBoundary } from "~/components/route-error-boundary";
@@ -11,18 +11,13 @@ export default async function InventoryLayout({
 }) {
     const session = await auth();
 
-    // Get tenant settings for company name
-    let companyName = "Alswap";
-    let companyInitial = "A";
-    let companyLogo: string | null = null;
-    try {
-        const settings = await api.settings.getTenantSettings();
-        companyName = settings.name ?? "Alswap";
-        companyInitial = companyName[0]?.toUpperCase() ?? "A";
-        companyLogo = settings.logo ?? null;
-    } catch {
-        // Fallback to default if settings not available
-    }
+    // Host-resolved branding. See getTenantBranding: the settings router is
+    // ADMIN-only, so cashiers and managers used to see the hardcoded default.
+    const {
+        name: companyName,
+        initial: companyInitial,
+        logo: companyLogo,
+    } = await getTenantBranding();
 
     return (
         <RouterProvider>

@@ -5,6 +5,7 @@ import { type Metadata } from "next";
 import { TRPCReactProvider } from "~/trpc/react";
 import { BrandColorProvider } from "~/lib/brand-colors";
 import { requestBaseUrl } from "~/lib/seo/base-url";
+import { getTenantBranding } from "~/lib/tenant-branding";
 import { api } from "~/trpc/server";
 import { getBrandColorStyles } from "~/lib/brand-colors-server";
 import { ThemeScript } from "~/components/theme-script";
@@ -13,13 +14,7 @@ import { ErrorBoundary } from "~/components/error-boundary";
 
 export async function generateMetadata(): Promise<Metadata> {
   const base = await requestBaseUrl();
-  let storeName = "Alswap";
-  try {
-    const { tenant } = await api.shop.getShopDetails();
-    if (tenant?.name) storeName = tenant.name;
-  } catch {
-    // Storefront is still resolvable without branding; fall back to the default.
-  }
+  const { name: storeName } = await getTenantBranding();
   const description = `${storeName} — electrical, electronics and solar supplies.`;
   return {
     // Without metadataBase every relative canonical in the app resolves

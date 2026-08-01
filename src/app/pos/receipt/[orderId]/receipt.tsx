@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { useCurrency } from "~/hooks/use-tenant-settings";
 
 // Define types properly based on your schema/API return type
 interface ReceiptProps {
+    storeName: string;
+    // Passed in from the server page rather than read via useCurrency():
+    // that hook calls the ADMIN-only settings router, so a cashier printing a
+    // receipt silently got the default symbol.
+    currency: string;
     order: {
         id: string;
         createdAt: Date;
@@ -20,8 +24,15 @@ interface ReceiptProps {
     };
 }
 
-export function Receipt({ order }: ReceiptProps) {
-    const { formatCurrency } = useCurrency();
+export function Receipt({ storeName, currency, order }: ReceiptProps) {
+    const formatCurrency = (amount: number | string | undefined | null) => {
+        if (amount === undefined || amount === null) return `${currency}0.00`;
+        const num = typeof amount === "string" ? parseFloat(amount) : amount;
+        if (isNaN(num)) return `${currency}0.00`;
+        return `${currency}${Intl.NumberFormat("en-US", {
+            maximumFractionDigits: 2,
+        }).format(num)}`;
+    };
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -33,7 +44,7 @@ export function Receipt({ order }: ReceiptProps) {
     return (
         <div className="mx-auto max-w-[80mm] bg-white p-4 font-mono text-sm text-black print:p-0">
             <div className="mb-4 text-center">
-                <h1 className="text-xl font-bold uppercase">Alswap Store</h1>
+                <h1 className="text-xl font-bold uppercase">{storeName}</h1>
                 <p className="text-xs">Receipt #{order.id.slice(0, 8)}</p>
                 <p className="text-xs">{new Date(order.createdAt).toLocaleString()}</p>
             </div>

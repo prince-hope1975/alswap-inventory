@@ -3,26 +3,36 @@ import { env } from "~/env";
 
 export const resend = new Resend(env.RESEND_API_KEY);
 
-export const sendPasswordResetEmail = async (email: string, token: string) => {
-  // console.log("Sending password reset email to:", email);
-  // console.log("Token:", token); 
-  // console.log("RESEND_API_KEY:", env.RESEND_API_KEY);
+export const sendPasswordResetEmail = async (input: {
+  email: string;
+  token: string;
+  /** Origin of the host the request came from, so the link lands on the surface the user was on. */
+  baseUrl: string;
+  tenantName: string | null;
+}) => {
+  const { email, token, tenantName } = input;
+  const baseUrl = input.baseUrl || "http://localhost:3000";
+  const resetLink = `${baseUrl}/auth/reset-password?token=${token}`;
+  // Without the store name an unbranded reset from an unfamiliar sender
+  // domain reads as phishing.
+  const forStore = tenantName ? ` for ${tenantName}` : "";
+
   if (!env.RESEND_API_KEY) {
     console.log("RESEND_API_KEY is not set. Skipping email sending.");
-    console.log(`Reset Link: ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/reset-password?token=${token}`);
+    console.log(`Reset Link: ${resetLink}`);
     return;
   }
-
-  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/reset-password?token=${token}`;
 
   try {
     await resend.emails.send({
       from: env.EMAIL_FROM,
       to: email,
-      subject: "Reset your password",
+      subject: tenantName
+        ? `Reset your ${tenantName} password`
+        : "Reset your password",
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Reset your password</h2>
+          <h2>Reset your password${forStore}</h2>
           <p>You requested to reset your password. Click the link below to proceed:</p>
           <p>
             <a href="${resetLink}" style="background-color: #9333EA; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">

@@ -1,17 +1,9 @@
 import type { MetadataRoute } from "next";
 
-import { api } from "~/trpc/server";
+import { getTenantBranding } from "~/lib/tenant-branding";
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  let name = "Alswap";
-  let themeColor = "#000000";
-  try {
-    const { tenant } = await api.shop.getShopDetails();
-    if (tenant?.name) name = tenant.name;
-    if (tenant?.brandColor) themeColor = tenant.brandColor;
-  } catch {
-    // Manifest is still valid without branding; fall back to the defaults.
-  }
+  const { name, brandColor: themeColor } = await getTenantBranding();
 
   return {
     name,
