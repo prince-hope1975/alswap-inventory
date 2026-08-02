@@ -10,25 +10,31 @@ Verified state as of the last check (2026-08-02):
 |---|---|
 | `www` / `shop` / `solar` / `used` / `app` `.sppdamaks.com` | TLS live, all serving |
 | `COMMERCE_SUBDOMAIN` | `shop` — confirmed live, canonicals point at `shop.sppdamaks.com` |
-| `AUTH_COOKIE_DOMAIN` | **Not confirmed.** Step 0 below. |
+| `AUTH_COOKIE_DOMAIN` | `.sppdamaks.com`, set in Vercel — see Step 0 for the Preview-scope caveat |
 | `/api/feed/google` | 200, well-formed, links on `shop.sppdamaks.com` — but **only 12 items** |
 | Products with an image | **12 of 503** |
 | `robots.txt` / `sitemap.xml` | Live and correct on every surface; `app.` is `Disallow: /` |
 
 ---
 
-## Step 0 — `AUTH_COOKIE_DOMAIN` (do first, unrelated to Google)
+## Step 0 — `AUTH_COOKIE_DOMAIN` (done, with one caveat)
 
-Vercel → Project → Settings → Environment Variables → add
-`AUTH_COOKIE_DOMAIN=.sppdamaks.com` (leading dot) to Production → redeploy.
+`AUTH_COOKIE_DOMAIN=.sppdamaks.com` is set in Vercel and live. The one-time
+logout it causes (the session cookie moves from host-scoped to root-scoped, so
+existing sessions stop being recognised) has already happened.
 
-**This logs every currently signed-in user out once.** The cookie name changes
-from `__Secure-authjs.session-token` host-scoped to root-scoped, so existing
-sessions are not recognised.
+**Caveat: it is scoped to Production *and Preview*.** Preview deployments serve
+on `*.vercel.app`, and a browser rejects a `Set-Cookie` whose `Domain` is a
+different registrable domain than the host that sent it — so no session cookie
+is stored and sign-in fails silently on every preview URL. If PRs are tested on
+preview links, drop Preview from that variable's scope.
 
-Verify: sign in on `https://app.sppdamaks.com`, then load
-`https://shop.sppdamaks.com` in the same browser — you should still be signed
-in. Before this is set, that check fails by design.
+The var is not detectable from outside: `src/server/auth/auth.config.ts:19`
+applies the domain to `sessionToken` only, and the csrf/callback cookies keep
+their default `__Host-`/`__Secure-` names either way. Verify in a browser
+instead — sign in on `https://app.sppdamaks.com`, check DevTools → Application
+→ Cookies for `__Secure-authjs.session-token` with `Domain=.sppdamaks.com`,
+then load `https://shop.sppdamaks.com` and confirm the session persists.
 
 ---
 
