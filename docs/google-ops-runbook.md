@@ -91,12 +91,23 @@ Move to Step 3 when that number is a fair representation of the catalog.
    | Sitemap | URLs | Submit? |
    |---|---|---|
    | `https://shop.sppdamaks.com/sitemap.xml` | 506 | Yes — primary |
-   | `https://www.sppdamaks.com/sitemap.xml` | 506 | Yes |
+   | `https://www.sppdamaks.com/sitemap.xml` | 506 | Yes — after the `www` fix below is deployed |
    | `https://solar.sppdamaks.com/sitemap.xml` | 1 | Yes, but thin — see below |
    | `https://used.sppdamaks.com/sitemap.xml` | 3 | Not yet — nothing to index |
 
    `app.sppdamaks.com` is `Disallow: /` plus `X-Robots-Tag: noindex` — never
    submit it.
+
+   **The `www` fix:** the sitemap served on `www` used to list bare-apex URLs
+   (`https://sppdamaks.com/shop`), and the apex 308-redirects to `www` — so
+   every page entry was a redirect, which Search Console excludes as "Page
+   with redirect". Fixed in `src/lib/seo/host.ts` (`baseUrlFromHost` now keeps
+   `www`). Confirm before submitting:
+
+   ```sh
+   curl -s https://www.sppdamaks.com/sitemap.xml | grep -m1 -oE '<loc>[^<]+'
+   # expect https://www.sppdamaks.com — not https://sppdamaks.com
+   ```
 4. Keep the old `sppd.amachree.dev` property registered until its 301s have
    been crawled through. Deleting the property does not speed up the move and
    loses the redirect telemetry.
@@ -137,9 +148,12 @@ takes 1–2 weeks. Nothing downstream can be rushed once it is pending.
    That is a placeholder. Submitting it before the real GBP store code exists
    creates a store mapping that has to be unpicked later. Once GBP issues the
    code, replace the fallback in that route, redeploy, then submit.
-6. Local Inventory Ads are **paid-only in Nigeria** — free local listings are
-   not available in this market. Step 5 is ad infrastructure, not organic
-   discovery. It is only worth doing if Ads spend is actually planned.
+6. Local Inventory Ads have historically been **paid-only in Nigeria**, with
+   free local listings unavailable in this market — confirm current
+   availability in the Merchant Center help centre before planning around it,
+   as Google changes market coverage. If it is still paid-only, this feed is ad
+   infrastructure rather than an organic discovery path, and is only worth
+   wiring up if Ads spend is actually planned.
 
 ---
 
