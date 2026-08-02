@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
-import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
@@ -13,6 +12,7 @@ import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StockBadge } from "../parts/stock-badge";
 import { MarketplaceHeroCarousel } from "../parts/marketplace-hero-carousel";
+import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -178,15 +178,23 @@ export function MarketplaceTemplate({
                         <ProductSkeletonGrid count={10} columns={5} />
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                            {products?.map((product) => (
+                            {products?.map((product, index) => (
                                 <div 
                                     key={product.id} 
                                     className="group hover:shadow-lg transition-shadow border border-transparent hover:border-gray-200 dark:hover:border-gray-700 rounded p-2 cursor-pointer"
                                     onClick={() => setSelectedProduct(product)}
                                 >
                                     <div className="relative aspect-square mb-2 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        {product.image && <img src={product.image} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />}
+                                        {product.image && (
+                                            <StorefrontImage
+                                                src={product.image}
+                                                alt={product.name}
+                                                fill
+                                                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                                priority={index < 5}
+                                                className="object-cover transition-transform group-hover:scale-105"
+                                            />
+                                        )}
                                         <StockBadge stockQuantity={product.stockQuantity} className="absolute top-2 left-2" />
                                     </div>
                                     <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>

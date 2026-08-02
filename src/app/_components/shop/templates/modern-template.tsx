@@ -124,13 +124,13 @@ export function ModernTemplate({
                             <ProductSkeletonGrid count={6} columns={3} />
                         ) : products && products.length > 0 ? (
                             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                                {products.map((product) => (
+                                {products.map((product, index) => (
                                     <div key={product.id} className="group relative">
                                         <div 
                                             onClick={() => setSelectedProduct(product)}
                                             className="cursor-pointer"
                                         >
-                                            <ProductCard product={product} />
+                                            <ProductCard product={product} priority={index < 3} />
                                         </div>
                                         <StockBadge 
                                             stockQuantity={product.stockQuantity} 

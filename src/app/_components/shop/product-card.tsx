@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { useCart } from "./cart-context";
+import { StorefrontImage } from "./storefront-image";
 import { productPath } from "~/lib/domain/slug";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 
@@ -21,7 +21,17 @@ type Product = {
     stockQuantity: number | null;
 };
 
-export function ProductCard({ product }: { product: Product }) {
+interface ProductCardProps {
+    product: Product;
+    priority?: boolean;
+    sizes?: string;
+}
+
+export function ProductCard({
+    product,
+    priority = false,
+    sizes = "(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw",
+}: ProductCardProps) {
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
     const [isHovered, setIsHovered] = useState(false);
@@ -45,11 +55,12 @@ export function ProductCard({ product }: { product: Product }) {
         >
             <div className="aspect-square w-full overflow-hidden bg-[#e7e4dc] dark:bg-gray-800/50 relative">
                 {displayImage ? (
-                    <Image
+                    <StorefrontImage
                         src={displayImage}
                         alt={product.name}
                         fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        sizes={sizes}
+                        priority={priority}
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                 ) : (

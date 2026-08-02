@@ -7,6 +7,7 @@ import { useCurrency } from "~/hooks/use-tenant-settings";
 import { useCart } from "../cart-context";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { ShopNavbar } from "../parts/shop-navbar";
+import { StorefrontImage } from "../storefront-image";
 import { type MinimalTemplate } from "./minimal-template";
 
 type BeautyProps = ComponentProps<typeof MinimalTemplate>;
@@ -58,7 +59,7 @@ export function BeautyTemplate({ shopDetails, products, categories, isLoading, s
                   const price = Number(product.salePrice ?? product.price);
                   return <article key={product.id} className={index % 5 === 1 ? "lg:translate-y-12" : ""}>
                     <button onClick={() => setSelectedProduct(product)} className="group block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#667252]">
-                      <div className="relative aspect-[4/5] overflow-hidden rounded-[45%_45%_5%_5%] bg-[#eee3d9]">{product.image ? <img src={product.image} alt={product.name} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /> : <div className="grid h-full place-items-center font-serif text-2xl text-[#a18d80]">{product.name}</div>}<span className="absolute right-4 top-4 rounded-full bg-[#fffaf5]/90 px-3 py-1 text-xs font-bold">{product.stockQuantity === 0 ? "Join waitlist" : "In stock"}</span></div>
+                      <div className="relative aspect-[4/5] overflow-hidden rounded-[45%_45%_5%_5%] bg-[#eee3d9]">{product.image ? <StorefrontImage src={product.image} alt={product.name} fill sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw" priority={index < 3} className="object-cover transition duration-700 group-hover:scale-105" /> : <div className="grid h-full place-items-center font-serif text-2xl text-[#a18d80]">{product.name}</div>}<span className="absolute right-4 top-4 rounded-full bg-[#fffaf5]/90 px-3 py-1 text-xs font-bold">{product.stockQuantity === 0 ? "Join waitlist" : "In stock"}</span></div>
                       <div className="mt-5 flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#7c8c65]">{product.category?.name ?? "Daily care"}</p><h3 className="mt-1 font-serif text-2xl">{product.name}</h3></div><ArrowUpRight className="mt-2 h-5 w-5" /></div>
                     </button>
                     <div className="mt-4 flex items-center justify-between"><span className="font-bold">{formatCurrency(price)}</span><button disabled={product.stockQuantity === 0} onClick={() => addItem({ productId: product.id, name: product.name, price, image: product.image })} className="min-h-11 rounded-full bg-[#28201c] px-5 text-sm font-bold text-white disabled:opacity-40">Add to ritual</button></div>

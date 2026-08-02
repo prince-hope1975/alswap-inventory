@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { api } from "~/trpc/react";
 import { Calendar, User } from "lucide-react";
+import { StorefrontImage } from "../storefront-image";
 
 interface StorefrontArticlesProps {
   limit?: number;
@@ -63,12 +64,13 @@ export function StorefrontArticles({ limit = 6 }: StorefrontArticlesProps) {
               className="group bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700"
             >
               {article.coverImage && (
-                <div className="aspect-video overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                <div className="relative aspect-video overflow-hidden">
+                  <StorefrontImage
                     src={article.coverImage}
                     alt={article.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 768px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
               )}

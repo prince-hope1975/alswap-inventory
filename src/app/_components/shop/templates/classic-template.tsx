@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
-import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
@@ -12,6 +11,7 @@ import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Menu, ChevronRight } from "lucide-react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -148,7 +148,7 @@ export function ClassicTemplate({
                             <ProductSkeletonGrid count={8} columns={4} />
                         ) : products && products.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {products.map((product) => (
+                                {products.map((product, index) => (
                                     <div 
                                         key={product.id} 
                                         className="bg-white dark:bg-gray-800 p-5 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-lg transition-all duration-300 relative group"
@@ -157,12 +157,14 @@ export function ClassicTemplate({
                                             className="aspect-square bg-gray-100 dark:bg-gray-700 mb-4 rounded-lg relative overflow-hidden cursor-pointer"
                                             onClick={() => setSelectedProduct(product)}
                                         >
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             {product.image && (
-                                                <img
+                                                <StorefrontImage
                                                     src={product.image}
                                                     alt={product.name}
-                                                    className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                                                    fill
+                                                    sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 25vw"
+                                                    priority={index < 4}
+                                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
                                                 />
                                             )}
                                             <StockBadge stockQuantity={product.stockQuantity} className="absolute top-2 right-2" />

@@ -24,6 +24,7 @@ import { useCurrency } from "~/hooks/use-tenant-settings";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
+import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -107,10 +108,12 @@ function StockIndicator({ quantity }: { quantity: number | null }) {
 // Product card for conversion template
 function ConversionProductCard({ 
     product, 
-    onQuickView 
+    onQuickView,
+    priority = false,
 }: { 
     product: Product; 
     onQuickView: () => void;
+    priority?: boolean;
 }) {
     const { addItem } = useCart();
     const { formatCurrency } = useCurrency();
@@ -129,11 +132,13 @@ function ConversionProductCard({
                 onClick={onQuickView}
             >
                 {product.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <StorefrontImage
                         src={product.image}
                         alt={product.name}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        fill
+                        sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw"
+                        priority={priority}
+                        className="object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-gray-400 dark:text-gray-500">
@@ -456,11 +461,12 @@ export function ConversionTemplate({
                     <ProductSkeletonGrid count={9} columns={3} />
                 ) : products && products.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map((product) => (
+                        {products.map((product, index) => (
                             <ConversionProductCard
                                 key={product.id}
                                 product={product}
                                 onQuickView={() => setSelectedProduct(product)}
+                                priority={index < 3}
                             />
                         ))}
                     </div>
@@ -540,4 +546,3 @@ export function ConversionTemplate({
         </div>
     );
 }
-

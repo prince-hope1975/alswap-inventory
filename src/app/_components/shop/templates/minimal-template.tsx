@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
-import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
@@ -12,6 +11,7 @@ import { ProductDetailModal } from "../parts/product-detail-modal";
 import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StockBadge } from "../parts/stock-badge";
+import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -138,19 +138,21 @@ export function MinimalTemplate({
                     <ProductSkeletonGrid count={6} columns={3} />
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-16 gap-y-24">
-                        {products?.map((product) => (
+                        {products?.map((product, index) => (
                             <div 
                                 key={product.id} 
                                 className="group cursor-pointer"
                                 onClick={() => setSelectedProduct(product)}
                             >
                                 <div className="relative aspect-[3/4] mb-8 overflow-hidden bg-zinc-50 dark:bg-zinc-900">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     {product.image ? (
-                                        <img
+                                        <StorefrontImage
                                             src={product.image}
                                             alt={product.name}
-                                            className="h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
+                                            fill
+                                            sizes="(max-width: 768px) calc(100vw - 2rem), 50vw"
+                                            priority={index < 2}
+                                            className="object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
                                         />
                                     ) : (
                                         <div className="flex h-full items-center justify-center text-zinc-300">No Image</div>

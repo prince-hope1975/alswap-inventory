@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
-import { ProductCard } from "../product-card";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
@@ -12,6 +11,7 @@ import { ProductDetailModal } from "../parts/product-detail-modal";
 import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StockBadge } from "../parts/stock-badge";
+import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -148,19 +148,21 @@ export function BoutiqueTemplate({
                     <ProductSkeletonGrid count={8} columns={4} />
                 ) : (
                     <div id="boutique-products" className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-8 space-y-8 font-sans">
-                        {products?.map((product) => (
+                        {products?.map((product, index) => (
                             <div 
                                 key={product.id} 
                                 className="break-inside-avoid group bg-white dark:bg-zinc-900 p-5 shadow-sm hover:shadow-2xl transition-all duration-500 border border-stone-100 dark:border-zinc-800 cursor-pointer"
                                 onClick={() => setSelectedProduct(product)}
                             >
                                 <div className="relative aspect-[4/5] overflow-hidden mb-5 bg-stone-50 dark:bg-zinc-800">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     {product.image && (
-                                        <img
+                                        <StorefrontImage
                                             src={product.image}
                                             alt={product.name}
-                                            className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                                            fill
+                                            sizes="(max-width: 768px) calc(100vw - 2rem), (max-width: 1280px) 50vw, 33vw"
+                                            priority={index < 3}
+                                            className="object-cover transition-transform duration-1000 group-hover:scale-110"
                                         />
                                     )}
                                     <StockBadge stockQuantity={product.stockQuantity} className="absolute top-4 left-4" />

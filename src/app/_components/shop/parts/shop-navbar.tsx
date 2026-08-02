@@ -7,6 +7,7 @@ import { useCart } from "../cart-context";
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
 import { ThemeToggle } from "~/components/theme-toggle";
+import { StorefrontImage } from "../storefront-image";
 
 type Tenant = NonNullable<RouterOutputs["shop"]["getShopDetails"]["tenant"]>;
 
@@ -30,11 +31,13 @@ export function ShopNavbar({ tenant, search, setSearch, showSearch = true, class
                 <Link href="/" className="flex items-center gap-2">
                     {tenant?.logo ? (
                         <div className="relative h-10 w-10 overflow-hidden rounded-xl">
-                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src={tenant.logo} 
-                                alt={tenant.name || "Store Logo"} 
-                                className="h-full w-full object-contain bg-white" 
+                            <StorefrontImage
+                                src={tenant.logo}
+                                alt={tenant.name || "Store Logo"}
+                                fill
+                                sizes="2.5rem"
+                                priority
+                                className="bg-white object-contain"
                             />
                         </div>
                     ) : (

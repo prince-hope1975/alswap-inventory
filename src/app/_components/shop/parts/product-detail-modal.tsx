@@ -5,6 +5,7 @@ import { X, Minus, Plus, ShoppingCart, Package, AlertCircle, Star, ChevronLeft, 
 import { useCart } from "../cart-context";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { api } from "~/trpc/react";
+import { StorefrontImage } from "../storefront-image";
 
 interface Product {
   id: string;
@@ -122,11 +123,12 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
             <div className="space-y-4">
               <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 relative">
                 {currentImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <StorefrontImage
                     src={currentImage}
                     alt={product.name}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 768px) calc(100vw - 4rem), 50vw"
+                    className="object-cover"
                   />
                 ) : (
                   <div className="flex items-center justify-center w-full h-full">
@@ -172,8 +174,15 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                           : "border-transparent hover:border-gray-300 dark:hover:border-gray-600"
                       }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                      <span className="relative block h-full w-full">
+                        <StorefrontImage
+                          src={img}
+                          alt={`${product.name} ${idx + 1}`}
+                          fill
+                          sizes="(max-width: 768px) 20vw, 8rem"
+                          className="object-cover"
+                        />
+                      </span>
                     </button>
                   ))}
                 </div>

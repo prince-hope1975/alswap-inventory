@@ -21,6 +21,7 @@ import { useCurrency } from "~/hooks/use-tenant-settings";
 import { StorefrontArticles } from "./parts/storefront-articles";
 import { resolveStorefrontTheme } from "~/lib/domain/storefront-theme";
 import { PublicStoreUnavailable } from "./public-store-unavailable";
+import { StorefrontImage } from "./storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"];
@@ -246,8 +247,13 @@ export function StoreLayout({ initialShopDetails, initialProducts, initialCatego
                                             <div key={item.productId} className="flex gap-4">
                                                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-white/5 relative">
                                                     {item.image ? (
-                                                        // eslint-disable-next-line @next/next/no-img-element
-                                                        <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                                                        <StorefrontImage
+                                                            src={item.image}
+                                                            alt={item.name}
+                                                            fill
+                                                            sizes="5rem"
+                                                            className="object-cover"
+                                                        />
                                                     ) : (
                                                         <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">No Img</div>
                                                     )}

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { and, avg, eq, or, sql } from "drizzle-orm";
 import { headers } from "next/headers";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { ProductBuyBox } from "~/app/_components/shop/product-buy-box";
+import { StorefrontImage } from "~/app/_components/shop/storefront-image";
 import { buildBreadcrumbs, buildProduct } from "~/lib/seo/builders";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { canonicalUrl } from "~/lib/seo/base-url";
@@ -140,7 +140,7 @@ export default async function ProductPage({
           <div className="aspect-square overflow-hidden rounded-[2rem] border border-stone-300 bg-white">
             {product.image ? (
               <div className="relative h-full w-full">
-                <Image
+                <StorefrontImage
                   src={product.image}
                   alt={product.name}
                   fill

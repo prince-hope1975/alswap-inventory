@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { buildArticle, buildBreadcrumbs } from "~/lib/seo/builders";
+import { StorefrontImage } from "~/app/_components/shop/storefront-image";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { canonicalUrl } from "~/lib/seo/base-url";
 import { db } from "~/server/db";
@@ -98,11 +98,12 @@ export default async function ArticlePage({
         )}
         {article.coverImage && (
           <div className="relative mt-10 aspect-video w-full overflow-hidden rounded-3xl">
-            <Image
+            <StorefrontImage
               src={article.coverImage}
-              alt=""
+              alt={article.title}
               fill
               sizes="(max-width: 768px) 100vw, 768px"
+              priority
               className="object-cover"
             />
           </div>
