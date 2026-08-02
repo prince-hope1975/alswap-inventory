@@ -112,6 +112,14 @@ describe("baseUrlFromHost", () => {
     );
   });
 
+  it("keeps www so self-referential URLs do not point at a redirect", () => {
+    // The apex 308-redirects to www, so a sitemap served on www that lists
+    // apex URLs lists nothing but redirects.
+    expect(baseUrlFromHost("www.sppdamaks.com")).toBe(
+      "https://www.sppdamaks.com",
+    );
+  });
+
   it("falls back when the host is missing", () => {
     expect(baseUrlFromHost(null)).toBe("http://localhost:3000");
   });

@@ -124,12 +124,23 @@ export function portFromRawHost(rawHost: string | null | undefined) {
 
 /**
  * Absolute origin for a host, preserving the port in local development.
+ *
+ * `www.` is kept rather than normalized away: this builds self-referential
+ * URLs (robots.txt, sitemap.xml, password-reset links), and the apex
+ * 308-redirects to `www`, so stripping it emits a redirecting URL for every
+ * entry — which Search Console excludes as "Page with redirect".
+ * `normalizeRequestHost` still drops it for tenant lookup, where apex and
+ * `www` must resolve to the same tenant.
  */
 export function baseUrlFromHost(
   rawHost: string | null | undefined,
   port?: string | null,
 ) {
-  const host = normalizeRequestHost(rawHost);
+  const normalized = normalizeRequestHost(rawHost);
+  const hadWww = /^www\./i.test(
+    (rawHost ?? "").split(",")[0]!.trim().toLocaleLowerCase(),
+  );
+  const host = hadWww && normalized ? `www.${normalized}` : normalized;
   if (!host) return "http://localhost:3000";
   const suffix = port && isLocalHost(host) ? `:${port}` : "";
   return `${protocolFor(host)}://${host}${suffix}`;
