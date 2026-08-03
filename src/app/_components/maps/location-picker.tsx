@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { ensureLeafletMarkerIcons } from "./leaflet-setup";
 
@@ -23,6 +23,16 @@ function ClickToSetMarker({ onPick }: { onPick: (lat: number, lng: number) => vo
       onPick(e.latlng.lat, e.latlng.lng);
     },
   });
+  return null;
+}
+
+function RecenterMap({ center }: { center: LatLngExpression }) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.setView(center);
+  }, [center, map]);
+
   return null;
 }
 
@@ -149,6 +159,7 @@ export function LocationPicker({
           scrollWheelZoom={true}
           className="h-80 w-full"
         >
+          <RecenterMap center={center} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -172,5 +183,3 @@ export function LocationPicker({
     </div>
   );
 }
-
-
