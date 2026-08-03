@@ -67,6 +67,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: surfaceBase, lastModified: tenant.updatedAt ?? tenant.createdAt, changeFrequency: "daily", priority: 1 },
     { url: `${surfaceBase}/shop`, lastModified: tenant.updatedAt ?? tenant.createdAt, changeFrequency: "daily", priority: 0.9 },
     { url: `${surfaceBase}/solar`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    // The only page carrying LocalBusiness JSON-LD, so it is what ties the site
+    // to the Business Profile. Listed at the commerce host because that is what
+    // its own canonical resolves to (`canonicalUrl("/find-us")`).
+    { url: `${canonicalBase}/find-us`, lastModified: tenant.updatedAt ?? tenant.createdAt, changeFrequency: "monthly", priority: 0.7 },
     // Detail pages are listed at their canonical commerce host, never at the
     // surface host, so the sitemap never contradicts the page's own canonical.
     //

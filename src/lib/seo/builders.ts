@@ -127,15 +127,34 @@ export function buildOrganization(input: {
   };
 }
 
+/**
+ * An unfilled admin text field arrives as `""`, not null, and an empty
+ * `streetAddress` in JSON-LD is worse than an absent one.
+ */
+function filled(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === "" ? undefined : trimmed;
+}
+
 export function buildLocalBusiness(input: {
   name: string;
   url: string;
   image?: string | null;
   phone?: string | null;
   address?: string | null;
+  /**
+   * Town or city, kept out of the street line. One unparsed address string
+   * gives Google no field to read a locality from, which is what a "near me"
+   * query matches on.
+   */
+  locality?: string | null;
   latitude?: number | null;
   longitude?: number | null;
 }) {
+  const address = filled(input.address);
+  const locality = filled(input.locality);
+  const hasAddress = address !== undefined || locality !== undefined;
+
   return {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -144,8 +163,12 @@ export function buildLocalBusiness(input: {
     url: input.url,
     image: input.image ?? undefined,
     telephone: input.phone ?? undefined,
-    address: input.address
-      ? { "@type": "PostalAddress", streetAddress: input.address }
+    address: hasAddress
+      ? {
+          "@type": "PostalAddress",
+          streetAddress: address,
+          addressLocality: locality,
+        }
       : undefined,
     geo:
       input.latitude != null && input.longitude != null

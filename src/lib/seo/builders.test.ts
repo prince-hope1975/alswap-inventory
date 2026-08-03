@@ -99,6 +99,40 @@ describe("buildOrganization / buildLocalBusiness / buildWebSite", () => {
     expect(business.geo).toBeUndefined();
   });
 
+  it("splits the locality out of the street line", () => {
+    const business = buildLocalBusiness({
+      name: "Alswap",
+      url: "https://e/find-us",
+      address: "1 Example Road, Jeddo",
+      locality: "Warri",
+    });
+    expect(business.address).toEqual({
+      "@type": "PostalAddress",
+      streetAddress: "1 Example Road, Jeddo",
+      addressLocality: "Warri",
+    });
+  });
+
+  it("still emits an address when only the locality is known", () => {
+    const business = buildLocalBusiness({
+      name: "Alswap",
+      url: "https://e/find-us",
+      locality: "Warri",
+    });
+    expect(business.address?.addressLocality).toBe("Warri");
+    expect(business.address?.streetAddress).toBeUndefined();
+  });
+
+  it("omits the address entirely when neither field is filled in", () => {
+    const business = buildLocalBusiness({
+      name: "Alswap",
+      url: "https://e/find-us",
+      address: "",
+      locality: null,
+    });
+    expect(business.address).toBeUndefined();
+  });
+
   it("includes a SearchAction only when a search URL template is given", () => {
     const withSearch = buildWebSite({
       name: "Alswap",

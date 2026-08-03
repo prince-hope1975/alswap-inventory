@@ -39,6 +39,7 @@ export default async function FindUsPage() {
     image: tenant.logo,
     phone: tenant.phone,
     address: tenant.address,
+    locality: tenant.location,
     latitude: hasCoords ? lat : null,
     longitude: hasCoords ? lng : null,
   });
