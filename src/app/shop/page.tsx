@@ -4,11 +4,16 @@ import { HydrateClient, api } from "~/trpc/server";
 import { CartProvider } from "../_components/shop/cart-context";
 import { StoreLayout } from "../_components/shop/store-layout";
 import { PublicStoreUnavailable } from "../_components/shop/public-store-unavailable";
+import { requestBaseUrl, requestHost } from "~/lib/seo/base-url";
+import {
+  buildLandingMetadata,
+  getSocialLanding,
+} from "~/lib/seo/social-metadata";
 
-export const metadata: Metadata = {
-  title: "Shop electrical products",
-  description: "Browse electrical supplies, tools, lighting, power equipment and accessories.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
+  return buildLandingMetadata(base, getSocialLanding(rawHost, "shop"));
+}
 
 type ProductCondition = "NEW" | "USED" | "REFURBISHED";
 const PRODUCT_CONDITIONS: ProductCondition[] = ["NEW", "USED", "REFURBISHED"];
@@ -47,9 +52,12 @@ export default async function ShopPage({
   // on the homepage that link to /shop?search=... silently rendered the full
   // unfiltered catalog.
   const params = (await searchParams) as ShopSearchParams;
-  const search = first(params.search)?.trim() || undefined;
+  const search = first(params.search)?.trim() ?? undefined;
   const rawCategoryId = Number(first(params.categoryId));
-  const categoryId = Number.isFinite(rawCategoryId) && rawCategoryId > 0 ? rawCategoryId : undefined;
+  const categoryId =
+    Number.isFinite(rawCategoryId) && rawCategoryId > 0
+      ? rawCategoryId
+      : undefined;
   const condition = parseConditions(first(params.condition));
 
   const [shopDetails, categories, products] = await Promise.all([

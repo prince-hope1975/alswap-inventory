@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowDown,
-  ArrowRight,
   BadgeCheck,
   BatteryCharging,
-  Cable,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
@@ -23,22 +21,18 @@ import {
 import { api } from "~/trpc/server";
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
 import { JsonLd } from "~/lib/seo/json-ld";
-import { canonicalUrl } from "~/lib/seo/base-url";
+import { canonicalUrl, requestBaseUrl, requestHost } from "~/lib/seo/base-url";
 import { buildService } from "~/lib/seo/builders";
+import {
+  buildLandingMetadata,
+  getSocialLanding,
+} from "~/lib/seo/social-metadata";
 import { SolarEstimator } from "./solar-estimator";
 
-export const metadata: Metadata = {
-  title: "Solar system sizing and installation survey",
-  description:
-    "Estimate the inverter, battery and solar panels needed for your home, shop or office, then request a verified installation survey.",
-  alternates: { canonical: "/solar" },
-  openGraph: {
-    title: "Plan a solar system around what you need to power",
-    description:
-      "Build a practical load estimate and request an electrician site survey.",
-    type: "website",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
+  return buildLandingMetadata(base, getSocialLanding(rawHost, "solar"));
+}
 
 const promises = [
   {

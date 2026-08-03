@@ -1,20 +1,30 @@
 # Home Page
+
 **Path**: `src/app/page.tsx`
 
+**Route**: `/`
+
 ## Purpose
-The main landing page/storefront for customers. It displays the shop's products, categories, and allows customers to add items to their cart.
+
+Public electrical-supplies landing page for the tenant resolved from the request host.
 
 ## Features
-*   **Server-Side Fetching**: Fetches shop details, categories, and products using tRPC (`api.shop.getShopDetails`, `api.inventory.listCategories`, `api.inventory.listProducts`).
-*   **Components**:
-    *   `StoreLayout`: Main wrapper for the storefront UI.
-    *   `CartProvider`: Manages cart state.
-*   **Functionality**:
-    *   Displays tenant/shop name.
-    *   Lists products (limit 20 initially).
-    *   Responsive grid layout.
+
+- Renders tenant Organization and WebSite/SearchAction structured data.
+- Shows the electrical retail, sourcing, support, and solar entry points.
+- Returns the unavailable-store state when the request host has no tenant.
+- Emits a canonical URL and the SPPD main-site social card on approved SPPD and Vercel preview hosts.
+
+## Key Components Used
+
+- `ElectricalHome`: Public landing-page presentation.
+- `PublicStoreUnavailable`: Safe unresolved-tenant state.
+
+## Data Sources
+
+- `api.shop.getShopDetails`: Public tenant identity, contact, and branding data.
 
 ## Dependencies
-*   `~/trpc/server`: `api`
-*   `./_components/shop/cart-context`: `CartProvider`
-*   `./_components/shop/store-layout`: `StoreLayout`
+
+- `~/lib/seo/social-metadata`: Host-scoped Open Graph and Twitter metadata.
+- `~/lib/seo/builders`: Organization and WebSite structured-data builders.

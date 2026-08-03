@@ -4,14 +4,17 @@ import { ElectricalHome } from "./_components/home/electrical-home";
 import { PublicStoreUnavailable } from "./_components/shop/public-store-unavailable";
 import { buildOrganization, buildWebSite } from "~/lib/seo/builders";
 import { JsonLd } from "~/lib/seo/json-ld";
-import { canonicalUrl } from "~/lib/seo/base-url";
+import { canonicalUrl, requestBaseUrl, requestHost } from "~/lib/seo/base-url";
+import {
+  buildLandingMetadata,
+  getSocialLanding,
+} from "~/lib/seo/social-metadata";
 import { api } from "~/trpc/server";
 
-export const metadata: Metadata = {
-  title: "Electrical supplies, tools and solar solutions",
-  description:
-    "Electrical retail, project sourcing and solar solutions for homes, businesses and installers.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
+  return buildLandingMetadata(base, getSocialLanding(rawHost, "home"));
+}
 
 export default async function Home() {
   const shopDetails = await api.shop.getShopDetails();

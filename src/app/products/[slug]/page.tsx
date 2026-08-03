@@ -73,8 +73,15 @@ export async function generateMetadata({
     openGraph: {
       title,
       description,
+      url: canonical,
       images: product.image ? [product.image] : undefined,
       type: "website",
+    },
+    twitter: {
+      card: product.image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: product.image ? [product.image] : undefined,
     },
   };
 }

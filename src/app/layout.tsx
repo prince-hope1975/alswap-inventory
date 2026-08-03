@@ -4,8 +4,13 @@ import { type Metadata } from "next";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import { BrandColorProvider } from "~/lib/brand-colors";
-import { requestBaseUrl } from "~/lib/seo/base-url";
+import { requestBaseUrl, requestHost } from "~/lib/seo/base-url";
 import { getTenantBranding } from "~/lib/tenant-branding";
+import {
+  buildLandingMetadata,
+  getDefaultSocialPage,
+  getSocialLanding,
+} from "~/lib/seo/social-metadata";
 import { api } from "~/trpc/server";
 import { getBrandColorStyles } from "~/lib/brand-colors-server";
 import { ThemeScript } from "~/components/theme-script";
@@ -13,27 +18,38 @@ import { SessionProvider } from "next-auth/react";
 import { ErrorBoundary } from "~/components/error-boundary";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const base = await requestBaseUrl();
-  const { name: storeName } = await getTenantBranding();
+  const [base, rawHost, branding] = await Promise.all([
+    requestBaseUrl(),
+    requestHost(),
+    getTenantBranding(),
+  ]);
+  const { name: storeName, logo } = branding;
   const description = `${storeName} — electrical, electronics and solar supplies.`;
+  const landing = getSocialLanding(rawHost, getDefaultSocialPage(rawHost));
+  const landingMetadata = buildLandingMetadata(base, landing);
+  const fallbackImage = logo
+    ? [{ url: logo, alt: `${storeName} logo` }]
+    : undefined;
   return {
     // Without metadataBase every relative canonical in the app resolves
     // against http://localhost:3000.
     metadataBase: new URL(base),
     title: { default: storeName, template: `%s | ${storeName}` },
     description,
-    // icon.png / apple-icon.png / opengraph-image.png are file-convention
-    // routes Next wires up automatically — no `icons:` entry needed here.
+    // icon.png and apple-icon.png remain file-convention routes. Social images
+    // are explicit so each public surface can carry its own preview.
     openGraph: {
-      siteName: storeName,
+      siteName: landing.siteName ?? storeName,
       title: storeName,
       description,
       type: "website",
+      images: landingMetadata.openGraph?.images ?? fallbackImage,
     },
     twitter: {
-      card: "summary_large_image",
+      card: landing.image || logo ? "summary_large_image" : "summary",
       title: storeName,
       description,
+      images: landingMetadata.twitter?.images ?? (logo ? [logo] : undefined),
     },
   };
 }

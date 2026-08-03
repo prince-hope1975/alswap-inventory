@@ -41,10 +41,19 @@ export async function generateMetadata({
     openGraph: {
       title: result.article.title,
       description: result.article.excerpt ?? undefined,
+      url: canonical,
       images: result.article.coverImage
         ? [result.article.coverImage]
         : undefined,
       type: "article",
+    },
+    twitter: {
+      card: result.article.coverImage ? "summary_large_image" : "summary",
+      title: result.article.title,
+      description: result.article.excerpt ?? undefined,
+      images: result.article.coverImage
+        ? [result.article.coverImage]
+        : undefined,
     },
   };
 }

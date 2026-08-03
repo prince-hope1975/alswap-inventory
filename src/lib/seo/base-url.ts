@@ -16,7 +16,7 @@ export {
   type SurfaceLabel,
 } from "~/lib/seo/host";
 
-async function rawRequestHost() {
+export async function requestHost() {
   const headerList = await headers();
   return headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "";
 }
@@ -28,7 +28,7 @@ async function rawRequestHost() {
  * itself. Do NOT use for canonicals; see {@link canonicalCommerceBaseUrl}.
  */
 export async function requestBaseUrl() {
-  const raw = await rawRequestHost();
+  const raw = await requestHost();
   return baseUrlFromHost(raw, portFromRawHost(raw));
 }
 
@@ -43,7 +43,7 @@ export async function requestBaseUrl() {
  * breaking the Merchant Center domain claim, which covers one domain only.
  */
 export async function canonicalCommerceBaseUrl() {
-  const raw = await rawRequestHost();
+  const raw = await requestHost();
   return commerceBaseUrlFromHost(
     raw,
     env.COMMERCE_SUBDOMAIN,
