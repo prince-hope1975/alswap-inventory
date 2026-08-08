@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { canonicalCommerceBaseUrl, requestBaseUrl } from "~/lib/seo/base-url";
 import { surfaceLabelFromHost } from "~/lib/seo/host";
 import { db } from "~/server/db";
-import { articles, products } from "~/server/db/schema";
+import { articles, categories, products } from "~/server/db/schema";
 import { resolvePublicTenant } from "~/server/tenant";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (surface === "app") return [];
   if (!tenant) return [{ url: surfaceBase, lastModified: new Date() }];
 
-  const [productRows, articleRows] = await Promise.all([
+  const [productRows, articleRows, categoryRows] = await Promise.all([
     db.query.products.findMany({
       where: and(
         eq(products.tenantId, tenant.id),
@@ -44,6 +44,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: eq(articles.tenantId, tenant.id),
       columns: { slug: true, updatedAt: true, isPublished: true },
     }),
+    db.query.categories.findMany({
+      where: eq(categories.tenantId, tenant.id),
+      columns: { slug: true },
+    }),
   ]);
 
   // Solar is lead-gen, not catalogue: it advertises its own landing page and
@@ -51,7 +55,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // surface that actually sells them.
   if (surface === "solar") {
     return [
-      { url: surfaceBase, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
+      {
+        url: surfaceBase,
+        lastModified: new Date(),
+        changeFrequency: "weekly",
+        priority: 1,
+      },
       ...articleRows
         .filter((article) => article.isPublished)
         .map((article) => ({
@@ -64,13 +73,49 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   return [
-    { url: surfaceBase, lastModified: tenant.updatedAt ?? tenant.createdAt, changeFrequency: "daily", priority: 1 },
-    { url: `${surfaceBase}/shop`, lastModified: tenant.updatedAt ?? tenant.createdAt, changeFrequency: "daily", priority: 0.9 },
-    { url: `${surfaceBase}/solar`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    {
+      url: surfaceBase,
+      lastModified: tenant.updatedAt ?? tenant.createdAt,
+      changeFrequency: "daily",
+      priority: 1,
+    },
+    {
+      url: `${surfaceBase}/shop`,
+      lastModified: tenant.updatedAt ?? tenant.createdAt,
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
+      url: `${surfaceBase}/solar`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${canonicalBase}/guides`,
+      lastModified:
+        articleRows[0]?.updatedAt ?? tenant.updatedAt ?? tenant.createdAt,
+      changeFrequency: "monthly",
+      priority: 0.75,
+    },
     // The only page carrying LocalBusiness JSON-LD, so it is what ties the site
     // to the Business Profile. Listed at the commerce host because that is what
     // its own canonical resolves to (`canonicalUrl("/find-us")`).
-    { url: `${canonicalBase}/find-us`, lastModified: tenant.updatedAt ?? tenant.createdAt, changeFrequency: "monthly", priority: 0.7 },
+    {
+      url: `${canonicalBase}/find-us`,
+      lastModified: tenant.updatedAt ?? tenant.createdAt,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    ...categoryRows
+      .filter((category): category is typeof category & { slug: string } =>
+        Boolean(category.slug),
+      )
+      .map((category) => ({
+        url: `${canonicalBase}/categories/${category.slug}`,
+        changeFrequency: "weekly" as const,
+        priority: 0.75,
+      })),
     // Detail pages are listed at their canonical commerce host, never at the
     // surface host, so the sitemap never contradicts the page's own canonical.
     //

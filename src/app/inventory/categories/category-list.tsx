@@ -9,13 +9,19 @@ type Category = {
   id: number;
   name: string;
   tenantId: string;
+  slug: string | null;
+  description: string | null;
 };
 
-export function CategoryList({ initialCategories }: { initialCategories: Category[] }) {
+export function CategoryList({
+  initialCategories,
+}: {
+  initialCategories: Category[];
+}) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState({ name: "" });
+  const [formData, setFormData] = useState({ name: "", description: "" });
 
   const createMutation = api.inventory.createCategory.useMutation({
     onSuccess: () => {
@@ -39,28 +45,38 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
 
   const openCreateModal = () => {
     setEditingCategory(null);
-    setFormData({ name: "" });
+    setFormData({ name: "", description: "" });
     setIsModalOpen(true);
   };
 
   const openEditModal = (category: Category) => {
     setEditingCategory(category);
-    setFormData({ name: category.name });
+    setFormData({
+      name: category.name,
+      description: category.description ?? "",
+    });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingCategory(null);
-    setFormData({ name: "" });
+    setFormData({ name: "", description: "" });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingCategory) {
-      updateMutation.mutate({ id: editingCategory.id, name: formData.name });
+      updateMutation.mutate({
+        id: editingCategory.id,
+        name: formData.name,
+        description: formData.description,
+      });
     } else {
-      createMutation.mutate({ name: formData.name });
+      createMutation.mutate({
+        name: formData.name,
+        description: formData.description,
+      });
     }
   };
 
@@ -91,10 +107,10 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                 Name
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th className="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                 Actions
               </th>
             </tr>
@@ -111,9 +127,17 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
               </tr>
             ) : (
               initialCategories.map((category) => (
-                <tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <tr
+                  key={category.id}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                >
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                    {category.name}
+                    <span className="block">{category.name}</span>
+                    {category.description && (
+                      <span className="mt-1 block max-w-2xl text-xs font-normal text-gray-500 dark:text-gray-400">
+                        {category.description}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right text-sm font-medium">
                     <div className="flex justify-end gap-2">
@@ -163,9 +187,30 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
                   type="text"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:ring-[var(--brand-primary-focus)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Public description
+                </label>
+                <textarea
+                  rows={4}
+                  maxLength={2000}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="Explain what shoppers will find in this category and what the products are used for."
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm leading-6 shadow-sm focus:border-[var(--brand-primary-500)] focus:ring-[var(--brand-primary-focus)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Shown on the crawlable category page.
+                </p>
               </div>
 
               <div className="flex justify-end gap-3">
@@ -191,4 +236,3 @@ export function CategoryList({ initialCategories }: { initialCategories: Categor
     </>
   );
 }
-

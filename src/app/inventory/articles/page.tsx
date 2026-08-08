@@ -65,7 +65,7 @@ export default function ArticlesPage() {
     setShowForm(false);
   };
 
-  const handleEdit = (article: typeof articles[number]) => {
+  const handleEdit = (article: (typeof articles)[number]) => {
     setForm({
       title: article.title,
       slug: article.slug,
@@ -99,7 +99,9 @@ export default function ArticlesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Articles</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Articles
+          </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             Manage blog posts and articles for your storefront
           </p>
@@ -109,7 +111,7 @@ export default function ArticlesPage() {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--brand-primary-600)] text-white rounded-lg hover:bg-[var(--brand-primary-700)] transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-[var(--brand-primary-600)] px-4 py-2 text-white transition-colors hover:bg-[var(--brand-primary-700)]"
         >
           <Plus className="h-5 w-5" />
           New Article
@@ -117,14 +119,14 @@ export default function ArticlesPage() {
       </div>
 
       {showForm && (
-        <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <div className="mb-8 rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+          <h2 className="mb-6 text-xl font-bold text-gray-900 dark:text-white">
             {editingId ? "Edit Article" : "New Article"}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Title <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -139,12 +141,12 @@ export default function ArticlesPage() {
                     });
                   }}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--brand-primary-500)] focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[var(--brand-primary-500)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Slug <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -152,56 +154,65 @@ export default function ArticlesPage() {
                   value={form.slug}
                   onChange={(e) => setForm({ ...form, slug: e.target.value })}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--brand-primary-500)] focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[var(--brand-primary-500)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Author Name
                 </label>
                 <input
                   type="text"
                   value={form.authorName}
-                  onChange={(e) => setForm({ ...form, authorName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--brand-primary-500)] focus:border-transparent"
+                  onChange={(e) =>
+                    setForm({ ...form, authorName: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[var(--brand-primary-500)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Cover Image URL
                 </label>
                 <input
                   type="url"
                   value={form.coverImage}
-                  onChange={(e) => setForm({ ...form, coverImage: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--brand-primary-500)] focus:border-transparent"
+                  onChange={(e) =>
+                    setForm({ ...form, coverImage: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[var(--brand-primary-500)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Excerpt
               </label>
               <textarea
                 value={form.excerpt}
                 onChange={(e) => setForm({ ...form, excerpt: e.target.value })}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--brand-primary-500)] focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[var(--brand-primary-500)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Content
               </label>
+              <p className="mb-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                Formatting: <code>## Heading</code>, <code>### Subheading</code>
+                , <code>- List item</code>, <code>[link](https://...)</code>,{" "}
+                <code>![alt](https://...)</code>, and pipe tables.
+              </p>
               <textarea
                 value={form.content}
                 onChange={(e) => setForm({ ...form, content: e.target.value })}
                 rows={10}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--brand-primary-500)] focus:border-transparent font-mono text-sm"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-[var(--brand-primary-500)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               />
             </div>
 
@@ -210,10 +221,15 @@ export default function ArticlesPage() {
                 type="checkbox"
                 id="isPublished"
                 checked={form.isPublished}
-                onChange={(e) => setForm({ ...form, isPublished: e.target.checked })}
+                onChange={(e) =>
+                  setForm({ ...form, isPublished: e.target.checked })
+                }
                 className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary-600)] focus:ring-[var(--brand-primary-500)]"
               />
-              <label htmlFor="isPublished" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="isPublished"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Publish immediately
               </label>
             </div>
@@ -222,14 +238,14 @@ export default function ArticlesPage() {
               <button
                 type="submit"
                 disabled={createArticle.isPending || updateArticle.isPending}
-                className="px-6 py-2 bg-[var(--brand-primary-600)] text-white rounded-lg hover:bg-[var(--brand-primary-700)] transition-colors disabled:opacity-50"
+                className="rounded-lg bg-[var(--brand-primary-600)] px-6 py-2 text-white transition-colors hover:bg-[var(--brand-primary-700)] disabled:opacity-50"
               >
                 {editingId ? "Update Article" : "Create Article"}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                className="rounded-lg bg-gray-100 px-6 py-2 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>
@@ -239,11 +255,13 @@ export default function ArticlesPage() {
       )}
 
       {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">Loading articles...</p>
+        <div className="py-12 text-center">
+          <p className="text-gray-500 dark:text-gray-400">
+            Loading articles...
+          </p>
         </div>
       ) : articles.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="rounded-lg border border-gray-200 bg-white py-12 text-center dark:border-gray-700 dark:bg-gray-800">
           <p className="text-gray-500 dark:text-gray-400">No articles yet</p>
         </div>
       ) : (
@@ -251,37 +269,44 @@ export default function ArticlesPage() {
           {articles.map((article) => (
             <div
               key={article.id}
-              className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6"
+              className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="mb-2 flex items-center gap-3">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       {article.title}
                     </h3>
                     {article.isPublished ? (
-                      <span className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium rounded">
+                      <span className="flex items-center gap-1 rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
                         <Eye className="h-3 w-3" />
                         Published
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded">
+                      <span className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                         <EyeOff className="h-3 w-3" />
                         Draft
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
                     /{article.slug}
                   </p>
                   {article.excerpt && (
-                    <p className="text-gray-600 dark:text-gray-400 mb-3">{article.excerpt}</p>
+                    <p className="mb-3 text-gray-600 dark:text-gray-400">
+                      {article.excerpt}
+                    </p>
                   )}
                   <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-500">
                     {article.authorName && <span>By {article.authorName}</span>}
-                    <span>Created {new Date(article.createdAt).toLocaleDateString()}</span>
+                    <span>
+                      Created {new Date(article.createdAt).toLocaleDateString()}
+                    </span>
                     {article.publishedAt && (
-                      <span>Published {new Date(article.publishedAt).toLocaleDateString()}</span>
+                      <span>
+                        Published{" "}
+                        {new Date(article.publishedAt).toLocaleDateString()}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -289,19 +314,21 @@ export default function ArticlesPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleEdit(article)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    className="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
                     title="Edit"
                   >
                     <Edit2 className="h-5 w-5" />
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm("Are you sure you want to delete this article?")) {
+                      if (
+                        confirm("Are you sure you want to delete this article?")
+                      ) {
                         deleteArticle.mutate({ id: article.id });
                       }
                     }}
                     disabled={deleteArticle.isPending}
-                    className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                    className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     title="Delete"
                   >
                     <Trash2 className="h-5 w-5" />

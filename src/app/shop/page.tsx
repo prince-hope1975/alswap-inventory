@@ -9,6 +9,7 @@ import {
   buildLandingMetadata,
   getSocialLanding,
 } from "~/lib/seo/social-metadata";
+import { CrawlableCategoryLinks } from "../_components/shop/crawlable-category-links";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
@@ -71,6 +72,7 @@ export default async function ShopPage({
   return (
     <HydrateClient>
       <CartProvider>
+        <CrawlableCategoryLinks categories={categories} />
         <StoreLayout
           initialShopDetails={shopDetails}
           initialCategories={categories}

@@ -10,6 +10,8 @@ import {
   getSocialLanding,
 } from "~/lib/seo/social-metadata";
 import { api } from "~/trpc/server";
+import { getPublicProfile } from "~/lib/seo/public-profile";
+import type { StoreConfig } from "~/types/store-config";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
@@ -23,11 +25,13 @@ export default async function Home() {
   if (!tenant) return <PublicStoreUnavailable />;
 
   const siteUrl = await canonicalUrl("/");
+  const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
   const organizationJsonLd = buildOrganization({
     name: tenant.name,
     url: siteUrl,
     logo: tenant.logo,
     phone: tenant.phone,
+    sameAs: profile.socialProfiles,
   });
   const websiteJsonLd = buildWebSite({
     name: tenant.name,

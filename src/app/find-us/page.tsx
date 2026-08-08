@@ -7,6 +7,8 @@ import { buildLocalBusiness } from "~/lib/seo/builders";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { canonicalUrl } from "~/lib/seo/base-url";
 import { api } from "~/trpc/server";
+import { getPublicProfile } from "~/lib/seo/public-profile";
+import type { StoreConfig } from "~/types/store-config";
 
 export async function generateMetadata(): Promise<Metadata> {
   const canonical = await canonicalUrl("/find-us");
@@ -32,6 +34,7 @@ export default async function FindUsPage() {
     Number.isFinite(lat) &&
     Number.isFinite(lng) &&
     !(lat === 0 && lng === 0);
+  const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
 
   const localBusinessJsonLd = buildLocalBusiness({
     name: tenant.name,
@@ -42,6 +45,9 @@ export default async function FindUsPage() {
     locality: tenant.location,
     latitude: hasCoords ? lat : null,
     longitude: hasCoords ? lng : null,
+    serviceAreas: profile.serviceAreas,
+    openingHours: profile.openingHours,
+    sameAs: profile.socialProfiles,
   });
 
   return (
@@ -67,6 +73,31 @@ export default async function FindUsPage() {
           <p className="mb-6 text-gray-300">
             Phone: <span className="text-gray-100">{tenant.phone}</span>
           </p>
+        )}
+
+        {(profile.openingHours.length > 0 ||
+          profile.serviceAreas.length > 0) && (
+          <div className="mb-8 grid gap-4 sm:grid-cols-2">
+            {profile.openingHours.map((hours) => (
+              <section
+                key={`${hours.days.join("-")}-${hours.opens}`}
+                className="border border-white/10 bg-white/5 p-5"
+              >
+                <h2 className="font-bold text-white">Opening hours</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-300">
+                  {hours.days.join(", ")} · {hours.opens}–{hours.closes}
+                </p>
+              </section>
+            ))}
+            {profile.serviceAreas.length > 0 && (
+              <section className="border border-white/10 bg-white/5 p-5">
+                <h2 className="font-bold text-white">Service areas</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-300">
+                  {profile.serviceAreas.join(", ")}
+                </p>
+              </section>
+            )}
+          </div>
         )}
 
         {hasCoords ? (

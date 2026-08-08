@@ -6,6 +6,7 @@ import { Check, Minus, Plus, ShoppingCart } from "lucide-react";
 
 import { CartProvider, useCart } from "./cart-context";
 import { CheckoutModal } from "./checkout-modal";
+import { trackStorefrontEvent } from "~/components/analytics-consent";
 
 type BuyBoxProduct = {
   id: string;
@@ -36,6 +37,13 @@ function BuyBoxInner({ product }: { product: BuyBoxProduct }) {
     // does not render — set the real quantity and close it again.
     if (quantity > 1) updateQuantity(product.id, quantity);
     setIsCartOpen(false);
+    trackStorefrontEvent("add_to_cart", {
+      item_id: product.id,
+      item_name: product.name,
+      quantity,
+      value: product.price * quantity,
+      currency: "NGN",
+    });
   };
 
   if (isOutOfStock) {
@@ -56,7 +64,7 @@ function BuyBoxInner({ product }: { product: BuyBoxProduct }) {
           <button
             type="button"
             onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-            className="grid h-12 w-12 place-items-center rounded-l-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+            className="grid h-12 w-12 place-items-center rounded-l-full focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none"
             aria-label="Decrease quantity"
           >
             <Minus className="h-4 w-4" />
@@ -67,7 +75,7 @@ function BuyBoxInner({ product }: { product: BuyBoxProduct }) {
           <button
             type="button"
             onClick={() => setQuantity((q) => q + 1)}
-            className="grid h-12 w-12 place-items-center rounded-r-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+            className="grid h-12 w-12 place-items-center rounded-r-full focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none"
             aria-label="Increase quantity"
           >
             <Plus className="h-4 w-4" />
@@ -80,7 +88,7 @@ function BuyBoxInner({ product }: { product: BuyBoxProduct }) {
             putInCart();
             setAdded(true);
           }}
-          className="inline-flex min-h-14 items-center gap-3 rounded-full border border-stone-950 px-7 font-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+          className="inline-flex min-h-14 items-center gap-3 rounded-full border border-stone-950 px-7 font-black focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none"
         >
           <ShoppingCart className="h-5 w-5" /> Add to cart
         </button>
@@ -89,9 +97,15 @@ function BuyBoxInner({ product }: { product: BuyBoxProduct }) {
           type="button"
           onClick={() => {
             putInCart();
+            trackStorefrontEvent("begin_checkout", {
+              item_id: product.id,
+              quantity,
+              value: product.price * quantity,
+              currency: "NGN",
+            });
             setIsCheckoutOpen(true);
           }}
-          className="inline-flex min-h-14 items-center gap-3 rounded-full bg-stone-950 px-7 font-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+          className="inline-flex min-h-14 items-center gap-3 rounded-full bg-stone-950 px-7 font-black text-white focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none"
         >
           Buy now
         </button>
@@ -106,7 +120,9 @@ function BuyBoxInner({ product }: { product: BuyBoxProduct }) {
         </p>
       )}
 
-      {isCheckoutOpen && <CheckoutModal onClose={() => setIsCheckoutOpen(false)} />}
+      {isCheckoutOpen && (
+        <CheckoutModal onClose={() => setIsCheckoutOpen(false)} />
+      )}
     </div>
   );
 }

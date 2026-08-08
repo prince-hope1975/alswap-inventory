@@ -16,6 +16,8 @@ import { getBrandColorStyles } from "~/lib/brand-colors-server";
 import { ThemeScript } from "~/components/theme-script";
 import { SessionProvider } from "next-auth/react";
 import { ErrorBoundary } from "~/components/error-boundary";
+import { AnalyticsConsent } from "~/components/analytics-consent";
+import { env } from "~/env";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [base, rawHost, branding] = await Promise.all([
@@ -89,6 +91,9 @@ export default async function RootLayout({
           <TRPCReactProvider>
             <SessionProvider>
               <BrandColorProvider>{children}</BrandColorProvider>
+              <AnalyticsConsent
+                measurementId={env.NEXT_PUBLIC_GA4_MEASUREMENT_ID}
+              />
             </SessionProvider>
           </TRPCReactProvider>
         </ErrorBoundary>

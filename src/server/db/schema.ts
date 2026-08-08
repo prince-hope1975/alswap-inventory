@@ -8,7 +8,6 @@ import {
   uniqueIndex,
   varchar,
   decimal,
-  text,
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
@@ -20,11 +19,28 @@ import { type AdapterAccount } from "next-auth/adapters";
  */
 export const createTable = pgTableCreator((name) => `alswap-inventory_${name}`);
 
-export const userRoles = pgEnum("user_role", ["ADMIN", "MANAGER", "CASHIER", "USER"]);
+export const userRoles = pgEnum("user_role", [
+  "ADMIN",
+  "MANAGER",
+  "CASHIER",
+  "USER",
+]);
 export const shiftStatus = pgEnum("shift_status", ["OPEN", "CLOSED"]);
-export const orderStatus = pgEnum("order_status", ["PENDING", "COMPLETED", "CANCELLED"]);
-export const purchaseOrderStatus = pgEnum("purchase_order_status", ["DRAFT", "ORDERED", "RECEIVED", "CANCELLED"]);
-export const orderDeliveryMethod = pgEnum("order_delivery_method", ["PICKUP", "DELIVERY"]);
+export const orderStatus = pgEnum("order_status", [
+  "PENDING",
+  "COMPLETED",
+  "CANCELLED",
+]);
+export const purchaseOrderStatus = pgEnum("purchase_order_status", [
+  "DRAFT",
+  "ORDERED",
+  "RECEIVED",
+  "CANCELLED",
+]);
+export const orderDeliveryMethod = pgEnum("order_delivery_method", [
+  "PICKUP",
+  "DELIVERY",
+]);
 export const inventoryMovementType = pgEnum("inventory_movement_type", [
   "OPENING_BALANCE",
   "PURCHASE_RECEIPT",
@@ -42,7 +58,10 @@ export const documentJobStatus = pgEnum("document_job_status", [
   "REJECTED",
   "FAILED",
 ]);
-export const documentType = pgEnum("document_type", ["SUPPLIER_INVOICE", "CUSTOMER_RECEIPT"]);
+export const documentType = pgEnum("document_type", [
+  "SUPPLIER_INVOICE",
+  "CUSTOMER_RECEIPT",
+]);
 export const solarLeadStatus = pgEnum("solar_lead_status", [
   "NEW",
   "SURVEY_REQUESTED",
@@ -53,22 +72,38 @@ export const solarLeadStatus = pgEnum("solar_lead_status", [
   "COMPLETED",
   "LOST",
 ]);
-export const productCondition = pgEnum("product_condition", ["NEW", "USED", "REFURBISHED"]);
-export const productVisibility = pgEnum("product_visibility", ["DRAFT", "PUBLISHED", "ARCHIVED"]);
+export const productCondition = pgEnum("product_condition", [
+  "NEW",
+  "USED",
+  "REFURBISHED",
+]);
+export const productVisibility = pgEnum("product_visibility", [
+  "DRAFT",
+  "PUBLISHED",
+  "ARCHIVED",
+]);
 
 // --- Multi-tenancy Core ---
 
 export const tenants = createTable(
   "tenant",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
     name: d.varchar({ length: 255 }).notNull(),
     slug: d.varchar({ length: 255 }).notNull().unique(),
     customDomain: d.varchar("custom_domain", { length: 255 }),
     logo: d.varchar({ length: 255 }),
     brandColor: d.varchar({ length: 50 }).default("#000000"),
-    primaryColorLight: d.varchar("primary_color_light", { length: 50 }).default("#9333EA"),
-    primaryColorDark: d.varchar("primary_color_dark", { length: 50 }).default("#A855F7"),
+    primaryColorLight: d
+      .varchar("primary_color_light", { length: 50 })
+      .default("#9333EA"),
+    primaryColorDark: d
+      .varchar("primary_color_dark", { length: 50 })
+      .default("#A855F7"),
     currency: d.varchar("currency", { length: 10 }).default("₦"),
     location: d.varchar("location", { length: 255 }),
     address: d.text(),
@@ -78,29 +113,49 @@ export const tenants = createTable(
     paystackPublicKey: d.text("paystack_public_key"),
     // Encrypted-at-rest (application-layer encryption)
     paystackSecretKey: d.text("paystack_secret_key"),
-    receiptTemplate: d.varchar("receipt_template", { length: 50 }).default("classic"),
+    receiptTemplate: d
+      .varchar("receipt_template", { length: 50 })
+      .default("classic"),
     receiptFooter: d.text("receipt_footer"),
-    storeConfig: d.json("store_config").$type<{
-      template: "modern" | "classic" | "marketplace" | "minimal" | "boutique" | "conversion" | "beauty";
-      themeMode: "system" | "light" | "dark";
-      showHero: boolean;
-      showArticles: boolean;
-      primaryColor?: string;
-      heroTitle?: string;
-      heroDescription?: string;
-      deliveryFee?: number;
-      deliveryPricing?: {
-        type: "flat" | "distance";
-        baseFee?: number;
-        perKmFee?: number;
-        maxKm?: number;
-      };
-    }>().default({
-      template: "modern",
-      themeMode: "system",
-      showHero: true,
-      showArticles: false,
-    }),
+    storeConfig: d
+      .json("store_config")
+      .$type<{
+        template:
+          | "modern"
+          | "classic"
+          | "marketplace"
+          | "minimal"
+          | "boutique"
+          | "conversion"
+          | "beauty";
+        themeMode: "system" | "light" | "dark";
+        showHero: boolean;
+        showArticles: boolean;
+        primaryColor?: string;
+        heroTitle?: string;
+        heroDescription?: string;
+        businessDescription?: string;
+        serviceAreas?: string[];
+        openingHours?: Array<{
+          days: string[];
+          opens: string;
+          closes: string;
+        }>;
+        socialProfiles?: string[];
+        deliveryFee?: number;
+        deliveryPricing?: {
+          type: "flat" | "distance";
+          baseFee?: number;
+          perKmFee?: number;
+          maxKm?: number;
+        };
+      }>()
+      .default({
+        template: "modern",
+        themeMode: "system",
+        showHero: true,
+        showArticles: false,
+      }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
@@ -113,7 +168,11 @@ export const tenants = createTable(
 // --- Auth & Users ---
 
 export const users = createTable("user", (d) => ({
-  id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: d
+    .varchar({ length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   tenantId: d.varchar({ length: 255 }).references(() => tenants.id), // Nullable for super admins or initial setup
   name: d.varchar({ length: 255 }),
   email: d.varchar({ length: 255 }).notNull(),
@@ -137,7 +196,10 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 export const accounts = createTable(
   "account",
   (d) => ({
-    userId: d.varchar({ length: 255 }).notNull().references(() => users.id),
+    userId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id),
     type: d.varchar({ length: 255 }).$type<AdapterAccount["type"]>().notNull(),
     provider: d.varchar({ length: 255 }).notNull(),
     providerAccountId: d.varchar({ length: 255 }).notNull(),
@@ -163,7 +225,10 @@ export const sessions = createTable(
   "session",
   (d) => ({
     sessionToken: d.varchar({ length: 255 }).notNull().primaryKey(),
-    userId: d.varchar({ length: 255 }).notNull().references(() => users.id),
+    userId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id),
     expires: d.timestamp({ mode: "date", withTimezone: true }).notNull(),
   }),
   (t) => [index("session_user_id_idx").on(t.userId)],
@@ -189,11 +254,18 @@ export const categories = createTable(
   "category",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     name: d.varchar({ length: 255 }).notNull(),
     slug: d.varchar({ length: 255 }),
+    description: d.text(),
   }),
-  (t) => [index("category_tenant_idx").on(t.tenantId)],
+  (t) => [
+    index("category_tenant_idx").on(t.tenantId),
+    uniqueIndex("category_tenant_slug_idx").on(t.tenantId, t.slug),
+  ],
 );
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -203,8 +275,15 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
 export const suppliers = createTable(
   "supplier",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     name: d.varchar({ length: 255 }).notNull(),
     contactPerson: d.varchar({ length: 255 }),
     email: d.varchar({ length: 255 }),
@@ -224,8 +303,15 @@ export const suppliersRelations = relations(suppliers, ({ many }) => ({
 export const products = createTable(
   "product",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     categoryId: d.integer().references(() => categories.id),
     supplierId: d.varchar({ length: 255 }).references(() => suppliers.id),
     name: d.varchar({ length: 255 }).notNull(),
@@ -250,12 +336,16 @@ export const products = createTable(
     brand: d.varchar({ length: 255 }),
     gtin: d.varchar({ length: 14 }),
     mpn: d.varchar({ length: 70 }),
-    googleProductCategory: d.varchar("google_product_category", { length: 255 }),
+    googleProductCategory: d.varchar("google_product_category", {
+      length: 255,
+    }),
     feedEligible: d.boolean("feed_eligible").default(true).notNull(),
     serialNumber: d.varchar("serial_number", { length: 120 }),
     warrantyMonths: d.integer("warranty_months"),
     // NULL = owned by the tenant. Populated once C2C seller listings ship.
-    sellerId: d.varchar("seller_id", { length: 255 }).references(() => users.id),
+    sellerId: d
+      .varchar("seller_id", { length: 255 })
+      .references(() => users.id),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
@@ -268,9 +358,18 @@ export const products = createTable(
 );
 
 export const productsRelations = relations(products, ({ one, many }) => ({
-  tenant: one(tenants, { fields: [products.tenantId], references: [tenants.id] }),
-  category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
-  supplier: one(suppliers, { fields: [products.supplierId], references: [suppliers.id] }),
+  tenant: one(tenants, {
+    fields: [products.tenantId],
+    references: [tenants.id],
+  }),
+  category: one(categories, {
+    fields: [products.categoryId],
+    references: [categories.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [products.supplierId],
+    references: [suppliers.id],
+  }),
   purchaseOrderItems: many(purchaseOrderItems),
   productCategories: many(productCategories),
   reviews: many(reviews),
@@ -281,8 +380,14 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 export const productCategories = createTable(
   "product_category",
   (d) => ({
-    productId: d.varchar({ length: 255 }).notNull().references(() => products.id, { onDelete: "cascade" }),
-    categoryId: d.integer().notNull().references(() => categories.id, { onDelete: "cascade" }),
+    productId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    categoryId: d
+      .integer()
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
   }),
   (t) => [
     primaryKey({ columns: [t.productId, t.categoryId] }),
@@ -291,19 +396,37 @@ export const productCategories = createTable(
   ],
 );
 
-export const productCategoriesRelations = relations(productCategories, ({ one }) => ({
-  product: one(products, { fields: [productCategories.productId], references: [products.id] }),
-  category: one(categories, { fields: [productCategories.categoryId], references: [categories.id] }),
-}));
+export const productCategoriesRelations = relations(
+  productCategories,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productCategories.productId],
+      references: [products.id],
+    }),
+    category: one(categories, {
+      fields: [productCategories.categoryId],
+      references: [categories.id],
+    }),
+  }),
+);
 
 export const purchaseOrders = createTable(
   "purchase_order",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     supplierId: d.varchar({ length: 255 }).references(() => suppliers.id),
     status: purchaseOrderStatus("status").default("DRAFT").notNull(),
-    totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default("0"),
+    totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default(
+      "0",
+    ),
     expectedDate: d.timestamp({ withTimezone: true }),
     receivedDate: d.timestamp({ withTimezone: true }),
     notes: d.text(),
@@ -313,44 +436,76 @@ export const purchaseOrders = createTable(
   (t) => [index("po_tenant_idx").on(t.tenantId)],
 );
 
-export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
-  supplier: one(suppliers, { fields: [purchaseOrders.supplierId], references: [suppliers.id] }),
-  items: many(purchaseOrderItems),
-}));
-
-export const purchaseOrderItems = createTable(
-  "purchase_order_item",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    purchaseOrderId: d.varchar({ length: 255 }).notNull().references(() => purchaseOrders.id),
-    productId: d.varchar({ length: 255 }).notNull().references(() => products.id),
-    quantity: d.integer().notNull(),
-    unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
-    receivedQuantity: d.integer().default(0),
+export const purchaseOrdersRelations = relations(
+  purchaseOrders,
+  ({ one, many }) => ({
+    supplier: one(suppliers, {
+      fields: [purchaseOrders.supplierId],
+      references: [suppliers.id],
+    }),
+    items: many(purchaseOrderItems),
   }),
 );
 
-export const purchaseOrderItemsRelations = relations(purchaseOrderItems, ({ one }) => ({
-  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderItems.purchaseOrderId], references: [purchaseOrders.id] }),
-  product: one(products, { fields: [purchaseOrderItems.productId], references: [products.id] }),
+export const purchaseOrderItems = createTable("purchase_order_item", (d) => ({
+  id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+  purchaseOrderId: d
+    .varchar({ length: 255 })
+    .notNull()
+    .references(() => purchaseOrders.id),
+  productId: d
+    .varchar({ length: 255 })
+    .notNull()
+    .references(() => products.id),
+  quantity: d.integer().notNull(),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+  receivedQuantity: d.integer().default(0),
 }));
+
+export const purchaseOrderItemsRelations = relations(
+  purchaseOrderItems,
+  ({ one }) => ({
+    purchaseOrder: one(purchaseOrders, {
+      fields: [purchaseOrderItems.purchaseOrderId],
+      references: [purchaseOrders.id],
+    }),
+    product: one(products, {
+      fields: [purchaseOrderItems.productId],
+      references: [products.id],
+    }),
+  }),
+);
 
 // --- Stock Units, Variants & Ledger ---
 
 export const productVariants = createTable(
   "product_variant",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
-    productId: d.varchar({ length: 255 }).notNull().references(() => products.id, { onDelete: "cascade" }),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    productId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
     name: d.varchar({ length: 255 }).notNull(),
     sku: d.varchar({ length: 255 }),
     barcode: d.varchar({ length: 255 }),
     attributes: d.json().$type<Record<string, string>>(),
     retailPrice: decimal("retail_price", { precision: 12, scale: 2 }).notNull(),
     wholesalePrice: decimal("wholesale_price", { precision: 12, scale: 2 }),
-    averageUnitCost: decimal("average_unit_cost", { precision: 12, scale: 4 }).default("0").notNull(),
-    stockQuantity: decimal("stock_quantity", { precision: 14, scale: 3 }).default("0").notNull(),
+    averageUnitCost: decimal("average_unit_cost", { precision: 12, scale: 4 })
+      .default("0")
+      .notNull(),
+    stockQuantity: decimal("stock_quantity", { precision: 14, scale: 3 })
+      .default("0")
+      .notNull(),
     baseUnit: d.varchar("base_unit", { length: 32 }).default("piece").notNull(),
     isActive: d.boolean("is_active").default(true).notNull(),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
@@ -367,34 +522,70 @@ export const productVariants = createTable(
 export const unitConversions = createTable(
   "unit_conversion",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
-    productVariantId: d.varchar("product_variant_id", { length: 255 }).notNull().references(() => productVariants.id, { onDelete: "cascade" }),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    productVariantId: d
+      .varchar("product_variant_id", { length: 255 })
+      .notNull()
+      .references(() => productVariants.id, { onDelete: "cascade" }),
     unitName: d.varchar("unit_name", { length: 32 }).notNull(),
-    factorToBase: decimal("factor_to_base", { precision: 14, scale: 4 }).notNull(),
+    factorToBase: decimal("factor_to_base", {
+      precision: 14,
+      scale: 4,
+    }).notNull(),
     sellingPrice: decimal("selling_price", { precision: 12, scale: 2 }),
   }),
-  (t) => [uniqueIndex("unit_conversion_variant_unit_idx").on(t.productVariantId, t.unitName)],
+  (t) => [
+    uniqueIndex("unit_conversion_variant_unit_idx").on(
+      t.productVariantId,
+      t.unitName,
+    ),
+  ],
 );
 
 export const inventoryMovements = createTable(
   "inventory_movement",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
-    productVariantId: d.varchar("product_variant_id", { length: 255 }).notNull().references(() => productVariants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    productVariantId: d
+      .varchar("product_variant_id", { length: 255 })
+      .notNull()
+      .references(() => productVariants.id),
     type: inventoryMovementType("type").notNull(),
-    quantityDelta: decimal("quantity_delta", { precision: 14, scale: 3 }).notNull(),
+    quantityDelta: decimal("quantity_delta", {
+      precision: 14,
+      scale: 3,
+    }).notNull(),
     unitCost: decimal("unit_cost", { precision: 12, scale: 4 }),
     referenceType: d.varchar("reference_type", { length: 50 }),
     referenceId: d.varchar("reference_id", { length: 255 }),
     reason: d.text(),
-    createdByUserId: d.varchar("created_by_user_id", { length: 255 }).references(() => users.id),
+    createdByUserId: d
+      .varchar("created_by_user_id", { length: 255 })
+      .references(() => users.id),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [
     index("inventory_movement_tenant_created_idx").on(t.tenantId, t.createdAt),
-    index("inventory_movement_variant_created_idx").on(t.productVariantId, t.createdAt),
+    index("inventory_movement_variant_created_idx").on(
+      t.productVariantId,
+      t.createdAt,
+    ),
   ],
 );
 
@@ -403,8 +594,15 @@ export const inventoryMovements = createTable(
 export const customers = createTable(
   "customer",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     name: d.varchar({ length: 255 }).notNull(),
     email: d.varchar({ length: 255 }),
     phone: d.varchar({ length: 255 }),
@@ -423,9 +621,19 @@ export const customersRelations = relations(customers, ({ many }) => ({
 export const shifts = createTable(
   "shift",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
-    userId: d.varchar({ length: 255 }).notNull().references(() => users.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    userId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id),
     startTime: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     endTime: d.timestamp({ withTimezone: true }),
     startCash: decimal("start_cash", { precision: 10, scale: 2 }).default("0"),
@@ -443,17 +651,31 @@ export const shiftsRelations = relations(shifts, ({ one, many }) => ({
 export const orders = createTable(
   "order",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     shiftId: d.varchar({ length: 255 }).references(() => shifts.id),
     customerId: d.varchar({ length: 255 }).references(() => customers.id),
     clientOrderId: d.varchar("client_order_id", { length: 255 }),
-    createdByUserId: d.varchar("created_by_user_id", { length: 255 }).references(() => users.id),
-    isHistoricalImport: d.boolean("is_historical_import").default(false).notNull(),
+    createdByUserId: d
+      .varchar("created_by_user_id", { length: 255 })
+      .references(() => users.id),
+    isHistoricalImport: d
+      .boolean("is_historical_import")
+      .default(false)
+      .notNull(),
     totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
     status: orderStatus("status").default("COMPLETED").notNull(),
     paymentMethod: d.varchar({ length: 50 }).default("CASH"),
-    deliveryMethod: orderDeliveryMethod("delivery_method").default("PICKUP").notNull(),
+    deliveryMethod: orderDeliveryMethod("delivery_method")
+      .default("PICKUP")
+      .notNull(),
     deliveryAddress: d.text("delivery_address"),
     deliveryFee: decimal("delivery_fee", { precision: 10, scale: 2 }),
     customerName: d.varchar("customer_name", { length: 255 }),
@@ -469,7 +691,10 @@ export const orders = createTable(
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   shift: one(shifts, { fields: [orders.shiftId], references: [shifts.id] }),
-  customer: one(customers, { fields: [orders.customerId], references: [customers.id] }),
+  customer: one(customers, {
+    fields: [orders.customerId],
+    references: [customers.id],
+  }),
   items: many(orderItems),
 }));
 
@@ -477,8 +702,14 @@ export const orderItems = createTable(
   "order_item",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    orderId: d.varchar({ length: 255 }).notNull().references(() => orders.id),
-    productId: d.varchar({ length: 255 }).notNull().references(() => products.id),
+    orderId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => orders.id),
+    productId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => products.id),
     quantity: d.integer().notNull(),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(), // Price at time of sale
   }),
@@ -487,7 +718,10 @@ export const orderItems = createTable(
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
-  product: one(products, { fields: [orderItems.productId], references: [products.id] }),
+  product: one(products, {
+    fields: [orderItems.productId],
+    references: [products.id],
+  }),
 }));
 
 // --- Admin Notifications (simple in-app notifications for tenant admins) ---
@@ -495,8 +729,15 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 export const adminNotifications = createTable(
   "admin_notification",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     type: d.varchar({ length: 100 }).notNull(), // e.g. DELIVERY_ORDER
     title: d.varchar({ length: 255 }).notNull(),
     message: d.text(),
@@ -507,18 +748,34 @@ export const adminNotifications = createTable(
   (t) => [index("admin_notification_tenant_idx").on(t.tenantId)],
 );
 
-export const adminNotificationsRelations = relations(adminNotifications, ({ one }) => ({
-  tenant: one(tenants, { fields: [adminNotifications.tenantId], references: [tenants.id] }),
-}));
+export const adminNotificationsRelations = relations(
+  adminNotifications,
+  ({ one }) => ({
+    tenant: one(tenants, {
+      fields: [adminNotifications.tenantId],
+      references: [tenants.id],
+    }),
+  }),
+);
 
 // --- Reviews ---
 
 export const reviews = createTable(
   "review",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
-    productId: d.varchar({ length: 255 }).notNull().references(() => products.id, { onDelete: "cascade" }),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    productId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
     customerName: d.varchar({ length: 255 }).notNull(),
     customerEmail: d.varchar({ length: 255 }).notNull(),
     rating: d.integer().notNull(),
@@ -534,8 +791,14 @@ export const reviews = createTable(
 );
 
 export const reviewsRelations = relations(reviews, ({ one }) => ({
-  tenant: one(tenants, { fields: [reviews.tenantId], references: [tenants.id] }),
-  product: one(products, { fields: [reviews.productId], references: [products.id] }),
+  tenant: one(tenants, {
+    fields: [reviews.tenantId],
+    references: [tenants.id],
+  }),
+  product: one(products, {
+    fields: [reviews.productId],
+    references: [products.id],
+  }),
 }));
 
 // --- Articles ---
@@ -543,8 +806,15 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 export const articles = createTable(
   "article",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     title: d.varchar({ length: 255 }).notNull(),
     slug: d.varchar({ length: 255 }).notNull(),
     excerpt: d.text(),
@@ -563,7 +833,10 @@ export const articles = createTable(
 );
 
 export const articlesRelations = relations(articles, ({ one }) => ({
-  tenant: one(tenants, { fields: [articles.tenantId], references: [tenants.id] }),
+  tenant: one(tenants, {
+    fields: [articles.tenantId],
+    references: [tenants.id],
+  }),
 }));
 
 // --- OCR Document Inbox ---
@@ -571,9 +844,19 @@ export const articlesRelations = relations(articles, ({ one }) => ({
 export const documentJobs = createTable(
   "document_job",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
-    uploadedByUserId: d.varchar("uploaded_by_user_id", { length: 255 }).notNull().references(() => users.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    uploadedByUserId: d
+      .varchar("uploaded_by_user_id", { length: 255 })
+      .notNull()
+      .references(() => users.id),
     type: documentType("type"),
     status: documentJobStatus("status").default("UPLOADED").notNull(),
     objectKey: d.text("object_key").notNull(),
@@ -585,7 +868,9 @@ export const documentJobs = createTable(
     rawExtraction: d.json("raw_extraction").$type<Record<string, unknown>>(),
     draft: d.json().$type<Record<string, unknown>>(),
     failureMessage: d.text("failure_message"),
-    approvedByUserId: d.varchar("approved_by_user_id", { length: 255 }).references(() => users.id),
+    approvedByUserId: d
+      .varchar("approved_by_user_id", { length: 255 })
+      .references(() => users.id),
     approvedAt: d.timestamp("approved_at", { withTimezone: true }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
@@ -601,8 +886,15 @@ export const documentJobs = createTable(
 export const solarInstallers = createTable(
   "solar_installer",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     name: d.varchar({ length: 255 }).notNull(),
     phone: d.varchar({ length: 50 }).notNull(),
     email: d.varchar({ length: 255 }),
@@ -617,18 +909,33 @@ export const solarInstallers = createTable(
 export const solarLeads = createTable(
   "solar_lead",
   (d) => ({
-    id: d.varchar({ length: 255 }).notNull().primaryKey().$defaultFn(() => crypto.randomUUID()),
-    tenantId: d.varchar({ length: 255 }).notNull().references(() => tenants.id),
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
     name: d.varchar({ length: 255 }).notNull(),
     phone: d.varchar({ length: 50 }).notNull(),
     email: d.varchar({ length: 255 }),
     location: d.text().notNull(),
     status: solarLeadStatus("status").default("SURVEY_REQUESTED").notNull(),
-    estimateInput: d.json("estimate_input").$type<Record<string, unknown>>().notNull(),
-    estimateResult: d.json("estimate_result").$type<Record<string, unknown>>().notNull(),
+    estimateInput: d
+      .json("estimate_input")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    estimateResult: d
+      .json("estimate_result")
+      .$type<Record<string, unknown>>()
+      .notNull(),
     attribution: d.json().$type<Record<string, string>>(),
     preferredSurveySlots: d.json("preferred_survey_slots").$type<string[]>(),
-    assignedInstallerId: d.varchar("assigned_installer_id", { length: 255 }).references(() => solarInstallers.id),
+    assignedInstallerId: d
+      .varchar("assigned_installer_id", { length: 255 })
+      .references(() => solarInstallers.id),
     notes: d.text(),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),

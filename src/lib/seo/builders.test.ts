@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildArticle,
   buildBreadcrumbs,
+  buildCollectionPage,
   buildLocalBusiness,
   buildOrganization,
   buildProduct,
@@ -79,6 +80,27 @@ describe("buildBreadcrumbs", () => {
   });
 });
 
+describe("buildCollectionPage", () => {
+  it("lists crawlable product URLs without embedding private inventory data", () => {
+    const collection = buildCollectionPage({
+      name: "Cables",
+      description: "Cables for electrical work.",
+      url: "https://e/categories/cables",
+      products: [
+        { name: "2m cable", url: "https://e/products/2m-cable", image: null },
+      ],
+    });
+
+    expect(collection.mainEntity.itemListElement[0]).toEqual({
+      "@type": "ListItem",
+      position: 1,
+      url: "https://e/products/2m-cable",
+      name: "2m cable",
+      image: undefined,
+    });
+  });
+});
+
 describe("buildArticle", () => {
   it("falls back to the publisher as author when no author name is set", () => {
     const article = buildArticle({
@@ -87,6 +109,23 @@ describe("buildArticle", () => {
       publisherName: "Alswap",
     });
     expect(article.author).toEqual({ "@type": "Organization", name: "Alswap" });
+  });
+
+  it("publishes modified dates and a linked publisher identity", () => {
+    const article = buildArticle({
+      headline: "Guide",
+      url: "https://e/articles/guide",
+      publisherName: "Alswap",
+      publisherUrl: "https://e/",
+      dateModified: new Date("2026-08-08T10:00:00.000Z"),
+    });
+
+    expect(article.dateModified).toBe("2026-08-08T10:00:00.000Z");
+    expect(article.publisher).toEqual({
+      "@type": "Organization",
+      name: "Alswap",
+      url: "https://e/",
+    });
   });
 });
 
@@ -147,5 +186,38 @@ describe("buildOrganization / buildLocalBusiness / buildWebSite", () => {
   it("omits contactPoint when there is no phone", () => {
     const org = buildOrganization({ name: "Alswap", url: "https://e/" });
     expect(org.contactPoint).toBeUndefined();
+  });
+
+  it("connects the organization to verified profiles", () => {
+    const org = buildOrganization({
+      name: "Alswap",
+      url: "https://e/",
+      sameAs: ["https://www.instagram.com/alswap", ""],
+    });
+    expect(org.sameAs).toEqual(["https://www.instagram.com/alswap"]);
+  });
+
+  it("adds truthful service areas and opening hours to the local business", () => {
+    const business = buildLocalBusiness({
+      name: "Alswap",
+      url: "https://e/find-us",
+      serviceAreas: ["Warri", "Jeddo"],
+      openingHours: [
+        { days: ["Monday", "Tuesday"], opens: "08:00", closes: "18:00" },
+      ],
+    });
+
+    expect(business.areaServed).toEqual([
+      { "@type": "City", name: "Warri" },
+      { "@type": "City", name: "Jeddo" },
+    ]);
+    expect(business.openingHoursSpecification).toEqual([
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: ["Monday", "Tuesday"],
+        opens: "08:00",
+        closes: "18:00",
+      },
+    ]);
   });
 });

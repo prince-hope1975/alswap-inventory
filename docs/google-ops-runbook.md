@@ -1,19 +1,21 @@
 # Google ops runbook — Search Console, Business Profile, Merchant Center, Ads
 
+For the current Google AI/ChatGPT crawl policy, GA4 consent setup, category and guide rollout, content calendar, and monthly measurement checklist, also follow `docs/seo-ai-visibility-runbook.md`.
+
 Companion to `docs/domain-cutover.md`, which covers the domain/env side. This
 covers the external consoles, sequenced so nothing is submitted against a
 config that will invalidate it.
 
 Verified state as of the last check (2026-08-02):
 
-| Thing | State |
-|---|---|
-| `www` / `shop` / `solar` / `used` / `app` `.sppdamaks.com` | TLS live, all serving |
-| `COMMERCE_SUBDOMAIN` | `shop` — confirmed live, canonicals point at `shop.sppdamaks.com` |
-| `AUTH_COOKIE_DOMAIN` | `.sppdamaks.com`, set in Vercel — see Step 0 for the Preview-scope caveat |
-| `/api/feed/google` | 200, well-formed, links on `shop.sppdamaks.com` — but **only 12 items** |
-| Products with an image | **12 of 503** |
-| `robots.txt` / `sitemap.xml` | Live and correct on every surface; `app.` is `Disallow: /` |
+| Thing                                                      | State                                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `www` / `shop` / `solar` / `used` / `app` `.sppdamaks.com` | TLS live, all serving                                                     |
+| `COMMERCE_SUBDOMAIN`                                       | `shop` — confirmed live, canonicals point at `shop.sppdamaks.com`         |
+| `AUTH_COOKIE_DOMAIN`                                       | `.sppdamaks.com`, set in Vercel — see Step 0 for the Preview-scope caveat |
+| `/api/feed/google`                                         | 200, well-formed, links on `shop.sppdamaks.com` — but **only 12 items**   |
+| Products with an image                                     | **12 of 503**                                                             |
+| `robots.txt` / `sitemap.xml`                               | Live and correct on every surface; `app.` is `Disallow: /`                |
 
 ---
 
@@ -23,7 +25,7 @@ Verified state as of the last check (2026-08-02):
 logout it causes (the session cookie moves from host-scoped to root-scoped, so
 existing sessions stop being recognised) has already happened.
 
-**Caveat: it is scoped to Production *and Preview*.** Preview deployments serve
+**Caveat: it is scoped to Production _and Preview_.** Preview deployments serve
 on `*.vercel.app`, and a browser rejects a `Set-Cookie` whose `Domain` is a
 different registrable domain than the host that sent it — so no session cookie
 is stored and sign-in fails silently on every preview URL. If PRs are tested on
@@ -94,12 +96,12 @@ Move to Step 3 when that number is a fair representation of the catalog.
 3. Submit sitemaps. They differ per surface, so submit each one that has real
    content:
 
-   | Sitemap | URLs | Submit? |
-   |---|---|---|
-   | `https://shop.sppdamaks.com/sitemap.xml` | 506 | Yes — primary |
-   | `https://www.sppdamaks.com/sitemap.xml` | 506 | Yes — after the `www` fix below is deployed |
-   | `https://solar.sppdamaks.com/sitemap.xml` | 1 | Yes, but thin — see below |
-   | `https://used.sppdamaks.com/sitemap.xml` | 3 | Not yet — nothing to index |
+   | Sitemap                                   | URLs | Submit?                                     |
+   | ----------------------------------------- | ---- | ------------------------------------------- |
+   | `https://shop.sppdamaks.com/sitemap.xml`  | 506  | Yes — primary                               |
+   | `https://www.sppdamaks.com/sitemap.xml`   | 506  | Yes — after the `www` fix below is deployed |
+   | `https://solar.sppdamaks.com/sitemap.xml` | 1    | Yes, but thin — see below                   |
+   | `https://used.sppdamaks.com/sitemap.xml`  | 3    | Not yet — nothing to index                  |
 
    `app.sppdamaks.com` is `Disallow: /` plus `X-Robots-Tag: noindex` — never
    submit it.
@@ -114,6 +116,7 @@ Move to Step 3 when that number is a fair representation of the catalog.
    curl -s https://www.sppdamaks.com/sitemap.xml | grep -m1 -oE '<loc>[^<]+'
    # expect https://www.sppdamaks.com — not https://sppdamaks.com
    ```
+
 4. Keep the old `sppd.amachree.dev` property registered until its 301s have
    been crawled through. Deleting the property does not speed up the move and
    loses the redirect telemetry.

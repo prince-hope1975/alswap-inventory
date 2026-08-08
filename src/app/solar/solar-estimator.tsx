@@ -19,6 +19,7 @@ import {
   estimateSolarSystem,
   type SolarApplianceInput,
 } from "~/lib/domain/solar";
+import { trackStorefrontEvent } from "~/components/analytics-consent";
 
 const PRESETS: Array<SolarApplianceInput & { id: string }> = [
   {
@@ -241,8 +242,12 @@ export function SolarEstimator() {
                   onSubmit={(event) => {
                     event.preventDefault();
                     const form = new FormData(event.currentTarget);
+                    const applianceName = form.get("applianceName");
                     addAppliance({
-                      name: String(form.get("applianceName")).trim(),
+                      name:
+                        typeof applianceName === "string"
+                          ? applianceName.trim()
+                          : "",
                       watts: Number(form.get("watts")),
                       quantity: Number(form.get("quantity")),
                       hoursPerDay: Number(form.get("hoursPerDay")),
@@ -563,6 +568,10 @@ export function SolarEstimator() {
                   } | null)
                 : null;
               if (response?.ok) {
+                trackStorefrontEvent("generate_lead", {
+                  lead_type: "solar_survey",
+                  appliance_count: appliances.length,
+                });
                 setRequestId(payload?.id ?? null);
                 setSubmitState("sent");
               } else {

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 
 import { requestBaseUrl } from "~/lib/seo/base-url";
 import { surfaceLabelFromHost } from "~/lib/seo/host";
+import { crawlerPolicy } from "~/lib/seo/crawler-policy";
 
 // Reads the request host, so it cannot be statically generated.
 export const dynamic = "force-dynamic";
@@ -20,32 +21,20 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   // The back office is not a public surface. No sitemap either — pointing
   // crawlers at one while disallowing everything is a mixed signal.
   if (surface === "app") {
-    return { rules: [{ userAgent: "*", disallow: "/" }] };
+    return crawlerPolicy("app");
   }
 
   if (surface === "solar") {
     return {
-      rules: [
-        {
-          userAgent: "*",
-          allow: ["/solar", "/articles/"],
-          disallow: ["/inventory/", "/pos/", "/sales/", "/auth/", "/api/"],
-        },
-      ],
+      ...crawlerPolicy("solar"),
       sitemap: `${base}/sitemap.xml`,
     };
   }
 
   return {
-    rules: [
-      {
-        userAgent: "*",
-        // Longest-match wins, so "/api/feed/" overrides the "/api/" disallow —
-        // Merchant Center fetches the product feed directly.
-        allow: ["/", "/products/", "/articles/", "/solar", "/api/feed/"],
-        disallow: ["/inventory/", "/pos/", "/sales/", "/auth/", "/api/"],
-      },
-    ],
+    ...crawlerPolicy(
+      surface === "used" ? "used" : surface === "shop" ? "shop" : "home",
+    ),
     sitemap: `${base}/sitemap.xml`,
   };
 }

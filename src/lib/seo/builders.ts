@@ -75,14 +75,43 @@ export function buildBreadcrumbs(items: { name: string; url: string }[]) {
   };
 }
 
+export function buildCollectionPage(input: {
+  name: string;
+  description?: string | null;
+  url: string;
+  products: Array<{ name: string; url: string; image?: string | null }>;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": input.url,
+    name: input.name,
+    description: input.description ?? undefined,
+    url: input.url,
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: input.products.length,
+      itemListElement: input.products.map((product, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        url: product.url,
+        name: product.name,
+        image: product.image ?? undefined,
+      })),
+    },
+  };
+}
+
 export function buildArticle(input: {
   headline: string;
   description?: string | null;
   image?: string | null;
   url: string;
   datePublished?: Date | null;
+  dateModified?: Date | null;
   authorName?: string | null;
   publisherName: string;
+  publisherUrl?: string | null;
 }) {
   return {
     "@context": "https://schema.org",
@@ -95,10 +124,17 @@ export function buildArticle(input: {
     datePublished: input.datePublished
       ? input.datePublished.toISOString()
       : undefined,
+    dateModified: input.dateModified
+      ? input.dateModified.toISOString()
+      : undefined,
     author: input.authorName
       ? { "@type": "Person", name: input.authorName }
       : { "@type": "Organization", name: input.publisherName },
-    publisher: { "@type": "Organization", name: input.publisherName },
+    publisher: {
+      "@type": "Organization",
+      name: input.publisherName,
+      url: input.publisherUrl ?? undefined,
+    },
   };
 }
 
@@ -108,7 +144,9 @@ export function buildOrganization(input: {
   logo?: string | null;
   phone?: string | null;
   email?: string | null;
+  sameAs?: string[];
 }) {
+  const sameAs = input.sameAs?.map((url) => url.trim()).filter(Boolean);
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -116,6 +154,7 @@ export function buildOrganization(input: {
     name: input.name,
     url: input.url,
     logo: input.logo ?? undefined,
+    sameAs: sameAs?.length ? sameAs : undefined,
     contactPoint: input.phone
       ? {
           "@type": "ContactPoint",
@@ -150,10 +189,21 @@ export function buildLocalBusiness(input: {
   locality?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  serviceAreas?: string[];
+  openingHours?: Array<{
+    days: string[];
+    opens: string;
+    closes: string;
+  }>;
+  sameAs?: string[];
 }) {
   const address = filled(input.address);
   const locality = filled(input.locality);
   const hasAddress = address !== undefined || locality !== undefined;
+  const serviceAreas = input.serviceAreas
+    ?.map((area) => area.trim())
+    .filter(Boolean);
+  const sameAs = input.sameAs?.map((url) => url.trim()).filter(Boolean);
 
   return {
     "@context": "https://schema.org",
@@ -163,6 +213,18 @@ export function buildLocalBusiness(input: {
     url: input.url,
     image: input.image ?? undefined,
     telephone: input.phone ?? undefined,
+    sameAs: sameAs?.length ? sameAs : undefined,
+    areaServed: serviceAreas?.length
+      ? serviceAreas.map((name) => ({ "@type": "City", name }))
+      : undefined,
+    openingHoursSpecification: input.openingHours?.length
+      ? input.openingHours.map((hours) => ({
+          "@type": "OpeningHoursSpecification",
+          dayOfWeek: hours.days,
+          opens: hours.opens,
+          closes: hours.closes,
+        }))
+      : undefined,
     address: hasAddress
       ? {
           "@type": "PostalAddress",
