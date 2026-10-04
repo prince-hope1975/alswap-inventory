@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { api } from "~/trpc/react";
 import { useCart } from "./cart-context";
 import { CheckoutModal } from "./checkout-modal";
@@ -34,6 +34,8 @@ interface StoreLayoutProps {
   initialCategories?: Categories;
   /** Seeded from the URL so a crawled/shared /shop?search=... renders filtered. */
   initialSearch?: string;
+  /** Count `initialSearch` in the demand log (false for our own shortcut links). */
+  logInitialSearch?: boolean;
   initialCategoryId?: number;
   /**
    * Fixed for the life of the page: the `used.` surface rewrites `/` to
@@ -65,6 +67,7 @@ export function StoreLayout({
   initialProducts,
   initialCategories,
   initialSearch,
+  logInitialSearch = false,
   initialCategoryId,
   initialCondition,
 }: StoreLayoutProps) {
@@ -108,8 +111,12 @@ export function StoreLayout({
   });
 
   // Server-side search and category filter
-  const { data: products, isLoading: isProductsLoading } =
-    api.shop.getProducts.useQuery(
+  const {
+    data: products,
+    isLoading: isProductsLoading,
+    isFetching: isProductsFetching,
+    isPlaceholderData: isProductsPlaceholder,
+  } = api.shop.getProducts.useQuery(
       {
         search: debouncedSearch || undefined,
         categoryId: selectedCategory,
@@ -128,6 +135,32 @@ export function StoreLayout({
         placeholderData: (prev: Products | undefined) => prev,
       },
     );
+
+  // Demand log: record what customers searched and whether anything matched.
+  // Waits longer than the query debounce so "sol", "sola" are not counted on
+  // the way to "solar", and skips the term a homepage shortcut arrived with.
+  const logSearch = api.demand.logSearch.useMutation();
+  const settledSearch = useDebounce(search, 1500);
+  const hasTypedRef = useRef(logInitialSearch);
+  const lastLoggedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (search !== (initialSearch ?? "")) hasTypedRef.current = true;
+  }, [search, initialSearch]);
+  useEffect(() => {
+    const term = settledSearch.trim();
+    if (term.length < 2 || !hasTypedRef.current || lastLoggedRef.current === term) return;
+    // On the used-stock surface "no results" means "none used", not "not stocked".
+    if (initialCondition) return;
+    // Only count results that belong to this exact term: placeholder data
+    // still holds the previous search's products while the new one loads.
+    if (debouncedSearch !== settledSearch || isProductsPlaceholder || isProductsFetching || !products) {
+      return;
+    }
+    lastLoggedRef.current = term;
+    logSearch.mutate({ term, resultCount: products.length });
+    // logSearch is a stable mutation object; listing it would re-run on every state change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledSearch, debouncedSearch, isProductsPlaceholder, isProductsFetching, products, initialCondition]);
 
   const tenant = shopDetails?.tenant;
   // Safe cast or default for storeConfig since Drizzle might not have fully propagated types in local dev env without restart
