@@ -21,6 +21,9 @@ export type SocialLanding = {
   surface: SocialSurface;
   canonicalPath: "/" | "/shop" | "/solar";
   siteName: "SPPD AMAKS" | null;
+  /** Other spellings people search for, published as schema.org alternateName. */
+  alternateNames: string[];
+  legalName: string | null;
   title: string;
   description: string;
   image: SocialImage | null;
@@ -30,7 +33,10 @@ const IMAGE_SIZE = { width: 1200, height: 630 } as const;
 
 const LANDINGS: Record<
   SocialSurface,
-  Omit<SocialLanding, "branded" | "canonicalPath" | "siteName">
+  Omit<
+    SocialLanding,
+    "branded" | "canonicalPath" | "siteName" | "alternateNames" | "legalName"
+  >
 > = {
   home: {
     surface: "home",
@@ -78,6 +84,26 @@ const LANDINGS: Record<
   },
 };
 
+/**
+ * The generic home title carries no brand, so Google rewrote it to the
+ * lowercase tenant name and a business-registry page outranked us for
+ * "sppd amak's". The branded homepage leads with every spelling of the name.
+ */
+const SPPD_HOME = {
+  title: "SPPD AMAKS (S.P.P.D Amak's) | Electrical & Solar Store, Jeddo",
+  description:
+    "SPPD AMAKS (S.P.P.D Amak's Electrical & Electronics) sells cables, lighting, tools, power protection and solar equipment in Jeddo, Delta State. Shop online or visit the store.",
+} as const;
+
+const SPPD_LEGAL_NAME = "S.P.P.D Amak's Electrical & Electronics";
+
+const SPPD_ALTERNATE_NAMES = [
+  "SPPD Amak's",
+  "SPPD Amaks",
+  "S.P.P.D Amak's",
+  SPPD_LEGAL_NAME,
+];
+
 function isSppdSocialHost(rawHost: string | null | undefined) {
   const host = normalizeRequestHost(rawHost);
   return (
@@ -121,9 +147,12 @@ export function getSocialLanding(
   const landing = LANDINGS[socialSurface(rawHost, page)];
   return {
     ...landing,
+    ...(branded && landing.surface === "home" ? SPPD_HOME : {}),
     branded,
     canonicalPath: canonicalPath(rawHost, page),
     siteName: branded ? "SPPD AMAKS" : null,
+    alternateNames: branded ? SPPD_ALTERNATE_NAMES : [],
+    legalName: branded ? SPPD_LEGAL_NAME : null,
     image: branded ? landing.image : null,
   };
 }

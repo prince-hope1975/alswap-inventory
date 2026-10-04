@@ -24,17 +24,24 @@ export default async function Home() {
 
   if (!tenant) return <PublicStoreUnavailable />;
 
-  const siteUrl = await canonicalUrl("/");
+  const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
+  const landing = getSocialLanding(rawHost, "home");
+  // Google reads the site name from WebSite data on the homepage itself, so
+  // these must name the homepage URL, not the commerce host.
+  const siteUrl = new URL(landing.canonicalPath, base).toString();
+  const siteName = landing.siteName ?? tenant.name;
   const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
   const organizationJsonLd = buildOrganization({
-    name: tenant.name,
+    name: siteName,
+    alternateNames: landing.alternateNames,
     url: siteUrl,
     logo: tenant.logo,
     phone: tenant.phone,
     sameAs: profile.socialProfiles,
   });
   const websiteJsonLd = buildWebSite({
-    name: tenant.name,
+    name: siteName,
+    alternateNames: landing.alternateNames,
     url: siteUrl,
     searchUrlTemplate: `${await canonicalUrl("/shop")}?search={search_term_string}`,
   });
@@ -49,6 +56,7 @@ export default async function Home() {
           phone: tenant.phone,
           address: tenant.address,
           logo: tenant.logo,
+          legalName: landing.legalName,
         }}
       />
     </>

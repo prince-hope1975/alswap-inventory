@@ -140,6 +140,7 @@ export function buildArticle(input: {
 
 export function buildOrganization(input: {
   name: string;
+  alternateNames?: string[];
   url: string;
   logo?: string | null;
   phone?: string | null;
@@ -152,6 +153,9 @@ export function buildOrganization(input: {
     "@type": "Organization",
     "@id": `${input.url}#organization`,
     name: input.name,
+    alternateName: input.alternateNames?.length
+      ? input.alternateNames
+      : undefined,
     url: input.url,
     logo: input.logo ?? undefined,
     sameAs: sameAs?.length ? sameAs : undefined,
@@ -270,6 +274,7 @@ export function buildService(input: {
 
 export function buildWebSite(input: {
   name: string;
+  alternateNames?: string[];
   url: string;
   searchUrlTemplate?: string;
 }) {
@@ -278,6 +283,9 @@ export function buildWebSite(input: {
     "@type": "WebSite",
     "@id": `${input.url}#website`,
     name: input.name,
+    alternateName: input.alternateNames?.length
+      ? input.alternateNames
+      : undefined,
     url: input.url,
     potentialAction: input.searchUrlTemplate
       ? {

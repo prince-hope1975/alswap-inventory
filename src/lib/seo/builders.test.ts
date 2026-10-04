@@ -183,6 +183,14 @@ describe("buildOrganization / buildLocalBusiness / buildWebSite", () => {
     expect(withoutSearch.potentialAction).toBeUndefined();
   });
 
+  it("publishes alternate names only when given", () => {
+    const named = { name: "SPPD AMAKS", url: "https://e/" };
+    expect(
+      buildWebSite({ ...named, alternateNames: ["SPPD Amak's"] }).alternateName,
+    ).toEqual(["SPPD Amak's"]);
+    expect(buildOrganization(named).alternateName).toBeUndefined();
+  });
+
   it("omits contactPoint when there is no phone", () => {
     const org = buildOrganization({ name: "Alswap", url: "https://e/" });
     expect(org.contactPoint).toBeUndefined();

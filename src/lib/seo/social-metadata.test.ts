@@ -24,13 +24,21 @@ describe("getSocialLanding", () => {
       surface: "home",
       canonicalPath: "/",
       siteName: "SPPD AMAKS",
-      title: "Electrical products for real work",
+      title: "SPPD AMAKS (S.P.P.D Amak's) | Electrical & Solar Store, Jeddo",
       image: {
         path: "/og-images/home-electrical.png",
         width: 1200,
         height: 630,
       },
     });
+  });
+
+  it("lists the searched spellings of the SPPD name", () => {
+    expect(
+      getSocialLanding("www.sppdamaks.com", "home").alternateNames,
+    ).toEqual(
+      expect.arrayContaining(["SPPD Amak's", "SPPD Amaks"]) as string[],
+    );
   });
 
   it("selects ordinary shop artwork for the shop surface root", () => {
@@ -76,6 +84,14 @@ describe("getSocialLanding", () => {
       surface: "home",
       siteName: "SPPD AMAKS",
       image: { path: "/og-images/home-electrical.png" },
+    });
+  });
+
+  it("keeps the generic home title and no aliases for other tenants", () => {
+    expect(getSocialLanding("www.other-store.com", "home")).toMatchObject({
+      branded: false,
+      title: "Electrical products for real work",
+      alternateNames: [],
     });
   });
 

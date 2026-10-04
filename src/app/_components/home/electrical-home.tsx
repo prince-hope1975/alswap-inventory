@@ -27,6 +27,8 @@ type HomeTenant = {
   email?: string | null;
   address?: string | null;
   logo?: string | null;
+  /** Registered business name, shown as plain text for searches that use it. */
+  legalName?: string | null;
 };
 
 const departments = [
@@ -345,6 +347,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
               {tenant.name}
             </strong>
             <div className="mt-3 space-y-1 text-sm text-[#5c6870]">
+              {tenant.legalName && <p>{tenant.legalName}</p>}
               {tenant.address && (
                 <p className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
