@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, min, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { StorefrontImage } from "~/app/_components/shop/storefront-image";
 import { buildBreadcrumbs, buildCollectionPage } from "~/lib/seo/builders";
 import { canonicalUrl } from "~/lib/seo/base-url";
+import { categoryMetaDescription, categoryMetaTitle } from "~/lib/seo/commerce-copy";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { db } from "~/server/db";
 import { categories, productCategories, products } from "~/server/db/schema";
@@ -36,14 +37,35 @@ export async function generateMetadata({
   if (!result) return { title: "Category not found" };
   const page = Math.max(1, Number((await searchParams).page) || 1);
   const path = `/categories/${slug}${page > 1 ? `?page=${page}` : ""}`;
-  const location = result.tenant.location
-    ? ` in ${result.tenant.location}`
-    : "";
+  // Count and lowest shown price feed the snippet, so it reflects live stock.
+  const [stats] = await db
+    .select({
+      productCount: count(),
+      minPrice: min(
+        // Unpriced items still count but cannot set the "from" price.
+        sql<string>`case when ${products.salePrice} > 0 then ${products.salePrice} when ${products.price} > 0 then ${products.price} end`,
+      ),
+    })
+    .from(productCategories)
+    .innerJoin(products, eq(products.id, productCategories.productId))
+    .where(
+      and(
+        eq(productCategories.categoryId, result.category.id),
+        eq(products.tenantId, result.tenant.id),
+        eq(products.visibility, "PUBLISHED"),
+      ),
+    );
+  const minPrice = stats?.minPrice != null ? Number(stats.minPrice) : null;
   return {
-    title: `${result.category.name}${location}`,
-    description:
-      result.category.description ??
-      `Browse ${result.category.name.toLowerCase()} available from ${result.tenant.name}. Check current prices, stock and pickup or delivery options.`,
+    title: categoryMetaTitle(result.category.name, result.tenant.location),
+    description: categoryMetaDescription({
+      name: result.category.name,
+      productCount: stats?.productCount ?? 0,
+      minPrice: minPrice != null && minPrice > 0 ? minPrice : null,
+      currency: result.tenant.currency,
+      storeName: result.tenant.name,
+      description: result.category.description,
+    }),
     alternates: { canonical: await canonicalUrl(path) },
   };
 }

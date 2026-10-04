@@ -8,10 +8,23 @@ describe("crawlerPolicy", () => {
 
     expect(policy.rules).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ userAgent: "OAI-SearchBot", allow: "/" }),
+        expect.objectContaining({
+          userAgent: "OAI-SearchBot",
+          allow: expect.arrayContaining(["/products/", "/llms.txt"]) as unknown,
+        }),
         expect.objectContaining({ userAgent: "GPTBot", disallow: "/" }),
       ]),
     );
+  });
+
+  it("keeps named AI search agents out of private paths", () => {
+    const rules = crawlerPolicy("shop").rules;
+    const list = Array.isArray(rules) ? rules : [rules];
+    for (const agent of ["OAI-SearchBot", "Claude-SearchBot", "PerplexityBot"]) {
+      expect(list.find((r) => r.userAgent === agent)?.disallow).toEqual(
+        expect.arrayContaining(["/inventory/", "/api/"]),
+      );
+    }
   });
 
   it("blocks every crawler from the back office", () => {
