@@ -165,3 +165,44 @@ export function formatOpeningHours(hours: OpeningHours[] | null | undefined) {
   if (!hours?.length) return [];
   return hours.map((slot) => `${slot.days.join(", ")}: ${slot.opens}–${slot.closes}`);
 }
+
+// --- Pay-on-pickup abuse limits ---
+
+/**
+ * Pay-on-pickup reserves stock with no payment, so one anonymous order could
+ * otherwise lock up a whole shelf. Paystack orders take stock only after
+ * payment, so they keep the wider cart limit.
+ */
+export const PAY_ON_PICKUP_MAX_QUANTITY = 50;
+
+/** Unpaid pickup orders one phone number may have open in the last 24h. */
+export const PAY_ON_PICKUP_MAX_OPEN_PER_PHONE = 3;
+
+/**
+ * Error for the first product whose total quantity (duplicate lines merged,
+ * as checkout merges them) exceeds the pay-on-pickup cap, else null.
+ */
+export function pickupQuantityError(
+  items: { productId: string; quantity: number }[],
+  max = PAY_ON_PICKUP_MAX_QUANTITY,
+): string | null {
+  const totals = new Map<string, number>();
+  for (const item of items) {
+    totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity);
+  }
+  for (const total of totals.values()) {
+    if (total > max) {
+      return `Pay on pickup is limited to ${max} of each item. Pay online or contact the store for larger orders.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Comparable form of a phone number: digits only, last 10 kept, so
+ * "+234 801 234 5678", "2348012345678" and "08012345678" all match. Must stay
+ * in step with the SQL in `shop.createOrder`.
+ */
+export function phoneMatchKey(phone: string) {
+  return phone.replace(/\D/g, "").slice(-10);
+}

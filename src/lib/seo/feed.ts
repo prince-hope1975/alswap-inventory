@@ -4,6 +4,7 @@ import { and, asc, eq, gt, isNotNull, ne } from "drizzle-orm";
 
 import { db } from "~/server/db";
 import { products } from "~/server/db/schema";
+import { publicProductColumns } from "~/server/shop/public-product";
 
 export { escapeXml, feedCondition } from "~/lib/seo/feed-format";
 
@@ -21,6 +22,11 @@ function fetchFeedBatch(tenantId: string, afterId: string | undefined) {
       isNotNull(products.image),
       afterId ? gt(products.id, afterId) : undefined,
     ),
+    // Explicit list: the feed is public XML/CSV, so no cost or internal columns.
+    columns: {
+      ...publicProductColumns,
+      googleProductCategory: true,
+    },
     orderBy: asc(products.id),
     limit: FEED_BATCH_SIZE,
   });

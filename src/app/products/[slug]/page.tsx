@@ -21,6 +21,7 @@ import {
 } from "~/lib/seo/commerce-copy";
 import { db } from "~/server/db";
 import { products, reviews } from "~/server/db/schema";
+import { productPageColumns, publicProductRelations } from "~/server/shop/public-product";
 import { resolvePublicTenant } from "~/server/tenant";
 import { TrackedLink } from "~/components/tracked-link";
 
@@ -33,7 +34,8 @@ async function getProduct(slug: string) {
       eq(products.visibility, "PUBLISHED"),
       or(eq(products.slug, slug), eq(products.id, slug)),
     ),
-    with: { category: true, productCategories: { with: { category: true } } },
+    columns: productPageColumns,
+    with: publicProductRelations,
   });
   return product ? { tenant, product } : null;
 }

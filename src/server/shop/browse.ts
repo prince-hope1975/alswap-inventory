@@ -3,6 +3,7 @@ import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { db as appDb } from "~/server/db";
 import { categories, productCategories, products } from "~/server/db/schema";
 import { toRows } from "~/server/db/rows";
+import { publicProductColumns, publicProductRelations } from "~/server/shop/public-product";
 import {
   resolveShopSort,
   toDisplayCategoryName,
@@ -31,10 +32,9 @@ const effectivePrice = sql`(CASE WHEN p."sale_price" IS NOT NULL AND p."sale_pri
 function loadProductsInOrder(db: Database, ids: string[]) {
   return db.query.products.findMany({
     where: inArray(products.id, ids),
-    with: {
-      category: true,
-      productCategories: { with: { category: true } },
-    },
+    // Public endpoint: never load cost, supplier or other internal columns.
+    columns: publicProductColumns,
+    with: publicProductRelations,
   });
 }
 

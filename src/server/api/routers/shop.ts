@@ -5,7 +5,16 @@ import { eq, and, or, sql, inArray, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { db } from "~/server/db";
 import { resolvePublicTenant } from "~/server/tenant";
-import { newPaymentReference, orderNumber, paystackEmailFor, toKobo } from "~/lib/domain/checkout";
+import {
+    newPaymentReference,
+    orderNumber,
+    PAY_ON_PICKUP_MAX_OPEN_PER_PHONE,
+    paystackEmailFor,
+    phoneMatchKey,
+    pickupQuantityError,
+    toKobo,
+} from "~/lib/domain/checkout";
+import { enforceRateLimit, shopRateLimits } from "~/server/security/rate-limit";
 import { notifyOrderPlaced } from "~/server/orders/notify";
 import {
     finalizePaystackOrder,
@@ -16,6 +25,7 @@ import {
 } from "~/server/payments/paystack";
 import { SHOP_PAGE_SIZE, SHOP_SORT_OPTIONS } from "~/lib/domain/shop-filters";
 import { browseStorefrontProducts, emptyBrowseResult, listStorefrontCategories } from "~/server/shop/browse";
+import { publicProductColumns, publicProductRelations } from "~/server/shop/public-product";
 
 /** Storefront checkout honors salePrice, same rule as the POS (`prepareSale` in `~/lib/domain/sale.ts`). */
 function effectiveUnitPrice(product: { price: string; salePrice: string | null }): number {
@@ -137,13 +147,15 @@ const checkoutItemsInput = z
 
 /** Phone is how the store reaches the shopper; email is optional. */
 const customerDetailsInput = z.object({
-    name: z.string().trim().min(1, "Name is required").max(255),
-    phone: z.string().trim().min(7, "Phone number is required").max(50),
+    name: z.string().trim().min(1, "Name is required").max(120, "Name is too long"),
+    phone: z.string().trim().min(7, "Phone number is required").max(30, "Phone number is too long"),
     email: z.preprocess(
         (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-        z.string().trim().email().max(255).optional(),
+        z.string().trim().email().max(254).optional(),
     ),
 });
+
+const deliveryAddressInput = z.string().max(500, "Delivery address is too long");
 
 type CheckoutLine = {
     productId: string;
@@ -276,14 +288,8 @@ export const shopRouter = createTRPCRouter({
                     eq(products.tenantId, tenant.id),
                     eq(products.visibility, "PUBLISHED"),
                 ),
-                with: {
-                    category: true,
-                    productCategories: {
-                        with: {
-                            category: true,
-                        },
-                    },
-                },
+                columns: publicProductColumns,
+                with: publicProductRelations,
             });
         }),
 
@@ -302,20 +308,16 @@ export const shopRouter = createTRPCRouter({
                     eq(products.visibility, "PUBLISHED"),
                     or(eq(products.slug, input.slug), eq(products.id, input.slug)),
                 ),
-                with: {
-                    category: true,
-                    productCategories: {
-                        with: {
-                            category: true,
-                        },
-                    },
-                },
+                columns: publicProductColumns,
+                with: publicProductRelations,
             });
         }),
 
     estimateDeliveryFee: publicProcedure
-        .input(z.object({ deliveryAddress: z.string().min(5) }))
+        .input(z.object({ deliveryAddress: deliveryAddressInput.min(5) }))
         .query(async ({ ctx, input }) => {
+            // Each quote can hit the geocoder, so throttle per client.
+            enforceRateLimit(shopRateLimits.deliveryEstimate, ctx.headers);
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
@@ -333,10 +335,11 @@ export const shopRouter = createTRPCRouter({
                 items: checkoutItemsInput,
                 customerDetails: customerDetailsInput,
                 deliveryMethod: z.enum(["PICKUP", "DELIVERY"]).optional(),
-                deliveryAddress: z.string().optional(),
+                deliveryAddress: deliveryAddressInput.optional(),
             })
         )
         .mutation(async ({ ctx, input }) => {
+            enforceRateLimit(shopRateLimits.paystackInit, ctx.headers);
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
@@ -418,7 +421,12 @@ export const shopRouter = createTRPCRouter({
                 await ctx.db.update(orders)
                     .set({ status: "CANCELLED" })
                     .where(and(eq(orders.id, order.id), eq(orders.status, "PENDING")));
-                throw new TRPCError({ code: "BAD_GATEWAY", message: init.message });
+                // Paystack's own wording is for us, not the shopper.
+                console.error(`[paystack] initialize failed order=${order.id} ref=${reference}: ${init.message}`);
+                throw new TRPCError({
+                    code: "BAD_GATEWAY",
+                    message: "We couldn't start the online payment. Please try again, or choose pay on pickup.",
+                });
             }
 
             return {
@@ -451,6 +459,10 @@ export const shopRouter = createTRPCRouter({
             ])
         )
         .mutation(async ({ ctx, input }) => {
+            enforceRateLimit(
+                input.paymentMethod === "PAYSTACK" ? shopRateLimits.paystackVerify : shopRateLimits.payOnPickupOrder,
+                ctx.headers,
+            );
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
@@ -469,17 +481,51 @@ export const shopRouter = createTRPCRouter({
                         throw new TRPCError({ code: "NOT_FOUND", message: error.message });
                     }
                     if (error instanceof PaymentVerificationError) {
-                        throw new TRPCError({ code: "PAYMENT_REQUIRED", message: error.message });
+                        // The reason can be Paystack's raw message; log it, show a generic one.
+                        console.error(`[paystack] verification failed ref=${input.reference}: ${error.message}`);
+                        throw new TRPCError({
+                            code: "PAYMENT_REQUIRED",
+                            message: `We couldn't confirm your payment. If you were charged, contact the store with reference ${input.reference}.`,
+                        });
                     }
                     throw error;
                 }
             }
 
-            // Pay on pickup: a direct PENDING order; stock is held now.
+            // Pay on pickup: a direct PENDING order; stock is held now. It is
+            // unauthenticated and unpaid, so cap how much one order can hold.
+            const quantityError = pickupQuantityError(input.items);
+            if (quantityError) throw new TRPCError({ code: "BAD_REQUEST", message: quantityError });
+
             const lines = await loadCheckoutLines(ctx.db, tenant.id, input.items);
             const totalAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+            const phoneKey = phoneMatchKey(input.customerDetails.phone);
+            if (phoneKey.length < 7) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Enter a valid phone number." });
+            }
 
             const newOrder = await ctx.db.transaction(async (tx) => {
+                // Serialize pickup orders per phone so concurrent requests can't
+                // all pass the open-order cap below.
+                await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`pickup:${tenant.id}:${phoneKey}`}))`);
+                const [open] = await tx
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(orders)
+                    .where(and(
+                        eq(orders.tenantId, tenant.id),
+                        eq(orders.paymentMethod, "PAY_ON_PICKUP"),
+                        eq(orders.status, "PENDING"),
+                        gte(orders.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+                        // Same normalization as phoneMatchKey: digits only, last 10.
+                        sql`right(regexp_replace(coalesce(${orders.customerPhone}, ''), '[^0-9]', '', 'g'), 10) = ${phoneKey}`,
+                    ));
+                if ((open?.count ?? 0) >= PAY_ON_PICKUP_MAX_OPEN_PER_PHONE) {
+                    throw new TRPCError({
+                        code: "TOO_MANY_REQUESTS",
+                        message: "You already have several pickup orders waiting. Please collect them or contact the store before placing another.",
+                    });
+                }
+
                 const [order] = await tx.insert(orders).values({
                     tenantId: tenant.id,
                     totalAmount: totalAmount.toString(),

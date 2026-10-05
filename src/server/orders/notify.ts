@@ -15,8 +15,8 @@ type Tenant = typeof tenants.$inferSelect;
 export type StockShortfall = { productId: string; name: string; wanted: number };
 
 /**
- * Tell staff (in-app + email) and the shopper (email, if given) about a new
- * storefront order. Call exactly once per order: on creation for
+ * Tell staff (in-app + email) and, for paid Paystack orders, the shopper
+ * (email, if given) about a new storefront order. Call exactly once per order: on creation for
  * pay-on-pickup, and from the caller that wins the PENDING→COMPLETED update
  * for online payments. Never throws: a failed notification must not fail an
  * order the customer already placed or paid for.
@@ -108,9 +108,16 @@ export async function notifyOrderPlaced(input: {
       .map((member) => member.email)
       .filter((email): email is string => Boolean(email));
 
+    // Pay-on-pickup orders are anonymous and unverified: emailing whatever
+    // address was typed would let anyone use the store as a spam relay. Only
+    // Paystack orders (a verified payment) get a customer confirmation.
+    const confirmCustomer = paymentMethod === "PAYSTACK" && customerEmail != null;
+
     await Promise.allSettled([
       sendNewOrderStaffEmail({ ...emailInput, to: staffEmails }),
-      sendOrderConfirmationEmail({ ...emailInput, to: customerEmail }),
+      confirmCustomer
+        ? sendOrderConfirmationEmail({ ...emailInput, to: customerEmail })
+        : Promise.resolve(),
     ]).then((results) => {
       for (const result of results) {
         if (result.status === "rejected") {

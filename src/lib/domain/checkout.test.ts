@@ -6,6 +6,8 @@ import {
   formatMoney,
   newPaymentReference,
   paystackEmailFor,
+  phoneMatchKey,
+  pickupQuantityError,
   validateCheckoutDetails,
   type CartLine,
 } from "./checkout";
@@ -116,5 +118,34 @@ describe("validateCheckoutDetails", () => {
     );
     expect(errors.email).toBeDefined();
     expect(errors.deliveryAddress).toBeDefined();
+  });
+});
+
+describe("pay-on-pickup limits", () => {
+  it("caps the merged quantity per product", () => {
+    expect(pickupQuantityError([{ productId: "a", quantity: 50 }])).toBeNull();
+    expect(pickupQuantityError([{ productId: "a", quantity: 51 }])).toMatch(/limited to 50/);
+    // Duplicate lines are merged before the check.
+    expect(
+      pickupQuantityError([
+        { productId: "a", quantity: 30 },
+        { productId: "b", quantity: 30 },
+        { productId: "a", quantity: 30 },
+      ]),
+    ).toMatch(/limited to 50/);
+    expect(
+      pickupQuantityError([
+        { productId: "a", quantity: 30 },
+        { productId: "b", quantity: 30 },
+      ]),
+    ).toBeNull();
+  });
+
+  it("normalizes phone numbers to a comparable key", () => {
+    expect(phoneMatchKey("+234 801 234 5678")).toBe("8012345678");
+    expect(phoneMatchKey("08012345678")).toBe("8012345678");
+    expect(phoneMatchKey("2348012345678")).toBe("8012345678");
+    expect(phoneMatchKey("(0801) 234-5678")).toBe("8012345678");
+    expect(phoneMatchKey("12345")).toBe("12345");
   });
 });
