@@ -27,15 +27,16 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
                 title="Total Products"
                 value={stats.totalProducts}
                 icon={Package}
-                description={unknownCount > 0 ? `${unknownCount} with unknown quantity` : "Active items in stock"}
+                description={unknownCount > 0 ? `${unknownCount} with unknown quantity` : "View all products"}
                 gradient="from-blue-500 to-cyan-500"
+                href="/inventory/products"
                 isLoading={isLoading}
             />
             <StatsCard
                 title="Low Stock Alerts"
                 value={stats.lowStock}
                 icon={AlertTriangle}
-                description={stats.lowStock > 0 ? "View items at or below threshold" : "Items at or below threshold"}
+                description={stats.lowStock > 0 ? "View items at or below threshold" : "Nothing at or below threshold"}
                 gradient="from-red-500 to-orange-500"
                 href={stats.lowStock > 0 ? "/inventory/products?stock=low" : undefined}
                 isLoading={isLoading}
@@ -46,14 +47,16 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
                 icon={DollarSign}
                 description={unknownCount > 0 ? `Excludes ${unknownCount} unknown` : "Inventory asset value"}
                 gradient="from-green-500 to-emerald-500"
+                href="/inventory/analytics"
                 isLoading={isLoading}
             />
             <StatsCard
                 title="Sales Today"
                 value={formatCurrency(stats.salesToday)}
                 icon={TrendingUp}
-                description="Revenue generated today"
+                description="View today's orders"
                 gradient="from-[var(--brand-primary-500)] to-[var(--brand-gradient-to)]"
+                href="/inventory/orders"
                 isLoading={isLoading}
             />
         </div>
@@ -103,7 +106,7 @@ function StatsCard({
                         {title}
                     </h3>
                     <div className={`rounded-lg bg-gradient-to-br ${gradient} p-2`}>
-                        <Icon className="h-5 w-5 text-white" />
+                        <Icon className="h-5 w-5 text-white" aria-hidden="true" />
                     </div>
                 </div>
                 <div className="mt-3">

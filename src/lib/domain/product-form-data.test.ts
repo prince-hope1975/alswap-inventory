@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  salePriceWarning,
   lowStockThresholdWarning,
   optionalNumberInput,
   parseOptionalPrice,
@@ -77,5 +78,18 @@ describe("lowStockThresholdWarning", () => {
   it("stays quiet above the threshold or for untracked stock", () => {
     expect(lowStockThresholdWarning(6, 5)).toBeNull();
     expect(lowStockThresholdWarning(-1, 5)).toBeNull();
+  });
+});
+
+describe("salePriceWarning", () => {
+  it("warns when the sale price is not a discount", () => {
+    expect(salePriceWarning(100, 100)).toMatch(/not below/);
+    expect(salePriceWarning(100, 150)).toMatch(/not below/);
+  });
+
+  it("is quiet for a real discount or no sale price", () => {
+    expect(salePriceWarning(100, 80)).toBeNull();
+    expect(salePriceWarning(100, null)).toBeNull();
+    expect(salePriceWarning(Number.NaN, 80)).toBeNull();
   });
 });

@@ -85,3 +85,19 @@ export function stockStatus(stockQuantity: number, lowStockThreshold: number | n
   if (stockQuantity <= (lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD)) return "low";
   return "ok";
 }
+
+/**
+ * "Stock: low to high" ordering: tracked quantities ascending, untracked (-1)
+ * last (it means "unknown", not "less than zero"). Ties break on name. Mirrors
+ * the SQL ORDER BY in listProducts.
+ */
+export function compareStockAsc(
+  a: { stockQuantity: number; name: string },
+  b: { stockQuantity: number; name: string },
+) {
+  const au = a.stockQuantity < 0;
+  const bu = b.stockQuantity < 0;
+  if (au !== bu) return au ? 1 : -1;
+  if (a.stockQuantity !== b.stockQuantity) return a.stockQuantity - b.stockQuantity;
+  return a.name.localeCompare(b.name);
+}

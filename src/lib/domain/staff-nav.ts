@@ -46,3 +46,18 @@ export function activeNavHref(pathname: string, hrefs: readonly string[]) {
   }
   return best;
 }
+
+export const NAV_SECTIONS = ["Overview", "Catalog", "Sales", "Insights", "Admin"] as const;
+export type NavSection = (typeof NAV_SECTIONS)[number];
+
+/**
+ * Groups already role-filtered nav items into sidebar sections, in
+ * NAV_SECTIONS order, dropping sections left empty (a cashier sees only
+ * "Sales"). Item order inside a section is preserved.
+ */
+export function groupNavItems<T extends { section: NavSection }>(items: readonly T[]) {
+  return NAV_SECTIONS.map((section) => ({
+    section,
+    items: items.filter((item) => item.section === section),
+  })).filter((group) => group.items.length > 0);
+}

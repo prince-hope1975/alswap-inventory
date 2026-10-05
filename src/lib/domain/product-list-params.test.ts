@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProductListParams, productListQuery, stockStatus } from "./product-list-params";
+import { compareStockAsc, parseProductListParams, productListQuery, stockStatus } from "./product-list-params";
 
 describe("parseProductListParams", () => {
   it("returns defaults for an empty query", () => {
@@ -61,5 +61,17 @@ describe("stockStatus", () => {
   it("defaults the threshold to 5 when unset", () => {
     expect(stockStatus(5, null)).toBe("low");
     expect(stockStatus(6, undefined)).toBe("ok");
+  });
+});
+
+describe("compareStockAsc", () => {
+  it("sorts tracked stock low to high and untracked (-1) last", () => {
+    const rows = [
+      { name: "U", stockQuantity: -1 },
+      { name: "B", stockQuantity: 5 },
+      { name: "A", stockQuantity: 0 },
+      { name: "C", stockQuantity: 5 },
+    ];
+    expect([...rows].sort(compareStockAsc).map((r) => r.name)).toEqual(["A", "B", "C", "U"]);
   });
 });

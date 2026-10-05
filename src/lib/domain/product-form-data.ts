@@ -70,3 +70,17 @@ export function lowStockThresholdWarning(stockQuantity: number, lowStockThreshol
   }
   return null;
 }
+
+/**
+ * Warning when a sale price would not discount anything. The storefront
+ * ignores a sale price at or above the regular price, so this is almost
+ * always a typo.
+ */
+export function salePriceWarning(price: number | null | undefined, salePrice: number | null | undefined): string | null {
+  if (salePrice === null || salePrice === undefined || !Number.isFinite(salePrice)) return null;
+  if (price === null || price === undefined || !Number.isFinite(price)) return null;
+  if (salePrice >= price) {
+    return "The sale price is not below the selling price, so shoppers will not see a discount.";
+  }
+  return null;
+}

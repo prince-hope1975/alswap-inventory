@@ -10,6 +10,7 @@ import {
   productCategories,
   productVariants,
   inventoryMovements,
+  purchaseOrderItems,
 } from "~/server/db/schema";
 import {
   eq,
@@ -32,6 +33,7 @@ import {
 } from "~/lib/domain/product-list-params";
 import { computeStockAdjustment, nextVariantStock } from "~/lib/domain/stock-adjust";
 import { countsAsSaleSql } from "~/server/orders/sales-filter";
+import { bulkDeleteInput, bulkSetCategoryInput } from "~/lib/domain/bulk-products";
 
 /**
  * Tracked (>= 0) and at or below the threshold (default 5). Shared by the
@@ -309,7 +311,8 @@ export const inventoryRouter = createTRPCRouter({
       const orderBy = {
         newest: [desc(products.createdAt)],
         name: [asc(products.name)],
-        "stock-asc": [asc(products.stockQuantity), asc(products.name)],
+        // Untracked (-1) last: "unknown" is not "less than zero". Mirrors compareStockAsc.
+        "stock-asc": [asc(sql`(${products.stockQuantity} < 0)`), asc(products.stockQuantity), asc(products.name)],
         "stock-desc": [desc(products.stockQuantity), asc(products.name)],
         "price-asc": [asc(products.price), asc(products.name)],
         "price-desc": [desc(products.price), asc(products.name)],
@@ -376,7 +379,9 @@ export const inventoryRouter = createTRPCRouter({
           price: z.number().min(0).optional(),
           salePrice: z.number().min(0).optional().nullable(),
           costPrice: z.number().min(0).optional(),
-          stockQuantity: z.number().int().min(-1).optional(), // -1 = unknown quantity
+          // No stockQuantity: stock only changes through updateStock (which
+          // writes an inventory movement), sales, and order status changes.
+          // zod strips the key if an old client still sends it.
           lowStockThreshold: z.number().int().optional(),
           condition: productConditionInput.optional(),
           conditionNotes: z.string().optional(),
@@ -391,6 +396,14 @@ export const inventoryRouter = createTRPCRouter({
         })
     )
     .mutation(async ({ ctx, input }) => {
+      // Ownership first: the category-link rewrite and the final read below
+      // are keyed by product id alone.
+      const owned = await ctx.db.query.products.findFirst({
+        where: and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)),
+        columns: { id: true },
+      });
+      if (!owned) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+
       const updateData: Record<string, unknown> = {};
 
       if (input.name !== undefined) updateData.name = input.name;
@@ -431,8 +444,6 @@ export const inventoryRouter = createTRPCRouter({
         updateData.salePrice = input.salePrice?.toString() ?? null;
       if (input.costPrice !== undefined)
         updateData.costPrice = input.costPrice.toString();
-      if (input.stockQuantity !== undefined)
-        updateData.stockQuantity = input.stockQuantity;
       if (input.lowStockThreshold !== undefined)
         updateData.lowStockThreshold = input.lowStockThreshold;
       if (input.condition !== undefined) updateData.condition = input.condition;
@@ -491,7 +502,7 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       return ctx.db.query.products.findFirst({
-        where: eq(products.id, input.id),
+        where: and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)),
         with: {
           category: true,
           productCategories: {
@@ -513,6 +524,66 @@ export const inventoryRouter = createTRPCRouter({
           and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)),
         );
     }),
+
+  /**
+   * Sets one category on many products: it becomes their primary category
+   * and their only category link. Tenant-scoped on both the products and the
+   * category; ids not owned by the tenant are ignored.
+   */
+  bulkSetCategory: managerProcedure.input(bulkSetCategoryInput).mutation(async ({ ctx, input }) => {
+    return ctx.db.transaction(async (tx) => {
+      const category = await tx.query.categories.findFirst({
+        where: and(eq(categories.id, input.categoryId), eq(categories.tenantId, ctx.tenantId)),
+        columns: { id: true, name: true },
+      });
+      if (!category) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found" });
+
+      const owned = await tx
+        .select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, input.ids)));
+      const ids = owned.map((p) => p.id);
+      if (ids.length === 0) return { updated: 0, categoryName: category.name };
+
+      await tx.update(products).set({ categoryId: category.id }).where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, ids)));
+      // productCategories has no tenantId: scope it through the owned ids.
+      await tx.delete(productCategories).where(inArray(productCategories.productId, ids));
+      await tx.insert(productCategories).values(ids.map((productId) => ({ productId, categoryId: category.id })));
+      return { updated: ids.length, categoryName: category.name };
+    });
+  }),
+
+  /**
+   * ADMIN-only bulk delete. Products with sales, purchase-order or stock
+   * movement history are kept (those rows reference them) and reported as
+   * skipped instead of failing the whole batch.
+   */
+  bulkDeleteProducts: tenantProcedure.input(bulkDeleteInput).mutation(async ({ ctx, input }) => {
+    return ctx.db.transaction(async (tx) => {
+      const owned = await tx
+        .select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, input.ids)));
+      const ids = owned.map((p) => p.id);
+      if (ids.length === 0) return { deleted: 0, skipped: 0 };
+
+      const [sold, purchased, moved] = await Promise.all([
+        tx.selectDistinct({ id: orderItems.productId }).from(orderItems).where(inArray(orderItems.productId, ids)),
+        tx.selectDistinct({ id: purchaseOrderItems.productId }).from(purchaseOrderItems).where(inArray(purchaseOrderItems.productId, ids)),
+        tx
+          .selectDistinct({ id: productVariants.productId })
+          .from(inventoryMovements)
+          .innerJoin(productVariants, eq(productVariants.id, inventoryMovements.productVariantId))
+          .where(and(eq(inventoryMovements.tenantId, ctx.tenantId), inArray(productVariants.productId, ids))),
+      ]);
+      const blocked = new Set([...sold, ...purchased, ...moved].map((r) => r.id));
+      const deletable = ids.filter((id) => !blocked.has(id));
+      if (deletable.length > 0) {
+        await tx.delete(products).where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, deletable)));
+      }
+      return { deleted: deletable.length, skipped: ids.length - deletable.length };
+    });
+  }),
 
   getLowStockProducts: managerProcedure.query(async ({ ctx }) => {
     return ctx.db.query.products.findMany({

@@ -7,6 +7,8 @@ import { ProductActions } from "./product-actions";
 import { ProductSearch } from "./product-search";
 import { Money } from "./money";
 import { InventoryStockBadge } from "./stock-badge";
+import { BulkActionBar, BulkSelectionProvider, RowCheckbox, SelectAllCheckbox } from "./bulk-selection";
+import { btnPrimary } from "~/components/ui/styles";
 import { productSearchReadiness } from "~/lib/seo/product-readiness";
 import {
   hasActiveProductFilters,
@@ -91,11 +93,8 @@ export default async function ProductsPage(props: {
                 : `${total} product${total === 1 ? "" : "s"}${filtered ? " match" : ""}`}
             </p>
           </div>
-          <Link
-            href="/inventory/products/new"
-            className="flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)]"
-          >
-            <Plus className="h-4 w-4" />
+          <Link href="/inventory/products/new" className={btnPrimary}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
             Add Product
           </Link>
         </div>
@@ -125,6 +124,7 @@ export default async function ProductsPage(props: {
           </details>
         )}
 
+        <BulkSelectionProvider pageIds={products.map((p) => p.id)}>
         <div className="space-y-4">
           {/* Desktop Table View */}
           <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:block dark:border-gray-700 dark:bg-gray-800">
@@ -132,6 +132,9 @@ export default async function ProductsPage(props: {
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
+                    <th className="w-10 py-3 pl-4">
+                      <SelectAllCheckbox />
+                    </th>
                     <th className={th}>Name</th>
                     <th className={th}>SKU / Barcode</th>
                     <th className={th}>Category</th>
@@ -147,7 +150,7 @@ export default async function ProductsPage(props: {
                   {products.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="px-6 py-10 text-center text-gray-500 dark:text-gray-400"
                       >
                         {emptyMessage}
@@ -161,11 +164,14 @@ export default async function ProductsPage(props: {
                           key={product.id}
                           className="relative hover:bg-gray-50 dark:hover:bg-gray-700/50"
                         >
+                          <td className="w-10 py-3 pl-4">
+                            <RowCheckbox id={product.id} name={product.name} />
+                          </td>
                           <td className="px-4 py-3">
-                            {/* Stretched link: the whole row opens the editor. */}
+                            {/* Stretched link: the whole row opens the editor; its ::after carries the focus ring. */}
                             <Link
                               href={`/inventory/products/${product.id}`}
-                              className="font-medium text-gray-900 after:absolute after:inset-0 hover:text-[var(--brand-primary-700)] focus-visible:underline focus-visible:outline-none dark:text-white dark:hover:text-[var(--brand-primary-300)]"
+                              className="font-medium text-gray-900 after:absolute after:inset-0 hover:text-[var(--brand-primary-700)] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-[var(--brand-primary-focus)] focus-visible:after:ring-inset dark:text-white dark:hover:text-[var(--brand-primary-300)]"
                             >
                               {product.name}
                             </Link>
@@ -236,10 +242,13 @@ export default async function ProductsPage(props: {
                     className="relative flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="pt-0.5">
+                        <RowCheckbox id={product.id} name={product.name} />
+                      </div>
+                      <div className="min-w-0 flex-1">
                         <Link
                           href={`/inventory/products/${product.id}`}
-                          className="font-medium text-gray-900 after:absolute after:inset-0 dark:text-white"
+                          className="font-medium text-gray-900 after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-[var(--brand-primary-focus)] dark:text-white"
                         >
                           {product.name}
                         </Link>
@@ -311,7 +320,9 @@ export default async function ProductsPage(props: {
               )}
             </nav>
           )}
+          <BulkActionBar categories={categories} canDelete={canDelete} />
         </div>
+        </BulkSelectionProvider>
       </div>
     </HydrateClient>
   );
@@ -341,7 +352,7 @@ function PageLink({
   children: React.ReactNode;
 }) {
   const cls =
-    "inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 font-medium dark:border-gray-600 dark:bg-gray-800";
+    "inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 font-medium focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none dark:border-gray-600 dark:bg-gray-800";
   if (disabled) {
     return (
       <span aria-disabled="true" className={`${cls} cursor-not-allowed opacity-40`}>

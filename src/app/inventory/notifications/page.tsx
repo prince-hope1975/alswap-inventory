@@ -1,9 +1,14 @@
 "use client";
 
+import { cn } from "~/lib/utils";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import Link from "next/link";
-import { AlertTriangle, Bell, Check, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bell, Check } from "lucide-react";
+import { toast } from "~/lib/toast";
+import { LoadError } from "~/components/ui/load-error";
+import { SkeletonRows } from "~/components/ui/skeleton";
+import { btnPrimary, btnSecondary, checkboxCls } from "~/components/ui/styles";
 
 /** Payment/stock problems on an order that staff must resolve by hand. */
 const NEEDS_ATTENTION = "ORDER_NEEDS_ATTENTION";
@@ -18,7 +23,7 @@ export default function NotificationsPage() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const utils = api.useUtils();
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, isLoading, error, refetch, isRefetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
     api.notifications.list.useInfiniteQuery(
       { limit: 20, unreadOnly },
       {
@@ -31,20 +36,24 @@ export default function NotificationsPage() {
       await utils.notifications.list.invalidate();
       await utils.notifications.unreadCount.invalidate();
     },
+    onError: (e) => toast.error(`Could not mark as read: ${e.message}`),
   });
 
   const markAllRead = api.notifications.markAllRead.useMutation({
     onSuccess: async () => {
+      toast.success("All notifications marked as read");
       await utils.notifications.list.invalidate();
       await utils.notifications.unreadCount.invalidate();
     },
+    onError: (e) => toast.error(`Could not mark all as read: ${e.message}`),
   });
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];
+  const { data: unread } = api.notifications.unreadCount.useQuery();
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
             Notifications
@@ -57,8 +66,8 @@ export default function NotificationsPage() {
         <button
           type="button"
           onClick={() => markAllRead.mutate()}
-          disabled={markAllRead.isPending}
-          className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+          disabled={markAllRead.isPending || unread?.count === 0}
+          className={btnSecondary}
         >
           Mark all as read
         </button>
@@ -70,22 +79,31 @@ export default function NotificationsPage() {
             type="checkbox"
             checked={unreadOnly}
             onChange={(e) => setUnreadOnly(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary-600)] focus:ring-[var(--brand-primary-500)]"
+            className={checkboxCls}
           />
           Unread only
         </label>
       </div>
 
-      {isLoading ? (
-        <div className="flex h-64 items-center justify-center text-gray-500">
-          <RefreshCw className="h-6 w-6 animate-spin" />
+      {error ? (
+        <LoadError
+          title="Couldn't load notifications."
+          message={error.message}
+          onRetry={() => void refetch()}
+          retrying={isRefetching}
+        />
+      ) : isLoading ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+          <SkeletonRows rows={4} label="Loading notifications" />
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-800">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-primary-100)] text-[var(--brand-primary-600)] dark:bg-[var(--brand-primary-900)]/30 dark:text-[var(--brand-primary-400)]">
             <Bell className="h-6 w-6" />
           </div>
-          <p className="font-semibold text-gray-900 dark:text-white">No notifications yet</p>
+          <p className="font-semibold text-gray-900 dark:text-white">
+            {unreadOnly ? "No unread notifications" : "No notifications yet"}
+          </p>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Order and delivery notifications will appear here.
           </p>
@@ -139,10 +157,11 @@ export default function NotificationsPage() {
                   <button
                     type="button"
                     onClick={() => markRead.mutate({ id: n.id })}
-                    disabled={markRead.isPending}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand-primary-600)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--brand-primary-700)] disabled:opacity-50"
+                    disabled={markRead.isPending && markRead.variables?.id === n.id}
+                    aria-label={`Mark "${n.title}" as read`}
+                    className={cn(btnPrimary, "shrink-0 px-3 py-1.5 text-xs")}
                   >
-                    <Check className="h-4 w-4" />
+                    <Check className="h-4 w-4" aria-hidden="true" />
                     Mark read
                   </button>
                 )}
@@ -156,9 +175,9 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => void fetchNextPage()}
               disabled={isFetchingNextPage}
-              className="w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+              className={`${btnSecondary} w-full`}
             >
-              {isFetchingNextPage ? "Loading..." : "Load more"}
+              {isFetchingNextPage ? "Loading…" : "Load more"}
             </button>
           )}
         </div>

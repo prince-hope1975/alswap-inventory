@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useScanDetection } from "~/hooks/use-scan-detection";
 
-const selectCls =
-  "h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white";
+import { inputCls } from "~/components/ui/styles";
+import { cn } from "~/lib/utils";
+
+const selectCls = cn(inputCls, "h-10 py-0 lg:w-auto");
 
 export function ProductSearch({ categories }: { categories: { id: number; name: string }[] }) {
     const router = useRouter();
@@ -66,7 +68,7 @@ export function ProductSearch({ categories }: { categories: { id: number; name: 
                     onChange={(e) => handleChange(e.target.value)}
                     aria-label="Search products"
                     placeholder="Search by name, SKU, or scan barcode..."
-                    className="h-10 w-full rounded-lg border border-gray-300 pr-10 pl-10 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    className={`${inputCls} h-10 pr-10 pl-10`}
                 />
                 {isPending && (
                     <div className="absolute top-1/2 right-3 -translate-y-1/2" aria-hidden="true">

@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
-import { AlertCircle, TrendingUp } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+
+export type SimilarProduct = RouterOutputs["inventory"]["findSimilarProducts"][number];
 
 interface SimilarProductsPanelProps {
     searchName: string;
-    onUseProduct?: (product: any) => void;
+    onUseProduct?: (product: SimilarProduct) => void;
 }
 
 export function SimilarProductsPanel({ searchName, onUseProduct }: SimilarProductsPanelProps) {

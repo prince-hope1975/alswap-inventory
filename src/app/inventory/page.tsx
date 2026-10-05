@@ -8,6 +8,7 @@ import { TopSelling } from "./top-selling";
 import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { ErrorBoundary } from "~/components/error-boundary";
 import { ComponentErrorFallback } from "~/components/route-error-boundary";
+import { btnPrimary } from "~/components/ui/styles";
 
 export default function InventoryDashboard() {
     const { data: stats, isLoading, error, refetch, isRefetching } = api.inventory.getDashboardStats.useQuery(undefined, {
@@ -22,14 +23,14 @@ export default function InventoryDashboard() {
                         Dashboard
                     </h1>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Welcome back! Here&apos;s your inventory overview
+                        Your inventory and sales at a glance
                     </p>
                 </div>
                 <Link
                     href="/inventory/products/new"
-                    className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+                    className={btnPrimary}
                 >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4" aria-hidden="true" />
                     Add Product
                 </Link>
             </div>

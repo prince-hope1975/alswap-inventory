@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeNavHref, canSeeNavItem } from "./staff-nav";
+import { activeNavHref, canSeeNavItem, groupNavItems, type NavSection } from "./staff-nav";
 
 describe("canSeeNavItem", () => {
   it("shows everything to admins", () => {
@@ -55,5 +55,26 @@ describe("activeNavHref", () => {
 
   it("returns null when nothing matches", () => {
     expect(activeNavHref("/pos", hrefs)).toBeNull();
+  });
+});
+
+describe("groupNavItems", () => {
+  const items: { href: string; section: NavSection }[] = [
+    { href: "/inventory", section: "Overview" },
+    { href: "/pos", section: "Sales" },
+    { href: "/inventory/products", section: "Catalog" },
+    { href: "/inventory/categories", section: "Catalog" },
+    { href: "/inventory/settings", section: "Admin" },
+  ];
+
+  it("orders sections and keeps item order inside them", () => {
+    const groups = groupNavItems(items);
+    expect(groups.map((g) => g.section)).toEqual(["Overview", "Catalog", "Sales", "Admin"]);
+    expect(groups[1]!.items.map((i) => i.href)).toEqual(["/inventory/products", "/inventory/categories"]);
+  });
+
+  it("drops sections a role cannot see", () => {
+    const cashier = items.filter((i) => canSeeNavItem(i.href, "CASHIER"));
+    expect(groupNavItems(cashier).map((g) => g.section)).toEqual(["Sales"]);
   });
 });
