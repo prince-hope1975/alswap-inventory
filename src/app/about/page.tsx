@@ -4,7 +4,7 @@ import { ArrowRight, BadgeCheck, MapPin, Phone, Wrench } from "lucide-react";
 
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
 import { buildBreadcrumbs, buildLocalBusiness } from "~/lib/seo/builders";
-import { canonicalUrl, requestHost } from "~/lib/seo/base-url";
+import { canonicalHomeUrl, requestHost } from "~/lib/seo/base-url";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { getPublicProfile } from "~/lib/seo/public-profile";
 import { getSocialLanding } from "~/lib/seo/social-metadata";
@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: landing.branded
       ? "SPPD AMAKS, also searched as SPPD Amak's and S.P.P.D Amak's Electrical & Electronics, supplies electrical materials, lighting and solar equipment in Jeddo, Delta State."
       : "Learn about our electrical supplies, product guidance, project sourcing and local service.",
-    alternates: { canonical: await canonicalUrl("/about") },
+    alternates: { canonical: await canonicalHomeUrl("/about") },
   };
 }
 
@@ -31,8 +31,8 @@ export default async function AboutPage() {
   const landing = getSocialLanding(await requestHost(), "home");
   const name = landing.siteName ?? tenant.name;
   const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
-  const aboutUrl = await canonicalUrl("/about");
-  const homeUrl = await canonicalUrl("/");
+  const aboutUrl = await canonicalHomeUrl("/about");
+  const homeUrl = await canonicalHomeUrl("/");
   const description =
     profile.businessDescription ??
     `${name} supplies electrical products for homes, shops, installers and project sites. Customers can get practical guidance before choosing compatible cables, lighting, tools, power protection or solar equipment.`;

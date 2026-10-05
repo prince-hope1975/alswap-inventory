@@ -162,3 +162,20 @@ export function commerceBaseUrlFromHost(
   const label = commerceSubdomain?.trim();
   return baseUrlFromHost(label ? `${label}.${root}` : root, port);
 }
+
+/**
+ * Origin of the brand's home host (`www.<root>`), regardless of which surface
+ * served the request.
+ *
+ * For pages that describe the business rather than sell from the catalogue
+ * (About). They canonicalize here so brand signals gather on the same host as
+ * the homepage Google reads the site name from, not on the commerce host.
+ */
+export function homeBaseUrlFromHost(
+  rawHost: string | null | undefined,
+  port?: string | null,
+) {
+  const root = registrableRootFromHost(rawHost);
+  if (!root) return "http://localhost:3000";
+  return baseUrlFromHost(isLocalHost(root) ? root : `www.${root}`, port);
+}

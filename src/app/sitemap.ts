@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { canonicalCommerceBaseUrl, requestBaseUrl } from "~/lib/seo/base-url";
-import { surfaceLabelFromHost } from "~/lib/seo/host";
+import { homeBaseUrlFromHost, surfaceLabelFromHost } from "~/lib/seo/host";
 import { db } from "~/server/db";
 import { articles, categories, products } from "~/server/db/schema";
 import { resolvePublicTenant } from "~/server/tenant";
@@ -18,6 +18,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Read from the host, not x-storefront-surface: sitemap.xml matches
   // publicAssetPatterns and returns before the middleware sets that header.
   const surface = surfaceLabelFromHost(
+    headerList.get("x-forwarded-host") ?? headerList.get("host"),
+  );
+  const homeBase = homeBaseUrlFromHost(
     headerList.get("x-forwarded-host") ?? headerList.get("host"),
   );
   const [surfaceBase, canonicalBase] = await Promise.all([
@@ -98,9 +101,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.75,
     },
-    // Brand-name page: names the business and its alternate spellings.
+    // Brand-name page: names the business and its alternate spellings. Its
+    // canonical is the home host (`canonicalHomeUrl("/about")`), not commerce.
     {
-      url: `${canonicalBase}/about`,
+      url: `${homeBase}/about`,
       lastModified: tenant.updatedAt ?? tenant.createdAt,
       changeFrequency: "monthly",
       priority: 0.7,
