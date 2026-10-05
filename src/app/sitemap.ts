@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 
 import { canonicalCommerceBaseUrl, requestBaseUrl } from "~/lib/seo/base-url";
 import { surfaceLabelFromHost } from "~/lib/seo/host";
+import { blogPostsForTenant, blogSitemap } from "~/lib/content/blog";
+import { env } from "~/env";
 import { db } from "~/server/db";
 import { articles, categories, products } from "~/server/db/schema";
 import { resolvePublicTenant } from "~/server/tenant";
@@ -27,6 +29,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The back office is noindex end to end; it advertises nothing.
   if (surface === "app") return [];
   if (!tenant) return [{ url: surfaceBase, lastModified: new Date() }];
+
+  const blogEntries = blogSitemap(
+    headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "",
+    env.BLOG_SUBDOMAIN,
+    blogPostsForTenant(tenant),
+  );
+  if (surface === "blog") return blogEntries;
 
   const [productRows, articleRows, categoryRows] = await Promise.all([
     db.query.products.findMany({
@@ -73,6 +82,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   return [
+    ...blogEntries,
     {
       url: surfaceBase,
       lastModified: tenant.updatedAt ?? tenant.createdAt,

@@ -53,6 +53,10 @@ src/
 
 ## Key Data Flows
 
+### Owned brand blog
+
+Public `/blog` and `/blog/[slug]` server-render the reviewed SPPD editorial collection from `src/content/blog/posts.json`. Tenant resolution limits this collection to the SPPD domain. The optional `blog.` surface rewrites its root to `/blog`, using the same application as shop/app. `BLOG_SUBDOMAIN` switches all article canonicals and sitemap entries together after DNS is ready. No new database tables or admin writes are required. See [blog operations](pages/src/app/blog/README.md) for content updates, publication and Google indexing checks.
+
 ### 1. POS Offline Sync Flow
 
 ```

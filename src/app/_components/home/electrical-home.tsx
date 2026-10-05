@@ -133,6 +133,9 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
             <Link href="/about" className="hover:text-[#0b6e99]">
               About
             </Link>
+            <Link href="/blog" className="hover:text-[#0b6e99]">
+              Blog
+            </Link>
             <Link href="/find-us" className="hover:text-[#0b6e99]">
               Find us
             </Link>
@@ -360,6 +363,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
           <div className="flex flex-wrap gap-5 text-sm font-bold">
             <Link href="/shop">Shop</Link>
             <Link href="/guides">Guides</Link>
+            <Link href="/blog">Blog</Link>
             <Link href="/solar">Solar</Link>
             <Link href="/about">About</Link>
             <Link href="/find-us">Contact</Link>

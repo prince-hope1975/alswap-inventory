@@ -23,7 +23,7 @@ export function normalizeRequestHost(rawHost: string | null | undefined) {
  * Kept free of `server-only` and of `next/headers` so it can be used from
  * middleware (edge runtime) as well as from server components.
  */
-export const SURFACE_LABELS = ["shop", "solar", "used", "app"] as const;
+export const SURFACE_LABELS = ["shop", "solar", "used", "app", "blog"] as const;
 export type SurfaceLabel = (typeof SURFACE_LABELS)[number];
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
@@ -67,6 +67,7 @@ const SURFACE_ROOT_ROUTE: Record<SurfaceLabel, { pathname: string; params?: Reco
   solar: { pathname: "/solar" },
   used: { pathname: "/shop", params: { condition: "USED,REFURBISHED" } },
   app: { pathname: "/inventory" },
+  blog: { pathname: "/blog" },
 };
 
 export interface SurfaceRoute {

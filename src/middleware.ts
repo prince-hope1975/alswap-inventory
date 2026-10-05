@@ -21,6 +21,7 @@ const publicRoutes = [
   "/solar",
   "/products",
   "/articles",
+  "/blog",
   "/about",
   "/find-us",
   "/auth/signin",

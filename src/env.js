@@ -26,6 +26,8 @@ export const env = createEnv({
      * commerce host.
      */
     COMMERCE_SUBDOMAIN: z.string().optional(),
+    // Activate only after blog.<root> is mapped and HTTPS works.
+    BLOG_SUBDOMAIN: z.string().regex(/^[a-z0-9-]+$/).optional(),
     /**
      * Dot-prefixed root domain the session cookie is scoped to, e.g.
      * ".sppd.amachree.dev", so a session on app.<root> is sent to shop.<root>.
@@ -66,6 +68,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_TRANSPORT: process.env.DATABASE_TRANSPORT,
     COMMERCE_SUBDOMAIN: process.env.COMMERCE_SUBDOMAIN,
+    BLOG_SUBDOMAIN: process.env.BLOG_SUBDOMAIN,
     AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:

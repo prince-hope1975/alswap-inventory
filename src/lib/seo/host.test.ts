@@ -21,7 +21,9 @@ describe("registrableRootFromHost", () => {
   });
 
   it("does not strip labels that merely look like subdomains", () => {
-    expect(registrableRootFromHost("sppd.amachree.dev")).toBe("sppd.amachree.dev");
+    expect(registrableRootFromHost("sppd.amachree.dev")).toBe(
+      "sppd.amachree.dev",
+    );
   });
 
   it("normalizes port, case and www before stripping the surface label", () => {
@@ -45,9 +47,22 @@ describe("surfaceLabelFromHost", () => {
 
 describe("resolveSurfaceRoute", () => {
   it("maps each surface root to its landing route", () => {
-    expect(resolveSurfaceRoute("shop.alswap.com.ng", "/").pathname).toBe("/shop");
-    expect(resolveSurfaceRoute("solar.alswap.com.ng", "/").pathname).toBe("/solar");
-    expect(resolveSurfaceRoute("app.alswap.com.ng", "/").pathname).toBe("/inventory");
+    expect(resolveSurfaceRoute("blog.sppdamaks.com", "/").pathname).toBe(
+      "/blog",
+    );
+    expect(registrableRootFromHost("blog.sppdamaks.com")).toBe("sppdamaks.com");
+    expect(commerceBaseUrlFromHost("blog.sppdamaks.com", "shop")).toBe(
+      "https://shop.sppdamaks.com",
+    );
+    expect(resolveSurfaceRoute("shop.alswap.com.ng", "/").pathname).toBe(
+      "/shop",
+    );
+    expect(resolveSurfaceRoute("solar.alswap.com.ng", "/").pathname).toBe(
+      "/solar",
+    );
+    expect(resolveSurfaceRoute("app.alswap.com.ng", "/").pathname).toBe(
+      "/inventory",
+    );
   });
 
   it("pre-filters the used surface to non-new stock", () => {
@@ -59,14 +74,22 @@ describe("resolveSurfaceRoute", () => {
   });
 
   it("merges surface params with the incoming query instead of replacing it", () => {
-    const route = resolveSurfaceRoute("used.alswap.com.ng", "/", "search=generator");
+    const route = resolveSurfaceRoute(
+      "used.alswap.com.ng",
+      "/",
+      "search=generator",
+    );
     const params = new URLSearchParams(route.search);
     expect(params.get("search")).toBe("generator");
     expect(params.get("condition")).toBe("USED,REFURBISHED");
   });
 
   it("lets an explicit condition win over the surface default", () => {
-    const route = resolveSurfaceRoute("used.alswap.com.ng", "/", "condition=NEW");
+    const route = resolveSurfaceRoute(
+      "used.alswap.com.ng",
+      "/",
+      "condition=NEW",
+    );
     expect(new URLSearchParams(route.search).get("condition")).toBe("NEW");
   });
 

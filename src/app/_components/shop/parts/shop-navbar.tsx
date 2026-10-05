@@ -94,6 +94,9 @@ export function ShopNavbar({
         </div>
 
         {/* Search Bar - Desktop */}
+        <Link href="/blog" className="inline-flex min-h-11 items-center px-2 text-sm font-bold hover:underline">
+          Blog
+        </Link>
         {showSearch && (
           <div className="mx-8 hidden max-w-md flex-1 md:flex">
             <div className="group relative w-full">
