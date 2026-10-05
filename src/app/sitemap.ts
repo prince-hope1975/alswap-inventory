@@ -98,8 +98,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.75,
     },
-    // The only page carrying LocalBusiness JSON-LD, so it is what ties the site
-    // to the Business Profile. Listed at the commerce host because that is what
+    // Brand-name page: names the business and its alternate spellings.
+    {
+      url: `${canonicalBase}/about`,
+      lastModified: tenant.updatedAt ?? tenant.createdAt,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    // Carries LocalBusiness JSON-LD, so it ties the site to the Business
+    // Profile. Listed at the commerce host because that is what
     // its own canonical resolves to (`canonicalUrl("/find-us")`).
     {
       url: `${canonicalBase}/find-us`,

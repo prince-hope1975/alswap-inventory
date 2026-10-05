@@ -5,7 +5,8 @@ import { FindUsMap } from "~/app/_components/find-us/find-us-map";
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
 import { buildLocalBusiness } from "~/lib/seo/builders";
 import { JsonLd } from "~/lib/seo/json-ld";
-import { canonicalUrl } from "~/lib/seo/base-url";
+import { canonicalUrl, requestHost } from "~/lib/seo/base-url";
+import { getSocialLanding } from "~/lib/seo/social-metadata";
 import { api } from "~/trpc/server";
 import { getPublicProfile } from "~/lib/seo/public-profile";
 import type { StoreConfig } from "~/types/store-config";
@@ -36,8 +37,10 @@ export default async function FindUsPage() {
     !(lat === 0 && lng === 0);
   const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
 
+  const landing = getSocialLanding(await requestHost(), "home");
   const localBusinessJsonLd = buildLocalBusiness({
-    name: tenant.name,
+    name: landing.siteName ?? tenant.name,
+    alternateNames: landing.alternateNames,
     url: await canonicalUrl("/find-us"),
     image: tenant.logo,
     phone: tenant.phone,

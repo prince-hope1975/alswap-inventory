@@ -138,6 +138,19 @@ describe("buildOrganization / buildLocalBusiness / buildWebSite", () => {
     expect(business.geo).toBeUndefined();
   });
 
+  it("publishes alternate names on the local business only when given", () => {
+    const named = buildLocalBusiness({
+      name: "SPPD AMAKS",
+      alternateNames: ["SPPD Amak's"],
+      url: "https://e/about",
+    });
+    expect(named.alternateName).toEqual(["SPPD Amak's"]);
+    expect(
+      buildLocalBusiness({ name: "Alswap", url: "https://e/about" })
+        .alternateName,
+    ).toBeUndefined();
+  });
+
   it("splits the locality out of the street line", () => {
     const business = buildLocalBusiness({
       name: "Alswap",

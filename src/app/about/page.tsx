@@ -3,16 +3,23 @@ import Link from "next/link";
 import { ArrowRight, BadgeCheck, MapPin, Phone, Wrench } from "lucide-react";
 
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
-import { canonicalUrl } from "~/lib/seo/base-url";
+import { buildBreadcrumbs, buildLocalBusiness } from "~/lib/seo/builders";
+import { canonicalUrl, requestHost } from "~/lib/seo/base-url";
+import { JsonLd } from "~/lib/seo/json-ld";
 import { getPublicProfile } from "~/lib/seo/public-profile";
+import { getSocialLanding } from "~/lib/seo/social-metadata";
 import type { StoreConfig } from "~/types/store-config";
 import { api } from "~/trpc/server";
 
 export async function generateMetadata(): Promise<Metadata> {
+  const landing = getSocialLanding(await requestHost(), "home");
   return {
-    title: "About our electrical store",
-    description:
-      "Learn about our electrical supplies, product guidance, project sourcing and local service.",
+    title: landing.branded
+      ? "About SPPD AMAKS (S.P.P.D Amak's) | Electrical Store in Jeddo"
+      : "About our electrical store",
+    description: landing.branded
+      ? "SPPD AMAKS, also searched as SPPD Amak's and S.P.P.D Amak's Electrical & Electronics, supplies electrical materials, lighting and solar equipment in Jeddo, Delta State."
+      : "Learn about our electrical supplies, product guidance, project sourcing and local service.",
     alternates: { canonical: await canonicalUrl("/about") },
   };
 }
@@ -21,17 +28,40 @@ export default async function AboutPage() {
   const { tenant } = await api.shop.getShopDetails();
   if (!tenant) return <PublicStoreUnavailable />;
 
+  const landing = getSocialLanding(await requestHost(), "home");
+  const name = landing.siteName ?? tenant.name;
   const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
+  const aboutUrl = await canonicalUrl("/about");
+  const homeUrl = await canonicalUrl("/");
   const description =
     profile.businessDescription ??
-    `${tenant.name} supplies electrical products for homes, shops, installers and project sites. Customers can get practical guidance before choosing compatible cables, lighting, tools, power protection or solar equipment.`;
+    `${name} supplies electrical products for homes, shops, installers and project sites. Customers can get practical guidance before choosing compatible cables, lighting, tools, power protection or solar equipment.`;
+
+  const businessJsonLd = buildLocalBusiness({
+    name,
+    alternateNames: landing.alternateNames,
+    url: aboutUrl,
+    image: tenant.logo,
+    phone: tenant.phone,
+    address: tenant.address,
+    locality: tenant.location,
+    serviceAreas: profile.serviceAreas,
+    openingHours: profile.openingHours,
+    sameAs: profile.socialProfiles,
+  });
+  const breadcrumbsJsonLd = buildBreadcrumbs([
+    { name: "Home", url: homeUrl },
+    { name: "About", url: aboutUrl },
+  ]);
 
   return (
     <main className="min-h-screen bg-[#f5f3ed] text-[#14212b]">
+      <JsonLd data={businessJsonLd} />
+      <JsonLd data={breadcrumbsJsonLd} />
       <header className="border-b border-[#14212b]/20 px-5 py-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-5">
           <Link href="/" className="font-black tracking-[-0.02em] uppercase">
-            {tenant.name}
+            {name}
           </Link>
           <Link
             href="/shop"
@@ -49,8 +79,13 @@ export default async function AboutPage() {
               Local knowledge. Useful stock.
             </p>
             <h1 className="mt-5 max-w-4xl text-5xl leading-[0.94] font-black tracking-[-0.055em] sm:text-7xl">
-              About {tenant.name}
+              About {name}
             </h1>
+            {landing.legalName && (
+              <p className="mt-4 text-sm font-black tracking-[0.08em] text-[#07597d] uppercase">
+                {landing.legalName}
+              </p>
+            )}
             <p className="mt-8 max-w-3xl text-lg leading-8 text-[#41515c] sm:text-xl">
               {description}
             </p>
@@ -98,6 +133,42 @@ export default async function AboutPage() {
           );
         })}
       </section>
+
+      {landing.branded && (
+        <section className="mx-auto max-w-7xl border-b border-[#14212b]/20 px-5 py-16 lg:px-8">
+          <h2 className="text-3xl font-black tracking-[-0.04em]">
+            SPPD Amak&apos;s, S.P.P.D Amak&apos;s Electrical &amp; Electronics
+          </h2>
+          <p className="mt-4 max-w-3xl leading-7 text-[#41515c]">
+            {name} is the online store and shop of {landing.legalName}
+            {tenant.location ? ` in ${tenant.location}` : ""}. Customers find us
+            as SPPD Amak&apos;s, SPPD Amaks, S.P.P.D Amak&apos;s or SPPD AMAKS.
+            It is the same business.
+          </p>
+          <h3 className="mt-8 text-xl font-black">What we supply</h3>
+          <ul className="mt-3 grid max-w-3xl gap-2 text-[#41515c] sm:grid-cols-2">
+            {[
+              "Wiring accessories, switches and sockets",
+              "Breakers and power protection",
+              "Cables and lighting",
+              "Fittings and general electrical materials",
+              "Home and office electrical supplies",
+              "Solar and inverter equipment",
+            ].map((item) => (
+              <li key={item} className="flex gap-2">
+                <BadgeCheck className="mt-1 h-4 w-4 shrink-0 text-[#d88700]" />
+                {item}
+              </li>
+            ))}
+          </ul>
+          {(Boolean(tenant.phone) || Boolean(tenant.address)) && (
+            <div className="mt-8 text-[#41515c]">
+              {tenant.address && <p>Address: {tenant.address}</p>}
+              {tenant.phone && <p>Phone: {tenant.phone}</p>}
+            </div>
+          )}
+        </section>
+      )}
 
       {(profile.serviceAreas.length > 0 || tenant.address) && (
         <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
