@@ -12,7 +12,7 @@ import {
 import { useCart } from "../cart-context";
 import { useState } from "react";
 import { type RouterOutputs } from "~/trpc/react";
-import { ThemeToggle } from "~/components/theme-toggle";
+import { StorefrontThemeToggle } from "./storefront-theme-toggle";
 import { StorefrontImage } from "../storefront-image";
 
 type Tenant = NonNullable<RouterOutputs["shop"]["getShopDetails"]["tenant"]>;
@@ -34,6 +34,14 @@ const NAV_LINKS = [
   { href: "/about", label: "About Us" },
   { href: "/find-us", label: "Find Us" },
 ];
+
+/** Enter submits: drop focus so the phone keyboard closes over the results. */
+function blurOnSubmit(event: React.FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+  const active = document.activeElement;
+  if (active instanceof HTMLElement) active.blur();
+  document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 const mobileItemClass =
   "flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[#14212b] hover:bg-[#dcecf2] dark:bg-white/5 dark:text-white dark:hover:bg-white/10";
@@ -96,7 +104,12 @@ export function ShopNavbar({
 
         {/* Search Bar - Desktop */}
         {showSearch && (
-          <div className="mx-4 hidden max-w-md flex-1 md:flex lg:mx-8">
+          <form
+            role="search"
+            aria-label="Products"
+            onSubmit={blurOnSubmit}
+            className="mx-4 hidden max-w-md flex-1 md:flex lg:mx-8"
+          >
             <div className="group relative w-full">
               <Search
                 className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-[var(--brand-primary-400)]"
@@ -109,17 +122,17 @@ export function ShopNavbar({
                 placeholder="Search cables, bulbs, breakers..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-full border border-[#14212b]/15 bg-white py-2.5 pr-4 pl-10 text-sm text-[#14212b] placeholder-gray-500 transition-all focus:border-[var(--brand-primary-500)] focus:ring-1 focus:ring-[var(--brand-primary-500)] focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-white/10"
+                className="w-full rounded-full border border-[#14212b]/15 bg-white py-2.5 pr-4 pl-10 text-sm text-[#14212b] placeholder-gray-500 transition-all focus:border-[var(--brand-primary-500)] focus:ring-2 focus:ring-[var(--brand-primary-500)]/60 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-white/10"
               />
             </div>
-          </div>
+          </form>
         )}
 
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-4">
           {/* Theme Toggle */}
           <div className="hidden sm:block">
-            <ThemeToggle />
+            <StorefrontThemeToggle />
           </div>
 
           {/* Staff menu (shoppers never see a sign-in prompt; staff use /auth/signin) */}
@@ -179,7 +192,12 @@ export function ShopNavbar({
 
       {/* Mobile search: always visible so shoppers never hunt behind the menu. */}
       {showSearch && (
-        <div className="container mx-auto px-4 pb-3 md:hidden">
+        <form
+          role="search"
+          aria-label="Products"
+          onSubmit={blurOnSubmit}
+          className="container mx-auto px-4 pb-3 md:hidden"
+        >
           <div className="relative">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
             <input
@@ -190,10 +208,10 @@ export function ShopNavbar({
               placeholder="Search cables, bulbs, breakers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-10 w-full rounded-full border border-[#14212b]/15 bg-white pr-4 pl-10 text-base text-[#14212b] placeholder-gray-500 focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="h-10 w-full rounded-full border border-[#14212b]/15 bg-white pr-4 pl-10 text-base text-[#14212b] placeholder-gray-500 focus:border-[var(--brand-primary-500)] focus:ring-2 focus:ring-[var(--brand-primary-500)]/60 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white"
             />
           </div>
-        </div>
+        </form>
       )}
 
       {/* Mobile Menu */}
@@ -210,8 +228,8 @@ export function ShopNavbar({
             ))}
 
             <div className={`${mobileItemClass} justify-between`}>
-              <span>Theme</span>
-              <ThemeToggle />
+              <span>Dark mode</span>
+              <StorefrontThemeToggle />
             </div>
 
             {session ? (

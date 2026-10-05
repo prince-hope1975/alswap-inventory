@@ -206,3 +206,95 @@ export function pickupQuantityError(
 export function phoneMatchKey(phone: string) {
   return phone.replace(/\D/g, "").slice(-10);
 }
+
+// --- Prices ---
+
+/**
+ * The price a shopper pays: a non-negative sale price wins over the list
+ * price. Same rule as the POS (`prepareSale`) and the shop router, so card,
+ * product page, cart and server never disagree.
+ */
+export function effectivePrice(
+  price: number | string | null | undefined,
+  salePrice?: number | string | null,
+) {
+  const sale = salePrice == null || salePrice === "" ? null : Number(salePrice);
+  if (sale != null && Number.isFinite(sale) && sale >= 0) return sale;
+  const list = Number(price ?? 0);
+  return Number.isFinite(list) ? list : 0;
+}
+
+/**
+ * A product priced at 0 (or not priced) can't be bought online: shoppers see
+ * "Price on request" and contact the store instead.
+ */
+export function isPriceOnRequest(price: number | string | null | undefined) {
+  const value = Number(price ?? 0);
+  return !(Number.isFinite(value) && value > 0);
+}
+
+export const PRICE_ON_REQUEST_LABEL = "Price on request";
+
+// --- Store options ---
+
+type StorefrontTenantLike = {
+  /** True only when the store can actually take Paystack payments. */
+  canPayOnline?: boolean | null;
+  currency?: string | null;
+  storeConfig?: {
+    deliveryFee?: number | null;
+    deliveryPricing?: { type: "flat" | "distance" } | null;
+  } | null;
+} | null | undefined;
+
+export type StorefrontOptions = {
+  canPayOnline: boolean;
+  /** Delivery is paid online, so it needs online payment plus a delivery setup. */
+  offersDelivery: boolean;
+  deliveryPricing: "flat" | "distance" | null;
+  /** Flat fee; null for distance pricing or when delivery is off. */
+  flatDeliveryFee: number | null;
+  /** Short fee text: "Free delivery", "₦2,000 delivery" or "Fee depends on distance". */
+  deliveryLabel: string | null;
+  defaultPaymentMethod: "PAYSTACK" | "PAY_ON_PICKUP";
+};
+
+/** Fee as shown to shoppers: never "₦0". */
+export function deliveryFeeText(fee: number, currency?: string | null) {
+  return fee > 0 ? formatMoney(fee, currency) : "Free";
+}
+
+/**
+ * What a store's checkout offers. The one rule for the product page, the
+ * checkout modal and the server (`initPaystackPayment`).
+ */
+export function storefrontOptions(tenant: StorefrontTenantLike): StorefrontOptions {
+  const canPayOnline = Boolean(tenant?.canPayOnline);
+  const config = tenant?.storeConfig ?? null;
+  const rawFee = Number(config?.deliveryFee ?? 0);
+  const fee = Number.isFinite(rawFee) && rawFee > 0 ? rawFee : 0;
+  const configured = config?.deliveryPricing != null || fee > 0;
+  const offersDelivery = canPayOnline && configured;
+  const deliveryPricing = offersDelivery
+    ? config?.deliveryPricing?.type === "distance"
+      ? "distance"
+      : "flat"
+    : null;
+  const flatDeliveryFee = deliveryPricing === "flat" ? fee : null;
+  const deliveryLabel =
+    deliveryPricing === "distance"
+      ? "Fee depends on distance"
+      : flatDeliveryFee == null
+        ? null
+        : flatDeliveryFee > 0
+          ? `${formatMoney(flatDeliveryFee, tenant?.currency)} delivery`
+          : "Free delivery";
+  return {
+    canPayOnline,
+    offersDelivery,
+    deliveryPricing,
+    flatDeliveryFee,
+    deliveryLabel,
+    defaultPaymentMethod: canPayOnline ? "PAYSTACK" : "PAY_ON_PICKUP",
+  };
+}

@@ -7,7 +7,14 @@ import { ArrowLeft, MapPin, PhoneCall, Truck, Wallet } from "lucide-react";
 
 import { ProductBuyBox } from "~/app/_components/shop/product-buy-box";
 import { StockBadge } from "~/app/_components/shop/parts/stock-badge";
-import { formatMoney } from "~/lib/domain/checkout";
+import {
+  PRICE_ON_REQUEST_LABEL,
+  effectivePrice,
+  formatMoney,
+  isPriceOnRequest,
+  storefrontOptions,
+} from "~/lib/domain/checkout";
+import { meaningfulDescription } from "~/lib/domain/shop-filters";
 import { ProductGallery } from "./product-gallery";
 import { ProductPageShell } from "./product-page-shell";
 import { buildBreadcrumbs, buildProduct } from "~/lib/seo/builders";
@@ -151,38 +158,41 @@ export default async function ProductPage({
   ]);
 
   // Never ship the encrypted Paystack secret to the client.
-  const { paystackSecretKey: _paystackSecretKey, ...publicTenant } = tenant;
+  const { paystackSecretKey: _paystackSecretKey, ...tenantSafe } = tenant;
+  // Presence check, same as shop.getShopDetails (no decrypt on page render).
+  const canPayOnline = Boolean(tenant.paystackPublicKey && tenant.paystackSecretKey);
+  // Same shape as shop.getShopDetails, so the navbar/checkout see one tenant.
+  const publicTenant = { ...tenantSafe, canPayOnline };
   const money = (value: number | string) => formatMoney(value, tenant.currency);
   const regularPrice = Number(product.price);
-  const salePrice = product.salePrice == null ? null : Number(product.salePrice);
-  const onSale = salePrice != null && salePrice >= 0 && salePrice < regularPrice;
+  const payPrice = effectivePrice(product.price, product.salePrice);
+  const onRequest = isPriceOnRequest(payPrice);
+  const onSale = !onRequest && payPrice < regularPrice;
   const discountPercent = onSale
-    ? Math.round(((regularPrice - salePrice) / regularPrice) * 100)
+    ? Math.round(((regularPrice - payPrice) / regularPrice) * 100)
     : 0;
-  const storeConfig = tenant.storeConfig;
-  const offersDelivery =
-    Boolean(tenant.paystackPublicKey) &&
-    (storeConfig?.deliveryPricing != null || (storeConfig?.deliveryFee ?? 0) > 0);
+  const options = storefrontOptions({ ...tenant, canPayOnline });
   const pickupPlace = tenant.address ?? tenant.location;
+  const description = meaningfulDescription(product.description, product.name);
 
   return (
     <ProductPageShell tenant={publicTenant}>
     <main
       id="main-content"
-      className="min-h-screen bg-[#f3f0e8] text-stone-950 dark:bg-[#0a1117] dark:text-white"
+      className="min-h-screen bg-[#f3f0e8] pb-24 text-stone-950 sm:pb-0 dark:bg-[#0a1117] dark:text-white"
     >
       <JsonLd data={productJsonLd} />
       <JsonLd data={breadcrumbJsonLd} />
-      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-8 sm:py-8">
         <Link
           href="/shop"
           className="inline-flex min-h-11 items-center gap-2 rounded-lg font-bold focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to shop
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Back to shop
         </Link>
-        <div className="mt-8 grid gap-10 lg:grid-cols-2">
+        <div className="mt-3 grid gap-6 sm:mt-8 sm:gap-10 lg:grid-cols-2">
           <ProductGallery images={displayImages} name={product.name} />
-          <div className="py-4 lg:py-10">
+          <div className="lg:py-10">
             <div className="flex flex-wrap gap-2 text-xs font-bold tracking-[0.12em] text-amber-700 uppercase dark:text-amber-400">
               {categoryEntries.length ? (
                 categoryEntries.map((category) =>
@@ -202,11 +212,13 @@ export default async function ProductPage({
                 <span>Electrical & electronics</span>
               )}
             </div>
-            <h1 className="mt-4 text-4xl leading-none font-black tracking-[-0.04em] sm:text-6xl">
+            <h1 className="mt-2 text-2xl leading-tight font-black tracking-[-0.03em] sm:mt-4 sm:text-5xl sm:leading-none sm:tracking-[-0.04em] lg:text-6xl">
               {product.name}
             </h1>
-            <div className="mt-6 flex flex-wrap items-baseline gap-3">
-              <p className="text-3xl font-black">{money(price)}</p>
+            <div className="mt-3 flex flex-wrap items-baseline gap-3 sm:mt-6">
+              <p className="text-3xl font-black">
+                {onRequest ? PRICE_ON_REQUEST_LABEL : money(payPrice)}
+              </p>
               {onSale && (
                 <>
                   <p className="text-xl text-stone-500 line-through dark:text-stone-400">
@@ -222,10 +234,22 @@ export default async function ProductPage({
             <StockBadge
               stockQuantity={product.stockQuantity}
               lowStockThreshold={product.lowStockThreshold ?? undefined}
-              className="mt-4"
+              showUntracked
+              className="mt-3 sm:mt-4"
             />
-            <p className="mt-6 text-lg leading-8 text-stone-600 dark:text-stone-300">
-              {product.description ??
+            <ProductBuyBox
+              product={{
+                id: product.id,
+                name: product.name,
+                price: payPrice,
+                image: product.image,
+                stockQuantity: product.stockQuantity,
+              }}
+              currency={tenant.currency}
+              storePhone={tenant.phone}
+            />
+            <p className="mt-6 text-base leading-7 text-stone-600 sm:text-lg sm:leading-8 dark:text-stone-300">
+              {description ??
                 "Contact our team for specifications, compatibility and installation guidance."}
             </p>
             {[
@@ -278,20 +302,11 @@ export default async function ProductPage({
                 )}
               </dl>
             )}
-            <ProductBuyBox
-              product={{
-                id: product.id,
-                name: product.name,
-                price: Number(price),
-                image: product.image,
-                stockQuantity: product.stockQuantity,
-              }}
-            />
             <ul className="mt-8 grid gap-3 sm:grid-cols-3">
               <li>
                 <Link
                   href="/find-us"
-                  className="block h-full rounded-2xl border border-stone-300 bg-white p-4 transition hover:border-amber-600 focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none dark:border-white/10 dark:bg-white/5"
+                  className="block h-full rounded-2xl border border-stone-300 bg-white p-4 transition hover:border-amber-600 focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none dark:border-white/10 dark:bg-[#0f1a22]"
                 >
                   <MapPin className="h-5 w-5 text-amber-700 dark:text-amber-400" />
                   <p className="mt-3 text-sm font-bold">Pick up in store</p>
@@ -300,24 +315,22 @@ export default async function ProductPage({
                   </p>
                 </Link>
               </li>
-              <li className="rounded-2xl border border-stone-300 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+              <li className="rounded-2xl border border-stone-300 bg-white p-4 dark:border-white/10 dark:bg-[#0f1a22]">
                 <Truck className="h-5 w-5 text-amber-700 dark:text-amber-400" />
                 <p className="mt-3 text-sm font-bold">
-                  {offersDelivery ? "Delivery available" : "Pickup only"}
+                  {options.offersDelivery ? "Delivery available" : "Pickup only"}
                 </p>
                 <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
-                  {offersDelivery
-                    ? storeConfig?.deliveryPricing?.type === "distance"
-                      ? "Fee depends on distance; paid online"
-                      : `${money(storeConfig?.deliveryFee ?? 0)} fee, paid online`
+                  {options.offersDelivery
+                    ? `${options.deliveryLabel} · order paid online`
                     : "Collect from the store"}
                 </p>
               </li>
-              <li className="rounded-2xl border border-stone-300 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+              <li className="rounded-2xl border border-stone-300 bg-white p-4 dark:border-white/10 dark:bg-[#0f1a22]">
                 <Wallet className="h-5 w-5 text-amber-700 dark:text-amber-400" />
                 <p className="mt-3 text-sm font-bold">Pay on pickup</p>
                 <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
-                  {tenant.paystackPublicKey
+                  {options.canPayOnline
                     ? "Or pay online with Paystack"
                     : "Pay when you collect"}
                 </p>

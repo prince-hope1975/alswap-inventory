@@ -29,6 +29,14 @@ export type BrowseInput = {
 // salePrice wins over price.
 const effectivePrice = sql`(CASE WHEN p."sale_price" IS NOT NULL AND p."sale_price" >= 0 THEN p."sale_price" ELSE p.price END)`;
 
+// 1 when the product has no photo at all. `images` is a json column; the
+// nested CASE keeps json_array_length away from non-array values.
+const hasNoImage = sql`(CASE
+  WHEN COALESCE(p.image, '') <> '' THEN 0
+  WHEN json_typeof(p.images) = 'array' THEN CASE WHEN json_array_length(p.images) > 0 THEN 0 ELSE 1 END
+  ELSE 1
+END)`;
+
 function loadProductsInOrder(db: Database, ids: string[]) {
   return db.query.products.findMany({
     where: inArray(products.id, ids),
@@ -129,11 +137,14 @@ export async function browseStorefrontProducts(
       )`
     : sql`0`;
 
+  // Mirrors `compareForSort` in shop-filters.ts (unit tested there).
   const orderBy: Record<ShopSortOption, SQL> = {
     relevance: sql`${relevance} DESC, p."createdAt" DESC, p.id`,
-    newest: sql`p."createdAt" DESC, p.id`,
-    "price-asc": sql`${effectivePrice} ASC, p.id`,
-    "price-desc": sql`${effectivePrice} DESC, p.id`,
+    // Default browse: products with a photo first, then newest.
+    newest: sql`${hasNoImage} ASC, p."createdAt" DESC, p.id`,
+    // Price on request (0) sinks to the end in both directions.
+    "price-asc": sql`(${effectivePrice} <= 0) ASC, ${effectivePrice} ASC, p.id`,
+    "price-desc": sql`(${effectivePrice} <= 0) ASC, ${effectivePrice} DESC, p.id`,
     "name-asc": sql`lower(p.name) ASC, p.id`,
     "name-desc": sql`lower(p.name) DESC, p.id`,
   };

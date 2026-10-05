@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import { X } from "lucide-react";
+import { useDialogA11y } from "~/hooks/use-dialog-a11y";
 import { ShopFilters, type SortOption } from "./shop-filters";
 
 interface MobileFilterDrawerProps {
@@ -25,7 +26,7 @@ interface MobileFilterDrawerProps {
 }
 
 function chipClass(active: boolean) {
-  return `min-h-10 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+  return `min-h-10 rounded-full border px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-offset-[#0f1a22] ${
     active
       ? "border-[#0b6e99] bg-[#0b6e99] text-white"
       : "border-[#14212b]/15 bg-white text-[#14212b] hover:border-[#0b6e99] dark:border-white/15 dark:bg-white/5 dark:text-gray-200"
@@ -50,14 +51,9 @@ export function MobileFilterDrawer({
   setSelectedCategory,
   resultCount,
 }: MobileFilterDrawerProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useDialogA11y({ open: isOpen, onClose, panelRef, initialFocusRef: closeRef });
 
   if (!isOpen) return null;
 
@@ -70,20 +66,23 @@ export function MobileFilterDrawer({
       />
 
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-filter-title"
-        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl bg-[#f6f4ee] shadow-2xl lg:hidden dark:bg-[#0f1a22]"
+        tabIndex={-1}
+        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-2xl bg-[#f6f4ee] shadow-2xl focus:outline-none lg:hidden dark:bg-[#0f1a22]"
       >
         <div className="flex items-center justify-between border-b border-[#14212b]/10 px-4 py-3 dark:border-white/10">
           <h2 id="mobile-filter-title" className="text-lg font-bold text-[#14212b] dark:text-white">
             Filter & sort
           </h2>
           <button
+            ref={closeRef}
             type="button"
             onClick={onClose}
             aria-label="Close filters"
-            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#14212b]/5 dark:hover:bg-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#14212b]/5 focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none dark:hover:bg-white/10"
           >
             <X className="h-5 w-5 text-[#41515c] dark:text-gray-300" aria-hidden />
           </button>
@@ -113,6 +112,9 @@ export function MobileFilterDrawer({
                     className={chipClass(selectedCategory === category.id)}
                   >
                     {category.name}
+                    {category.productCount != null && (
+                      <span className="ml-1.5 text-xs opacity-70">{category.productCount}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -134,21 +136,21 @@ export function MobileFilterDrawer({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-t border-[#14212b]/10 p-4 dark:border-white/10">
+        <div className="grid grid-cols-2 gap-2 border-t border-[#14212b]/10 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] dark:border-white/10">
           <button
             type="button"
             onClick={() => {
               onClearFilters();
               setSelectedCategory(undefined);
             }}
-            className="min-h-11 rounded-xl border border-[#14212b]/20 font-semibold text-[#14212b] hover:bg-[#14212b]/5 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
+            className="min-h-11 rounded-xl border border-[#14212b]/20 font-semibold text-[#14212b] hover:bg-[#14212b]/5 focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none dark:border-white/20 dark:text-white dark:hover:bg-white/10"
           >
             Clear all
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-11 rounded-xl bg-[#f5a623] font-bold text-[#14212b] hover:bg-[#ffc04d]"
+            className="min-h-11 rounded-xl bg-[#f5a623] font-bold text-[#14212b] hover:bg-[#ffc04d] focus-visible:ring-2 focus-visible:ring-[#14212b] focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-white dark:focus-visible:ring-offset-[#0f1a22]"
           >
             {resultCount != null ? `Show ${resultCount} result${resultCount === 1 ? "" : "s"}` : "Show results"}
           </button>

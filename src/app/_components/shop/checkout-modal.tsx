@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useCart } from "./cart-context";
 import { api } from "~/trpc/react";
@@ -24,12 +24,15 @@ import {
   toGoogleMapsDirectionsUrl,
 } from "~/lib/maps";
 import {
+  deliveryFeeText,
   formatOpeningHours,
+  storefrontOptions,
   validateCheckoutDetails,
   whatsAppUrl,
   type CheckoutErrors,
   type OpeningHours,
 } from "~/lib/domain/checkout";
+import { useDialogA11y } from "~/hooks/use-dialog-a11y";
 import { trackStorefrontEvent } from "~/components/analytics-consent";
 
 const LocationPicker = dynamic(
@@ -41,7 +44,7 @@ const LocationPicker = dynamic(
     ssr: false,
     loading: () => (
       <div
-        className="h-80 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
+        className="h-80 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5"
         aria-label="Loading map"
       />
     ),
@@ -122,12 +125,14 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
   const [details, setDetails] = useState({ name: "", email: "", phone: "" });
   const [errors, setErrors] = useState<CheckoutErrors>({});
   const [submitted, setSubmitted] = useState(false);
-  const [deliveryMethod, setDeliveryMethod] = useState<"PICKUP" | "DELIVERY">(
+  const [deliveryChoice, setDeliveryMethod] = useState<"PICKUP" | "DELIVERY">(
     "PICKUP",
   );
-  const [paymentMethod, setPaymentMethod] = useState<
-    "PAYSTACK" | "PAY_ON_PICKUP"
-  >("PAYSTACK");
+  // null = the shopper hasn't picked; the store's default applies. Store
+  // details load async, so the default can't be baked into useState.
+  const [paymentChoice, setPaymentMethod] = useState<
+    "PAYSTACK" | "PAY_ON_PICKUP" | null
+  >(null);
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -141,9 +146,37 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
   } | null>(null);
   const paidRef = useRef(false);
   const { formatCurrency } = useShopCurrency();
+  const titleId = useId();
 
   const { data: shopDetails } = api.shop.getShopDetails.useQuery();
   const tenant = shopDetails?.tenant;
+  // One rule for what this store offers (same as the product page/server).
+  const options = storefrontOptions(tenant);
+  const deliveryMethod = options.offersDelivery ? deliveryChoice : "PICKUP";
+  const paymentMethod = !options.canPayOnline
+    ? "PAY_ON_PICKUP"
+    : (paymentChoice ?? options.defaultPaymentMethod);
+
+  // Re-price the cart on the server as soon as checkout opens, so the button
+  // shows what the order will actually charge and dead lines surface early.
+  const quoteItems = useMemo(
+    () => items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    [items],
+  );
+  const quote = api.shop.quoteCart.useQuery(
+    { items: quoteItems },
+    { enabled: quoteItems.length > 0, retry: false, staleTime: 30_000 },
+  );
+  const quotedPrice = useMemo(
+    () => new Map((quote.data?.lines ?? []).map((line) => [line.productId, line.unitPrice])),
+    [quote.data],
+  );
+  const cartProblems = quote.data?.problems ?? [];
+  const subtotal = quote.data && cartProblems.length === 0 ? quote.data.subtotal : totalAmount;
+  const pricesChanged =
+    quote.data != null &&
+    cartProblems.length === 0 &&
+    Math.round(quote.data.subtotal) !== Math.round(totalAmount);
   const storeConfig = tenant?.storeConfig as
     | {
         deliveryFee?: number;
@@ -161,7 +194,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
   const shouldEstimate =
     deliveryMethod === "DELIVERY" &&
-    storeConfig?.deliveryPricing?.type === "distance" &&
+    options.deliveryPricing === "distance" &&
     deferredDeliveryAddress.trim().length >= 5;
 
   const estimate = api.shop.estimateDeliveryFee.useQuery(
@@ -171,14 +204,16 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
   const deliveryFee =
     deliveryMethod === "DELIVERY"
-      ? storeConfig?.deliveryPricing?.type === "distance"
+      ? options.deliveryPricing === "distance"
         ? Number(estimate.data?.fee ?? 0)
-        : Number(storeConfig?.deliveryFee ?? 0)
+        : Number(options.flatDeliveryFee ?? 0)
       : 0;
+  const deliveryFeeKnown =
+    deliveryMethod !== "DELIVERY" || options.deliveryPricing !== "distance" || estimate.data != null;
 
   const computedTotal = useMemo(() => {
-    return Number(totalAmount) + Number(deliveryFee || 0);
-  }, [deliveryFee, totalAmount]);
+    return Number(subtotal) + Number(deliveryFee || 0);
+  }, [deliveryFee, subtotal]);
   // Once the server has priced the order, show its number, not our estimate.
   const displayTotal = serverTotal ?? computedTotal;
 
@@ -192,14 +227,6 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     setServerTotal(null);
   }, [deliveryMethod, deliveryAddress, totalAmount]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isProcessing) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isProcessing, onClose]);
 
   const validate = () =>
     validateCheckoutDetails(details, {
@@ -219,14 +246,6 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
       );
     }
   };
-
-  const snapshotLines = (): OrderLine[] =>
-    items.map((item) => ({
-      productId: item.productId,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-    }));
 
   const finishOrder = (order: PlacedOrder) => {
     trackStorefrontEvent("purchase", {
@@ -278,6 +297,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
       return;
     }
     if (items.length === 0) return;
+    if (cartProblems.length > 0) {
+      setFormError("Some items in your cart can't be ordered. Update your cart first.");
+      return;
+    }
 
     const customerDetails = {
       name: details.name.trim(),
@@ -288,7 +311,6 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
       productId: item.productId,
       quantity: item.quantity,
     }));
-    const lines = snapshotLines();
 
     trackStorefrontEvent("begin_checkout", {
       value: computedTotal,
@@ -310,7 +332,13 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         finishOrder({
           orderNumber: result.orderNumber,
           total: result.total,
-          lines,
+          // Server prices, not the cart's (possibly stale) snapshot.
+          lines: (result.lines ?? []).map((line) => ({
+            productId: line.productId,
+            name: line.name,
+            quantity: line.quantity,
+            price: line.unitPrice,
+          })),
           deliveryMethod: "PICKUP",
           paymentMethod: "PAY_ON_PICKUP",
           needsAttention: false,
@@ -319,7 +347,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         return;
       }
 
-      if (!tenant?.paystackPublicKey) {
+      if (!options.canPayOnline || !tenant?.paystackPublicKey) {
         throw new Error(
           "Online payment isn't set up for this store yet. Choose Pay on Pickup or contact the store.",
         );
@@ -373,12 +401,12 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
   if (paymentIssue) {
     return (
-      <Shell onClose={onClose} label="Payment received">
+      <Shell onClose={onClose} labelledBy={`${titleId}-issue`}>
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-            <AlertTriangle className="h-8 w-8" />
+            <AlertTriangle className="h-8 w-8" aria-hidden />
           </div>
-          <h2 className="mb-2 text-2xl font-bold">Payment received</h2>
+          <h2 id={`${titleId}-issue`} className="mb-2 text-2xl font-bold">Payment received</h2>
           <p className="mb-4 text-gray-600 dark:text-gray-400">
             Your payment went through, but we couldn&apos;t confirm the order
             automatically. Keep this reference; the store will sort it out.
@@ -416,12 +444,12 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
       .map((line) => `${line.quantity} × ${line.name}`)
       .join(", ");
     return (
-      <Shell onClose={onClose} label="Order confirmed">
+      <Shell onClose={onClose} labelledBy={`${titleId}-done`}>
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/15 text-green-600 dark:text-green-500">
-            <CheckCircle2 className="h-8 w-8" />
+            <CheckCircle2 className="h-8 w-8" aria-hidden />
           </div>
-          <h2 className="text-2xl font-bold">Order placed</h2>
+          <h2 id={`${titleId}-done`} className="text-2xl font-bold">Order placed</h2>
           <p className="mt-1 text-gray-600 dark:text-gray-400">
             Order <span className="font-mono font-semibold">#{placed.orderNumber}</span>
           </p>
@@ -518,26 +546,96 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
     }`;
 
   return (
-    <Shell onClose={isProcessing ? undefined : onClose} label="Checkout">
-      <h2 id="checkout-title" className="mb-4 text-2xl font-bold">
-        Checkout
-      </h2>
-
+    <Shell
+      onClose={isProcessing ? undefined : onClose}
+      labelledBy={titleId}
+      title="Checkout"
+      // Paystack's popup owns the screen while a payment is in flight.
+      paused={isProcessing}
+      footer={
+        <div className="space-y-2">
+          {formError && (
+            <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+              {formError}
+            </div>
+          )}
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+              {effectivePaymentMethod === "PAYSTACK" ? "Total" : "To pay at pickup"}
+            </span>
+            <span className="text-xl font-bold" aria-live="polite">
+              {quote.isLoading ? (
+                <span className="text-sm font-medium text-gray-500">Checking prices…</span>
+              ) : (
+                formatCurrency(displayTotal)
+              )}
+            </span>
+          </div>
+          <button
+            type="submit"
+            form="checkout-form"
+            disabled={isProcessing || items.length === 0 || cartProblems.length > 0 || quote.isLoading}
+            className="flex min-h-14 w-full items-center justify-center rounded-xl bg-green-700 font-bold text-white transition hover:bg-green-600 focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-[#0f1a22]"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+                {createOrder.isPending ? "Confirming order…" : "Processing…"}
+              </>
+            ) : effectivePaymentMethod === "PAYSTACK" ? (
+              deliveryFeeKnown ? `Pay ${formatCurrency(displayTotal)}` : "Continue to payment"
+            ) : (
+              `Place order · ${formatCurrency(subtotal)}`
+            )}
+          </button>
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+            {effectivePaymentMethod === "PAYSTACK"
+              ? "Secured by Paystack"
+              : "You’ll pay when you arrive for pickup"}
+          </p>
+        </div>
+      }
+    >
       {/* Order summary */}
       <section aria-label="Order summary" className="mb-5 rounded-xl border border-gray-200 dark:border-white/10">
         <ul className="divide-y divide-gray-200 text-sm dark:divide-white/10">
-          {items.map((item) => (
-            <li key={item.productId} className="flex justify-between gap-3 px-4 py-2.5">
-              <span className="min-w-0">
-                <span className="font-medium">{item.quantity} ×</span> {item.name}
-              </span>
-              <span className="shrink-0">{formatCurrency(item.price * item.quantity)}</span>
-            </li>
-          ))}
+          {items.map((item) => {
+            const unit = quotedPrice.get(item.productId) ?? item.price;
+            const problem = cartProblems.find((entry) => entry.productId === item.productId);
+            return (
+              <li key={item.productId} className="px-4 py-2.5">
+                <div className="flex justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="font-medium">{item.quantity} ×</span> {item.name}
+                  </span>
+                  <span className="shrink-0">{formatCurrency(unit * item.quantity)}</span>
+                </div>
+                {problem && (
+                  <p className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">{problem.message}</p>
+                )}
+              </li>
+            );
+          })}
         </ul>
+        {cartProblems.length > 0 && (
+          <p role="alert" className="border-t border-gray-200 px-4 py-2.5 text-sm text-red-700 dark:border-white/10 dark:text-red-300">
+            Remove or change the marked items in your cart to continue.
+          </p>
+        )}
+        {pricesChanged && (
+          <p className="border-t border-gray-200 px-4 py-2.5 text-xs text-amber-800 dark:border-white/10 dark:text-amber-300">
+            Prices updated to the store&apos;s current prices.
+          </p>
+        )}
+        {quote.isError && (
+          <p className="border-t border-gray-200 px-4 py-2.5 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+            We couldn&apos;t check the latest prices; they&apos;ll be confirmed when you order.
+          </p>
+        )}
       </section>
 
       <form
+        id="checkout-form"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -600,30 +698,39 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
         {/* Delivery method */}
         <fieldset className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-          <legend className="sr-only">How would you like to receive your order?</legend>
+          <legend className="sr-only">
+            {options.offersDelivery ? "How would you like to receive your order?" : "Pickup"}
+          </legend>
           <p className="mb-3 text-sm font-semibold" aria-hidden="true">
-            How would you like to receive your order?
+            {options.offersDelivery ? "How would you like to receive your order?" : "Pick up from the store"}
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              aria-pressed={deliveryMethod === "PICKUP"}
-              onClick={() => setDeliveryMethod("PICKUP")}
-              className={optionClass(deliveryMethod === "PICKUP", "bg-[#0b6e99]")}
-            >
-              <MapPin className="h-4 w-4" />
-              Pickup
-            </button>
-            <button
-              type="button"
-              aria-pressed={deliveryMethod === "DELIVERY"}
-              onClick={() => setDeliveryMethod("DELIVERY")}
-              className={optionClass(deliveryMethod === "DELIVERY", "bg-[#0b6e99]")}
-            >
-              <Truck className="h-4 w-4" />
-              Delivery
-            </button>
-          </div>
+          {options.offersDelivery && (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                aria-pressed={deliveryMethod === "PICKUP"}
+                onClick={() => setDeliveryMethod("PICKUP")}
+                className={optionClass(deliveryMethod === "PICKUP", "bg-[#0b6e99]")}
+              >
+                <MapPin className="h-4 w-4" aria-hidden />
+                Pickup
+              </button>
+              <button
+                type="button"
+                aria-pressed={deliveryMethod === "DELIVERY"}
+                onClick={() => setDeliveryMethod("DELIVERY")}
+                className={`${optionClass(deliveryMethod === "DELIVERY", "bg-[#0b6e99]")} flex-col gap-0`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Truck className="h-4 w-4" aria-hidden />
+                  Delivery
+                </span>
+                {options.deliveryLabel && (
+                  <span className="text-[11px] font-medium opacity-80">{options.deliveryLabel}</span>
+                )}
+              </button>
+            </div>
+          )}
 
           {deliveryMethod === "DELIVERY" ? (
             <div className="mt-4">
@@ -654,7 +761,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
               <FieldError id="checkout-deliveryAddress-error" error={errors.deliveryAddress} />
             </div>
           ) : (
-            <div className="mt-4 text-sm">
+            <div className={`${options.offersDelivery ? "mt-4" : ""} text-sm`}>
               <p className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
                 {tenant?.address ?? tenant?.location ?? "Pickup location is not configured yet."}
@@ -723,8 +830,13 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           </p>
           {deliveryMethod === "DELIVERY" ? (
             <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-              <CreditCard className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <CreditCard className="h-4 w-4 text-green-700 dark:text-green-400" aria-hidden />
               Delivery orders are paid online (Paystack).
+            </div>
+          ) : !options.canPayOnline ? (
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+              <Wallet className="h-4 w-4 text-green-700 dark:text-green-400" aria-hidden />
+              Pay when you collect your order.
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -732,86 +844,56 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 aria-pressed={paymentMethod === "PAYSTACK"}
                 onClick={() => setPaymentMethod("PAYSTACK")}
-                className={optionClass(paymentMethod === "PAYSTACK", "bg-green-600")}
+                className={optionClass(paymentMethod === "PAYSTACK", "bg-green-700")}
               >
-                <CreditCard className="h-4 w-4" />
+                <CreditCard className="h-4 w-4" aria-hidden />
                 Pay online
               </button>
               <button
                 type="button"
                 aria-pressed={paymentMethod === "PAY_ON_PICKUP"}
                 onClick={() => setPaymentMethod("PAY_ON_PICKUP")}
-                className={optionClass(paymentMethod === "PAY_ON_PICKUP", "bg-green-600")}
+                className={optionClass(paymentMethod === "PAY_ON_PICKUP", "bg-green-700")}
               >
-                <Wallet className="h-4 w-4" />
+                <Wallet className="h-4 w-4" aria-hidden />
                 Pay on pickup
               </button>
             </div>
           )}
         </fieldset>
 
-        <div className="border-t border-gray-200 pt-4 dark:border-white/10">
-          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+        <div className="space-y-2 border-t border-gray-200 pt-4 text-sm text-gray-600 dark:border-white/10 dark:text-gray-400">
+          <div className="flex justify-between">
             <span>Subtotal</span>
-            <span>{formatCurrency(totalAmount)}</span>
+            <span>{formatCurrency(subtotal)}</span>
           </div>
           {deliveryMethod === "DELIVERY" && (
-            <div className="mt-2 flex justify-between text-sm text-gray-600 dark:text-gray-400">
-              <span>Delivery fee</span>
-              <span>{formatCurrency(deliveryFee)}</span>
+            <div className="flex justify-between">
+              <span>Delivery</span>
+              <span>
+                {deliveryFeeKnown
+                  ? deliveryFeeText(deliveryFee, tenant?.currency)
+                  : "Enter your address"}
+              </span>
             </div>
           )}
-          {deliveryMethod === "DELIVERY" &&
-            storeConfig?.deliveryPricing?.type === "distance" && (
-              <div className="mt-1 text-xs text-gray-500">
-                {estimate.isFetching
-                  ? "Estimating delivery fee..."
-                  : estimate.error
-                    ? "Could not estimate delivery fee (we'll confirm before you pay)."
-                    : estimate.data?.distanceKm != null
-                      ? `Estimated distance: ${estimate.data.distanceKm.toFixed(1)} km`
-                      : null}
-              </div>
-            )}
-          <div className="mt-2 flex justify-between text-xl font-bold">
-            <span>Total</span>
-            <span>{formatCurrency(displayTotal)}</span>
-          </div>
+          {deliveryMethod === "DELIVERY" && options.deliveryPricing === "distance" && (
+            <div className="text-xs text-gray-500">
+              {estimate.isFetching
+                ? "Estimating delivery fee…"
+                : estimate.error
+                  ? "Could not estimate delivery fee (we'll confirm before you pay)."
+                  : estimate.data?.distanceKm != null
+                    ? `Estimated distance: ${estimate.data.distanceKm.toFixed(1)} km`
+                    : null}
+            </div>
+          )}
           {serverTotal != null && serverTotal !== computedTotal && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            <p className="text-xs text-amber-800 dark:text-amber-400">
               Total updated to the store&apos;s current prices.
             </p>
           )}
         </div>
-
-        {formError && (
-          <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
-            {formError}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={isProcessing || items.length === 0}
-          className="flex min-h-14 w-full items-center justify-center rounded-xl bg-green-600 font-bold text-white transition hover:bg-green-500 focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              {createOrder.isPending ? "Confirming order…" : "Processing…"}
-            </>
-          ) : effectivePaymentMethod === "PAYSTACK" ? (
-            `Pay ${formatCurrency(displayTotal)}`
-          ) : (
-            `Place order (${formatCurrency(totalAmount)})`
-          )}
-        </button>
-
-        <p className="text-center text-xs text-gray-500">
-          {effectivePaymentMethod === "PAYSTACK"
-            ? "Secured by Paystack"
-            : "You’ll pay when you arrive for pickup"}
-        </p>
       </form>
     </Shell>
   );
@@ -820,32 +902,61 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 function Shell({
   children,
   onClose,
-  label,
+  labelledBy,
+  title,
+  footer,
+  paused = false,
 }: {
   children: React.ReactNode;
-  /** Omit to hide the close button (e.g. while a payment is in flight). */
+  /** Omit to hide the close button and disable Esc (e.g. mid-payment). */
   onClose?: () => void;
-  label: string;
+  /** Id of the heading that names the dialog. */
+  labelledBy: string;
+  /** Header title; when omitted the body supplies the heading. */
+  title?: string;
+  /** Sticky actions (total + pay button), pinned above the keyboard/home bar. */
+  footer?: React.ReactNode;
+  paused?: boolean;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogA11y({ open: true, onClose, panelRef, paused });
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
+      {/* Phones: a near-full-height bottom sheet; larger screens: a centred card. */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={label}
-        className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 text-gray-900 shadow-2xl dark:border-white/10 dark:bg-[#1a1b2e] dark:text-white"
+        aria-labelledby={labelledBy}
+        tabIndex={-1}
+        className={`relative flex ${footer ? "h-[94dvh]" : "max-h-[94dvh]"} w-full flex-col overflow-hidden rounded-t-2xl bg-white text-gray-900 shadow-2xl focus:outline-none sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:border sm:border-gray-200 dark:bg-[#0f1a22] dark:text-white sm:dark:border-white/10`}
       >
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute top-3 right-3 grid h-11 w-11 place-items-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-[#167da8] focus-visible:outline-none dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-          >
-            <X className="h-6 w-6" />
-          </button>
+        <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-gray-200 py-2 pr-2 pl-5 dark:border-white/10">
+          {title ? (
+            <h2 id={labelledBy} className="text-lg font-bold">
+              {title}
+            </h2>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="grid h-11 w-11 place-items-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-[#167da8] focus-visible:outline-none dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <X className="h-6 w-6" aria-hidden />
+            </button>
+          )}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">{children}</div>
+        {footer && (
+          <div className="shrink-0 border-t border-gray-200 bg-white px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 dark:border-white/10 dark:bg-[#0f1a22]">
+            {footer}
+          </div>
         )}
-        {children}
       </div>
     </div>
   );

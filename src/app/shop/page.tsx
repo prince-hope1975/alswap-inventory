@@ -10,7 +10,11 @@ import {
   getSocialLanding,
 } from "~/lib/seo/social-metadata";
 import { CrawlableCategoryLinks } from "../_components/shop/crawlable-category-links";
-import { SHOP_PAGE_SIZE, parseShopSort } from "~/lib/domain/shop-filters";
+import {
+  SHOP_PAGE_SIZE,
+  parseShopUrlState,
+  priceFilterToQuery,
+} from "~/lib/domain/shop-filters";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
@@ -56,27 +60,37 @@ export default async function ShopPage({
   // Until now this page ignored searchParams entirely, so the department tiles
   // on the homepage that link to /shop?search=... silently rendered the full
   // unfiltered catalog.
-  const params = (await searchParams) as ShopSearchParams;
-  const search = first(params.search)?.trim() ?? undefined;
-  const rawCategoryId = Number(first(params.categoryId));
-  const categoryId =
-    Number.isFinite(rawCategoryId) && rawCategoryId > 0
-      ? rawCategoryId
-      : undefined;
+  const rawParams = await searchParams;
+  const params = rawParams as ShopSearchParams;
+  const urlState = parseShopUrlState(rawParams);
+  const search = urlState.search || undefined;
+  const categoryId = urlState.categoryId;
   const condition = parseConditions(first(params.condition));
-  const sort = parseShopSort(first(params.sort)) ?? undefined;
+  const sort = urlState.sort ?? undefined;
 
   const [shopDetails, categories, products] = await Promise.all([
     api.shop.getShopDetails(),
-    api.shop.getCategories(),
-    // Must match the client's first page exactly so it reuses this result.
-    api.shop.getProducts({
-      limit: SHOP_PAGE_SIZE,
-      search,
-      categoryId,
-      condition,
-      sort,
+    // A catalogue hiccup must not take the whole store down: render the
+    // shell with no prefetched data and let the client query retry.
+    api.shop.getCategories().catch((error: unknown) => {
+      console.error("[shop] categories prefetch failed", error);
+      return undefined;
     }),
+    // Must match the client's first page exactly so it reuses this result.
+    api.shop
+      .getProducts({
+        limit: SHOP_PAGE_SIZE,
+        search,
+        categoryId,
+        condition,
+        sort,
+        ...priceFilterToQuery(urlState.price),
+        inStockOnly: urlState.inStock || undefined,
+      })
+      .catch((error: unknown) => {
+        console.error("[shop] products prefetch failed", error);
+        return undefined;
+      }),
   ]);
 
   if (!shopDetails.tenant) return <PublicStoreUnavailable />;
@@ -95,10 +109,12 @@ export default async function ShopPage({
           initialCategoryId={categoryId}
           initialCondition={condition}
           initialSort={sort}
+          initialPrice={urlState.price}
+          initialInStock={urlState.inStock}
         />
         {/* Real department links for crawlers, below the grid so they never
             sit hidden under the fixed navbar or push products down. */}
-        <CrawlableCategoryLinks categories={categories} />
+        {categories && <CrawlableCategoryLinks categories={categories} />}
       </CartProvider>
     </HydrateClient>
   );

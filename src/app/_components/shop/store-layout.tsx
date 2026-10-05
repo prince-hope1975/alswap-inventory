@@ -10,11 +10,15 @@ import type { SortOption } from "./parts/shop-filters";
 import {
   SHOP_PAGE_SIZE,
   normalizePriceFilter,
+  parseShopUrlState,
   priceFilterToQuery,
   priceFilterToRange,
   resolveShopSort,
+  serializeShopUrlState,
+  shopHistoryMode,
   type PriceFilter,
   type ShopSortOption,
+  type ShopUrlState,
 } from "~/lib/domain/shop-filters";
 
 // Templates
@@ -27,7 +31,7 @@ import { ConversionTemplate } from "./templates/conversion-template";
 import { BeautyTemplate } from "./templates/beauty-template";
 import { type RouterOutputs } from "~/trpc/react";
 import { StorefrontArticles } from "./parts/storefront-articles";
-import { resolveStorefrontTheme } from "~/lib/domain/storefront-theme";
+import { useStorefrontTheme } from "./use-storefront-theme";
 import { PublicStoreUnavailable } from "./public-store-unavailable";
 import { trackStorefrontEvent } from "~/components/analytics-consent";
 
@@ -53,6 +57,15 @@ interface StoreLayoutProps {
   initialCondition?: ("NEW" | "USED" | "REFURBISHED")[];
   /** Shopper's explicit sort from `?sort=`; undefined = default for the context. */
   initialSort?: ShopSortOption;
+  /** `?minPrice=` / `?maxPrice=` from the URL. */
+  initialPrice?: PriceFilter;
+  /** `?inStock=1` from the URL. */
+  initialInStock?: boolean;
+}
+
+function samePriceFilter(a: PriceFilter, b: PriceFilter) {
+  if (a === null || b === null) return a === b;
+  return a.min === b.min && a.max === b.max;
 }
 
 // Debounce hook for search
@@ -81,6 +94,8 @@ export function StoreLayout({
   initialCategoryId,
   initialCondition,
   initialSort,
+  initialPrice = null,
+  initialInStock = false,
 }: StoreLayoutProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [search, setSearch] = useState(initialSearch ?? "");
@@ -90,8 +105,8 @@ export function StoreLayout({
 
   // Filter and sort state. null = the shopper never touched it.
   const [sortChoice, setSortChoice] = useState<ShopSortOption | null>(initialSort ?? null);
-  const [priceFilter, setPriceFilter] = useState<PriceFilter>(null);
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>(initialPrice);
+  const [inStockOnly, setInStockOnly] = useState(initialInStock);
 
   // Debounce search for server-side query (300ms delay)
   const debouncedSearch = useDebounce(search, 300);
@@ -121,8 +136,8 @@ export function StoreLayout({
     queryTerm === (initialSearch ?? "") &&
     selectedCategory === initialCategoryId &&
     sortChoice === (initialSort ?? null) &&
-    debouncedPriceFilter === null &&
-    !inStockOnly;
+    samePriceFilter(debouncedPriceFilter, initialPrice) &&
+    inStockOnly === initialInStock;
   const {
     data: productPages,
     isLoading: isProductsLoading,
@@ -131,6 +146,8 @@ export function StoreLayout({
     isPlaceholderData: isProductsPlaceholder,
     hasNextPage,
     fetchNextPage,
+    isError: isProductsError,
+    refetch: refetchProducts,
   } = api.shop.getProducts.useInfiniteQuery(
     {
       search: queryTerm || undefined,
@@ -168,27 +185,46 @@ export function StoreLayout({
   const totalCount = firstPage?.total ?? 0;
   const priceCeiling = firstPage?.priceCeiling ?? initialProducts?.priceCeiling ?? 0;
 
-  // Keep search/category/sort in the address bar so results can be shared and
-  // survive a reload. history.replaceState (not router.replace) avoids
-  // re-running the server page on every keystroke; Next syncs useSearchParams.
-  // The pathname is kept as-is: on the `used.` host it is `/`, not `/shop`.
+  // Keep every filter in the address bar so results can be shared, survive a
+  // reload, and Back undoes a category/sort/stock change. history.pushState /
+  // replaceState (not router.push) avoid re-running the server page; Next
+  // keeps useSearchParams in sync. The pathname is kept as-is: on the `used.`
+  // host it is `/`, not `/shop`.
   useEffect(() => {
     const url = new URL(window.location.href);
-    const params = url.searchParams;
-    const before = params.toString();
-    const setParam = (key: string, value: string | undefined) => {
-      if (value) params.set(key, value);
-      else params.delete(key);
+    const next: ShopUrlState = {
+      search: queryTerm,
+      categoryId: selectedCategory,
+      sort: sortChoice,
+      price: debouncedPriceFilter,
+      inStock: inStockOnly,
     };
-    setParam("search", queryTerm || undefined);
+    const params = serializeShopUrlState(next, url.searchParams);
     // "tile" marks a homepage shortcut; once the shopper edits the term it is theirs.
     if (queryTerm !== (initialSearch ?? "")) params.delete("src");
-    setParam("categoryId", selectedCategory?.toString());
-    setParam("sort", sortChoice ?? undefined);
     const after = params.toString();
-    if (after === before) return;
-    window.history.replaceState(null, "", `${url.pathname}${after ? `?${after}` : ""}${url.hash}`);
-  }, [queryTerm, selectedCategory, sortChoice, initialSearch]);
+    if (after === url.searchParams.toString()) return;
+    const href = `${url.pathname}${after ? `?${after}` : ""}${url.hash}`;
+    if (shopHistoryMode(parseShopUrlState(url.searchParams), next) === "push") {
+      window.history.pushState(null, "", href);
+    } else {
+      window.history.replaceState(null, "", href);
+    }
+  }, [queryTerm, selectedCategory, sortChoice, debouncedPriceFilter, inStockOnly, initialSearch]);
+
+  // Back/Forward: the URL changed under us, so read it back into state.
+  useEffect(() => {
+    const onPopState = () => {
+      const state = parseShopUrlState(new URLSearchParams(window.location.search));
+      setSearch(state.search);
+      setSelectedCategory(state.categoryId);
+      setSortChoice(state.sort);
+      setPriceFilter(state.price);
+      setInStockOnly(state.inStock);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Demand log: record what customers searched and whether anything matched.
   // Waits longer than the query debounce so "sol", "sola" are not counted on
@@ -228,19 +264,8 @@ export function StoreLayout({
     showArticles: false,
   };
 
-  // Handle Theme Mode
-  useEffect(() => {
-    const root = document.documentElement;
-    const resolvedTheme = resolveStorefrontTheme(
-      config.themeMode,
-      localStorage.getItem("theme"),
-    );
-    if (resolvedTheme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-  }, [config.themeMode]);
+  // Same theme rule as the product page.
+  useStorefrontTheme(config.themeMode);
 
   const handleClearFilters = () => {
     setSortChoice(null);
@@ -279,6 +304,8 @@ export function StoreLayout({
     isFetchingMore: isFetchingNextPage,
     onLoadMore: () => void fetchNextPage(),
     isRefreshing: isProductsFetching && !isFetchingNextPage && !isProductsLoading,
+    loadError: isProductsError,
+    onRetry: () => void refetchProducts(),
   };
 
   if (!isShopLoading && shopDetails && !tenant)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Loader2, MessageCircle, SearchX, SlidersHorizontal, X } from "lucide-react";
+import { AlertTriangle, Loader2, MessageCircle, RefreshCw, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { type RouterOutputs } from "~/trpc/react";
 import { ProductCard } from "../product-card";
 import { ShopNavbar, MOBILE_SEARCH_INPUT_ID } from "../parts/shop-navbar";
@@ -48,6 +48,9 @@ interface ModernTemplateProps {
     onLoadMore?: () => void;
     /** A new filter set is loading while the previous results stay on screen. */
     isRefreshing?: boolean;
+    /** The product query failed (and nothing is cached to show). */
+    loadError?: boolean;
+    onRetry?: () => void;
 }
 
 function whatsappHref(phone: string, term: string) {
@@ -82,6 +85,8 @@ export function ModernTemplate({
     isFetchingMore = false,
     onLoadMore,
     isRefreshing = false,
+    loadError = false,
+    onRetry,
 }: ModernTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { formatCurrency } = useShopCurrency();
@@ -132,12 +137,16 @@ export function ModernTemplate({
             />
 
             {config.showHero && (
-                <ShopHero tenantName={config.heroTitle?.trim() ? config.heroTitle : tenant?.name} description={config.heroDescription} />
+                <ShopHero
+                    tenantName={tenant?.name}
+                    heroTitle={config.heroTitle}
+                    description={config.heroDescription}
+                />
             )}
 
             <div
                 id="products"
-                className={`container mx-auto px-4 pb-28 lg:pb-16 ${config.showHero ? "pt-4 md:pt-6" : "pt-[136px] md:pt-28"}`}
+                className={`container mx-auto scroll-mt-[124px] px-4 pb-28 md:scroll-mt-24 lg:pb-16 ${config.showHero ? "pt-4 md:pt-6" : "pt-[136px] md:pt-28"}`}
             >
                 <CategoryCarousel
                     className="-mx-1 mb-2 lg:hidden"
@@ -194,7 +203,7 @@ export function ModernTemplate({
                                 <button
                                     type="button"
                                     onClick={() => setIsFilterDrawerOpen(true)}
-                                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#14212b]/15 bg-white px-3 text-sm font-semibold text-[#14212b] lg:hidden dark:border-white/15 dark:bg-white/5 dark:text-white"
+                                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#14212b]/15 bg-white px-3 text-sm font-semibold text-[#14212b] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none lg:hidden dark:border-white/15 dark:bg-white/5 dark:text-white"
                                 >
                                     <SlidersHorizontal className="h-4 w-4" aria-hidden />
                                     Filter
@@ -231,7 +240,7 @@ export function ModernTemplate({
                                         type="button"
                                         onClick={chip.onRemove}
                                         aria-label={`Remove filter ${chip.label}`}
-                                        className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-[#0b6e99]/30 bg-[#dcecf2] px-3 text-xs font-semibold text-[#07597d] hover:border-[#0b6e99] dark:border-[#8dc5dc]/30 dark:bg-[#0b6e99]/20 dark:text-[#8dc5dc]"
+                                        className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-[#0b6e99]/30 focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none bg-[#dcecf2] px-3 text-xs font-semibold text-[#07597d] hover:border-[#0b6e99] dark:border-[#8dc5dc]/30 dark:bg-[#0b6e99]/20 dark:text-[#8dc5dc]"
                                     >
                                         <span className="truncate">{chip.label}</span>
                                         <X className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -241,7 +250,7 @@ export function ModernTemplate({
                                     <button
                                         type="button"
                                         onClick={clearEverything}
-                                        className="min-h-8 px-2 text-xs font-semibold text-[#41515c] underline-offset-2 hover:underline dark:text-gray-300"
+                                        className="min-h-9 rounded px-2 text-xs font-semibold text-[#41515c] underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none dark:text-gray-300"
                                     >
                                         Clear all
                                     </button>
@@ -249,7 +258,25 @@ export function ModernTemplate({
                             </div>
                         )}
 
-                        {isLoading ? (
+                        {loadError && !(products && products.length > 0) ? (
+                            <div role="alert" className="flex flex-col items-center rounded-xl border border-[#14212b]/12 bg-white px-6 py-12 text-center dark:border-white/10 dark:bg-white/[0.03]">
+                                <AlertTriangle className="mb-3 h-10 w-10 text-[#b45309]" aria-hidden />
+                                <h2 className="text-lg font-bold">We couldn&apos;t load products</h2>
+                                <p className="mt-1 max-w-md text-sm text-[#5c6870] dark:text-gray-400">
+                                    Check your connection and try again.
+                                </p>
+                                {onRetry && (
+                                    <button
+                                        type="button"
+                                        onClick={onRetry}
+                                        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0b6e99] px-5 text-sm font-semibold text-white hover:bg-[#07597d] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:ring-offset-2 focus-visible:outline-none"
+                                    >
+                                        <RefreshCw className="h-4 w-4" aria-hidden />
+                                        Try again
+                                    </button>
+                                )}
+                            </div>
+                        ) : isLoading ? (
                             <ProductSkeletonGrid count={8} columns={4} />
                         ) : products && products.length > 0 ? (
                             <>
@@ -279,14 +306,30 @@ export function ModernTemplate({
                             <div className="flex flex-col items-center rounded-xl border border-[#14212b]/12 bg-white px-6 py-12 text-center dark:border-white/10 dark:bg-white/[0.03]">
                                 <SearchX className="mb-3 h-10 w-10 text-[#8a949a]" aria-hidden />
                                 <h2 className="text-lg font-bold text-[#14212b] dark:text-white">
-                                    {term ? `No results for “${term}”` : "No products match these filters"}
+                                    {term && selectedCategoryName
+                                        ? `No “${term}” in ${selectedCategoryName}`
+                                        : term
+                                          ? `No results for “${term}”`
+                                          : "No products match these filters"}
                                 </h2>
                                 <p className="mt-1 max-w-md text-sm text-[#5c6870] dark:text-gray-400">
-                                    {term
-                                        ? "Check the spelling, try a shorter term, or browse a category."
-                                        : "Try removing a filter or browse another category."}
+                                    {term && selectedCategoryName
+                                        ? "It may be listed under another department."
+                                        : term
+                                          ? "Check the spelling, try a shorter term, or browse a category."
+                                          : "Try removing a filter or browse another category."}
                                 </p>
-                                {suggestedCategories.length > 0 && (
+                                {term && selectedCategoryName && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedCategory(undefined)}
+                                        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0b6e99] px-5 text-sm font-semibold text-white hover:bg-[#07597d] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-offset-[#0a1117]"
+                                    >
+                                        <SearchX className="h-4 w-4" aria-hidden />
+                                        Search “{term}” in all categories
+                                    </button>
+                                )}
+                                {suggestedCategories.length > 0 && !(term && selectedCategoryName) && (
                                     <div className="mt-5 flex max-w-xl flex-wrap justify-center gap-2">
                                         {suggestedCategories.map((category) => (
                                             <button

@@ -6,6 +6,7 @@ import { CartProvider } from "~/app/_components/shop/cart-context";
 import { CartDrawer } from "~/app/_components/shop/cart-drawer";
 import { CheckoutModal } from "~/app/_components/shop/checkout-modal";
 import { ShopNavbar } from "~/app/_components/shop/parts/shop-navbar";
+import { useStorefrontTheme } from "~/app/_components/shop/use-storefront-theme";
 import { type RouterOutputs } from "~/trpc/react";
 
 type Tenant = NonNullable<RouterOutputs["shop"]["getShopDetails"]["tenant"]>;
@@ -34,6 +35,8 @@ export function ProductPageShell({
 }) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Same light/dark rule as /shop, so moving between them never flips theme.
+  useStorefrontTheme(tenant.storeConfig?.themeMode);
 
   return (
     <CartProvider>
@@ -44,8 +47,8 @@ export function ProductPageShell({
           setSearch={setSearch}
           showSearch={false}
         />
-        {/* The navbar is fixed and h-20. */}
-        <div className="pt-20">{children}</div>
+        {/* The navbar is fixed: h-16 on phones, h-20 from md. */}
+        <div className="pt-16 md:pt-20">{children}</div>
         <CartDrawer onCheckout={() => setIsCheckoutOpen(true)} />
         {isCheckoutOpen && (
           <CheckoutModal onClose={() => setIsCheckoutOpen(false)} />

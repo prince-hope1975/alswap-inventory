@@ -60,12 +60,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const preview = addCartItem(items, newItem, quantity);
         setItems((prev) => addCartItem(prev, newItem, quantity).lines);
 
+        const opensCart = options.openCart ?? true;
         if (!options.silent) {
             if (preview.added === 0) {
                 toast.warning(`No more ${newItem.name} in stock.`);
             } else if (preview.capped) {
                 toast.info(`Only ${preview.added} more ${newItem.name} available; added ${preview.added}.`);
-            } else {
+            } else if (!opensCart) {
+                // The open drawer already shows the new line; a toast on top
+                // of it would only cover the drawer header.
                 toast.success(
                     preview.added > 1
                         ? `Added ${preview.added} × ${newItem.name} to cart`
@@ -73,7 +76,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 );
             }
         }
-        if (options.openCart ?? true) setIsCartOpen(true);
+        if (opensCart) setIsCartOpen(true);
     };
 
     const removeItem = (productId: string) => {

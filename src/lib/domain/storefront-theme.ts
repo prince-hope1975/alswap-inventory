@@ -12,3 +12,14 @@ export function resolveStorefrontTheme(configured: StorefrontTheme, stored: stri
   if (configured === "light" || configured === "dark") return configured;
   return "light";
 }
+
+/**
+ * Dark-mode surfaces shared by every storefront screen (grid, product page,
+ * quick view, cart drawer, checkout), so panels never mix three navies.
+ */
+export const STOREFRONT_DARK = {
+  /** Page background and fixed bars. */
+  page: "#0a1117",
+  /** Raised panels: drawers, dialogs, cards on the product page. */
+  surface: "#0f1a22",
+} as const;

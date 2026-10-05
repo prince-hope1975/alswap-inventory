@@ -38,7 +38,7 @@ interface ShopFiltersProps {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-[#14212b]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#14212b] placeholder:text-[#8a949a] transition-colors focus:border-[#0b6e99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6e99]/30 dark:border-white/15 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-500";
+  "w-full rounded-lg border border-[#14212b]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#14212b] placeholder:text-[#6b767d] transition-colors focus:border-[#0b6e99] focus:ring-2 focus:ring-[#0b6e99]/60 focus:outline-none dark:border-white/15 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-500";
 
 export function ShopFilters({
   priceRange,
@@ -69,6 +69,14 @@ export function ShopFilters({
       setLocalMax("");
     }
   }, [priceActive]);
+  // Follow outside changes (Back/Forward) unless the shopper is typing here.
+  useEffect(() => {
+    if (!priceActive) return;
+    const active = typeof document !== "undefined" ? document.activeElement?.id : undefined;
+    if (active === `${id}-min` || active === `${id}-max`) return;
+    setLocalMin(priceRange[0] > 0 ? String(priceRange[0]) : "");
+    setLocalMax(priceRange[1] < maxPrice ? String(priceRange[1]) : "");
+  }, [priceActive, priceRange, maxPrice, id]);
 
   const commitMin = (value: string) => {
     setLocalMin(value);
@@ -99,10 +107,11 @@ export function ShopFilters({
             <button
               type="button"
               onClick={onClearFilters}
+              title="Reset price, stock and sort (keeps your search and category)"
               className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[#0b6e99] hover:bg-[#dcecf2] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none dark:text-[#8dc5dc] dark:hover:bg-white/10"
             >
               <X className="h-3.5 w-3.5" aria-hidden />
-              Clear all
+              Reset filters
             </button>
           )}
         </div>

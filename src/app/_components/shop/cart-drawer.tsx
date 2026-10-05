@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { useCart } from "./cart-context";
 import { StorefrontImage } from "./storefront-image";
 import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { maxCartQuantity } from "~/lib/domain/checkout";
+import { useDialogA11y } from "~/hooks/use-dialog-a11y";
 
 /**
  * Slide-over cart shared by the storefront and the product page. Follows the
@@ -24,14 +25,14 @@ export function CartDrawer({ onCheckout }: { onCheckout: () => void }) {
   } = useCart();
   const { formatCurrency } = useShopCurrency();
 
-  useEffect(() => {
-    if (!isCartOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsCartOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isCartOpen, setIsCartOpen]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useDialogA11y({
+    open: isCartOpen,
+    onClose: () => setIsCartOpen(false),
+    panelRef,
+    initialFocusRef: closeRef,
+  });
 
   if (!isCartOpen) return null;
 
@@ -43,10 +44,12 @@ export function CartDrawer({ onCheckout }: { onCheckout: () => void }) {
         aria-hidden="true"
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="cart-drawer-title"
-        className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-gray-200 bg-white font-sans text-gray-900 shadow-2xl dark:border-white/10 dark:bg-[#0f1a22] dark:text-white"
+        tabIndex={-1}
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-md border-l border-gray-200 bg-white font-sans text-gray-900 shadow-2xl focus:outline-none dark:border-white/10 dark:bg-[#0f1a22] dark:text-white"
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5 dark:border-white/10">
@@ -54,6 +57,7 @@ export function CartDrawer({ onCheckout }: { onCheckout: () => void }) {
               Your cart ({totalItems})
             </h2>
             <button
+              ref={closeRef}
               type="button"
               onClick={() => setIsCartOpen(false)}
               aria-label="Close cart"
@@ -73,7 +77,7 @@ export function CartDrawer({ onCheckout }: { onCheckout: () => void }) {
                 <button
                   type="button"
                   onClick={() => setIsCartOpen(false)}
-                  className="mt-4 min-h-11 rounded-full bg-gray-100 px-6 text-sm font-semibold text-gray-900 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                  className="mt-4 min-h-11 rounded-full bg-gray-100 px-6 text-sm font-semibold text-gray-900 hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-[#167da8] focus-visible:outline-none dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                 >
                   Start shopping
                 </button>
@@ -92,7 +96,7 @@ export function CartDrawer({ onCheckout }: { onCheckout: () => void }) {
                             alt={item.name}
                             fill
                             sizes="5rem"
-                            className="object-cover"
+                            className="object-contain p-1"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">
@@ -169,7 +173,7 @@ export function CartDrawer({ onCheckout }: { onCheckout: () => void }) {
                 <span>{formatCurrency(totalAmount)}</span>
               </div>
               <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-                Delivery (if any) is added at checkout.
+                Prices are confirmed at checkout. Delivery (if any) is added there.
               </p>
               <button
                 type="button"

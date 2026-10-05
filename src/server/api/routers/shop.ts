@@ -6,12 +6,15 @@ import { TRPCError } from "@trpc/server";
 import type { db } from "~/server/db";
 import { resolvePublicTenant } from "~/server/tenant";
 import {
+    effectivePrice,
+    isPriceOnRequest,
     newPaymentReference,
     orderNumber,
     PAY_ON_PICKUP_MAX_OPEN_PER_PHONE,
     paystackEmailFor,
     phoneMatchKey,
     pickupQuantityError,
+    storefrontOptions,
     toKobo,
 } from "~/lib/domain/checkout";
 import { enforceRateLimit, shopRateLimits } from "~/server/security/rate-limit";
@@ -29,8 +32,17 @@ import { publicProductColumns, publicProductRelations } from "~/server/shop/publ
 
 /** Storefront checkout honors salePrice, same rule as the POS (`prepareSale` in `~/lib/domain/sale.ts`). */
 function effectiveUnitPrice(product: { price: string; salePrice: string | null }): number {
-    const salePrice = product.salePrice == null ? null : Number(product.salePrice);
-    return salePrice != null && salePrice >= 0 ? salePrice : Number(product.price);
+    return effectivePrice(product.price, product.salePrice);
+}
+
+/**
+ * Paystack needs both halves of the key pair; the browser only sees the public
+ * one. Presence check only: decrypting here would run on every storefront
+ * request, and a bad key would take the whole store down instead of failing
+ * cleanly at pay time (initPaystackPayment decrypts and refuses).
+ */
+function tenantCanPayOnline(tenant: typeof tenants.$inferSelect) {
+    return Boolean(tenant.paystackPublicKey && tenant.paystackSecretKey);
 }
 
 type DeliveryPricingConfig =
@@ -165,16 +177,21 @@ type CheckoutLine = {
     unlimitedStock: boolean;
 };
 
+type PricedCart = {
+    lines: CheckoutLine[];
+    /** One shopper-readable sentence per item that can't be bought as asked. */
+    problems: { productId: string; message: string }[];
+};
+
 /**
- * Re-price the cart on the server and refuse it outright if anything is gone,
- * unpublished or short — the shopper must see which item, not pay for a
- * silently smaller order.
+ * Re-price the cart on the server. Lines that are gone, unpublished, short or
+ * unpriced become problems instead of lines. Read-only.
  */
-async function loadCheckoutLines(
+async function priceCart(
     database: typeof db,
     tenantId: string,
     items: { productId: string; quantity: number }[],
-): Promise<CheckoutLine[]> {
+): Promise<PricedCart> {
     const wanted = new Map<string, number>();
     for (const item of items) {
         wanted.set(item.productId, (wanted.get(item.productId) ?? 0) + item.quantity);
@@ -186,41 +203,71 @@ async function loadCheckoutLines(
     });
     const byId = new Map(found.map((product) => [product.id, product]));
 
-    const problems: string[] = [];
+    const problems: PricedCart["problems"] = [];
     const lines: CheckoutLine[] = [];
     for (const [productId, quantity] of wanted) {
         const product = byId.get(productId);
         if (!product) {
-            problems.push("An item in your cart is no longer available");
+            problems.push({ productId, message: "An item in your cart is no longer available" });
             continue;
         }
         if (product.visibility !== "PUBLISHED") {
-            problems.push(`${product.name} is no longer available`);
+            problems.push({ productId, message: `${product.name} is no longer available` });
+            continue;
+        }
+        const unitPrice = effectiveUnitPrice(product);
+        // Never sell at ₦0: unpriced items are "price on request".
+        if (isPriceOnRequest(unitPrice)) {
+            problems.push({
+                productId,
+                message: `${product.name} has no online price yet (contact the store for a quote)`,
+            });
             continue;
         }
         // stockQuantity === -1 means untracked (see inventory.ts).
         if (product.stockQuantity !== -1 && product.stockQuantity < quantity) {
-            problems.push(
-                product.stockQuantity <= 0
-                    ? `${product.name} is out of stock`
-                    : `${product.name}: only ${product.stockQuantity} left`,
-            );
+            problems.push({
+                productId,
+                message:
+                    product.stockQuantity <= 0
+                        ? `${product.name} is out of stock`
+                        : `${product.name}: only ${product.stockQuantity} left`,
+            });
             continue;
         }
         lines.push({
             productId,
             name: product.name,
             quantity,
-            unitPrice: effectiveUnitPrice(product),
+            unitPrice,
             unlimitedStock: product.stockQuantity === -1,
         });
     }
+    return { lines, problems };
+}
 
+/**
+ * Re-price the cart and refuse it outright if anything is gone, unpublished,
+ * short or unpriced — the shopper must see which item, not pay for a silently
+ * smaller order.
+ */
+async function loadCheckoutLines(
+    database: typeof db,
+    tenantId: string,
+    items: { productId: string; quantity: number }[],
+): Promise<CheckoutLine[]> {
+    const { lines, problems } = await priceCart(database, tenantId, items);
     if (problems.length > 0) {
-        throw new TRPCError({ code: "CONFLICT", message: `${problems.join("; ")}. Please update your cart.` });
+        throw new TRPCError({
+            code: "CONFLICT",
+            message: `${problems.map((problem) => problem.message).join("; ")}. Please update your cart.`,
+        });
     }
     return lines;
 }
+
+const publicLines = (lines: CheckoutLine[]) =>
+    lines.map(({ productId, name, quantity, unitPrice }) => ({ productId, name, quantity, unitPrice }));
 
 export const shopRouter = createTRPCRouter({
     getShopDetails: publicProcedure.query(async ({ ctx }) => {
@@ -244,7 +291,7 @@ export const shopRouter = createTRPCRouter({
         const { paystackSecretKey: _paystackSecretKey, ...tenantSafe } = tenant;
 
         return {
-            tenant: tenantSafe,
+            tenant: { ...tenantSafe, canPayOnline: tenantCanPayOnline(tenant) },
             needsSetup: !hasUsers,
         };
     }),
@@ -313,6 +360,24 @@ export const shopRouter = createTRPCRouter({
             });
         }),
 
+    /**
+     * Current server prices for a cart, without placing anything. Checkout
+     * calls it on open so the total on the button matches what the order
+     * will charge, and sold-out or unpriced items show up front.
+     */
+    quoteCart: publicProcedure
+        .input(z.object({ items: checkoutItemsInput }))
+        .query(async ({ ctx, input }) => {
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+            if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+            const { lines, problems } = await priceCart(ctx.db, tenant.id, input.items);
+            return {
+                lines: publicLines(lines),
+                problems,
+                subtotal: lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
+            };
+        }),
+
     estimateDeliveryFee: publicProcedure
         .input(z.object({ deliveryAddress: deliveryAddressInput.min(5) }))
         .query(async ({ ctx, input }) => {
@@ -352,6 +417,10 @@ export const shopRouter = createTRPCRouter({
             }
 
             const deliveryMethod = input.deliveryMethod ?? "PICKUP";
+            // Same rule the product page and checkout show shoppers.
+            if (deliveryMethod === "DELIVERY" && !storefrontOptions({ ...tenant, canPayOnline: true }).offersDelivery) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "This store doesn't offer delivery. Choose pickup." });
+            }
             const deliveryAddress = deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : undefined;
             if (deliveryMethod === "DELIVERY" && !deliveryAddress) {
                 throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery address is required." });
@@ -438,7 +507,7 @@ export const shopRouter = createTRPCRouter({
                 total: amountKobo / 100,
                 subtotal,
                 deliveryFee: deliveryFeeOut.fee,
-                lines: lines.map(({ productId, name, quantity, unitPrice }) => ({ productId, name, quantity, unitPrice })),
+                lines: publicLines(lines),
             };
         }),
 
@@ -576,6 +645,8 @@ export const shopRouter = createTRPCRouter({
                 orderId: newOrder.id,
                 orderNumber: orderNumber(newOrder.id),
                 total: totalAmount,
+                // Server prices: the receipt must show what the store will charge.
+                lines: publicLines(lines),
                 needsAttention: false,
             };
         }),
