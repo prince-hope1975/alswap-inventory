@@ -244,7 +244,9 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
           {departments.map((department) => (
             <Link
               key={department.name}
-              href={`/shop?search=${encodeURIComponent(department.name)}`}
+              // src=tile keeps these clicks out of the demand log: they are our own
+              // shortcuts, not something the customer typed.
+              href={`/shop?search=${encodeURIComponent(department.name)}&src=tile`}
               className="group min-h-56 border-r border-b border-[#14212b]/20 bg-[#faf9f5] p-7 transition hover:bg-white"
             >
               <department.icon

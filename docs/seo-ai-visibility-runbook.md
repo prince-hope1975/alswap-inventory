@@ -17,6 +17,14 @@ This runbook covers the operator work that cannot be completed from the codebase
 
    `OAI-SearchBot` must be allowed on public pages. `GPTBot` must be disallowed. `app.sppdamaks.com` remains blocked for every crawler.
 
+   AI search and assistant agents (`OAI-SearchBot`, `ChatGPT-User`, `Claude-SearchBot`, `Claude-User`, `PerplexityBot`, `Perplexity-User`) each get the public allow list and the private-path disallow list. Check `/llms.txt` as well:
+
+   ```sh
+   curl -s https://shop.sppdamaks.com/llms.txt
+   ```
+
+   It must list the real address, phone, categories with stock and guides. It is generated from store data, so fix any gap in **Store Customization** or the category descriptions, not in code.
+
 4. Test one product, category, guide, About, and Find Us URL in Google Rich Results Test. Structured data must agree with visible names, prices, stock, address, hours, and descriptions.
 
 ## 2. Complete the store identity
@@ -64,6 +72,16 @@ Publish two original guides per month from **Inventory → Articles**. Use headi
 4. What to check before buying an inverter battery in Nigeria.
 5. How to prepare an electrical materials list or bill of quantities.
 6. Choosing replacement chargers and cables safely.
+
+Pick the next topics from the Demand page (**Inventory → Demand**). Searches with no results and rising Trends terms are what people in the area are already looking for. Research from October 2026 (Delta State) points to:
+
+7. Lithium battery prices in Warri: 100Ah vs 200Ah, and 2.5kWh vs 15kWh LiFePO4.
+8. Hybrid inverter buying guide (Deye, Felicity, Itel), including 3.5kVA and 5kVA sizing questions.
+9. Solar generators (portable power stations) vs a solar installation.
+10. Solar fan vs rechargeable fan before the dry season.
+11. Choosing a fridge or deep freezer in Warri, including solar fridges.
+
+Nigerian searchers add "price in nigeria" to product names. Product and category titles now follow that pattern automatically when a price is shown. In guides, use the exact phrases people search for and link to the matching category.
 
 Every technical statement must be checked by someone qualified for the subject. Do not invent prices, certifications, customer results, safety guarantees, or availability.
 

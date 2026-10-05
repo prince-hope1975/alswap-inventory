@@ -942,3 +942,115 @@ export const solarLeads = createTable(
   }),
   (t) => [index("solar_lead_tenant_status_idx").on(t.tenantId, t.status)],
 );
+
+// --- Demand insights ---
+
+export const trendTermKind = pgEnum("trend_term_kind", [
+  // The yardstick sent with every comparison batch so batches line up.
+  "ANCHOR",
+  // Ranked against the anchor.
+  "COMPARE",
+  // Expanded into the top and rising searches people type around it.
+  "SEED",
+]);
+export const trendRunStatus = pgEnum("trend_run_status", [
+  "OK",
+  "PARTIAL",
+  "BLOCKED",
+  "FAILED",
+]);
+
+/**
+ * Storefront searches rolled up per day. Raw searches are never stored: the
+ * write endpoint is public, and daily rows keep growth bounded and anonymous.
+ */
+export const searchQueryDaily = createTable(
+  "search_query_daily",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    term: d.varchar({ length: 80 }).notNull(),
+    day: d.date({ mode: "string" }).notNull(),
+    searches: d.integer().notNull().default(0),
+    // Searches that found nothing in the catalog: unmet demand.
+    zeroResultSearches: d.integer("zero_result_searches").notNull().default(0),
+    lastResultCount: d.integer("last_result_count").notNull().default(0),
+    updatedAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  }),
+  (t) => [
+    uniqueIndex("search_query_daily_tenant_term_day_idx").on(t.tenantId, t.term, t.day),
+    index("search_query_daily_tenant_day_idx").on(t.tenantId, t.day),
+  ],
+);
+
+/** Watchlist of Google Trends terms, per tenant, so nothing locale-specific lives in code. */
+export const trendTerms = createTable(
+  "trend_term",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    term: d.varchar({ length: 100 }).notNull(),
+    // Google Trends geo code, e.g. a country ("NG") or region ("NG-DE").
+    geo: d.varchar({ length: 16 }).notNull(),
+    kind: trendTermKind("kind").notNull(),
+    isActive: d.boolean("is_active").default(true).notNull(),
+    lastFetchedAt: d.timestamp("last_fetched_at", { withTimezone: true }),
+    createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  }),
+  (t) => [
+    uniqueIndex("trend_term_tenant_term_geo_kind_idx").on(t.tenantId, t.term, t.geo, t.kind),
+  ],
+);
+
+export const trendSnapshots = createTable(
+  "trend_snapshot",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    termId: d
+      .integer("term_id")
+      .notNull()
+      .references(() => trendTerms.id, { onDelete: "cascade" }),
+    // COMPARE terms: % of the anchor over 12 months and the recent window.
+    yearScore: d.real("year_score"),
+    recentScore: d.real("recent_score"),
+    // Weekly values relative to the anchor's peak in the same request.
+    series: d.json().$type<{ week: string; value: number }[]>(),
+    // SEED terms: what people type around the seed.
+    related: d.json().$type<{
+      top: { query: string; value: number }[];
+      rising: { query: string; value: string }[];
+    }>(),
+    fetchedAt: d.timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+  }),
+  (t) => [index("trend_snapshot_term_fetched_idx").on(t.termId, t.fetchedAt)],
+);
+
+/** One row per refresh attempt, so the page can say when data last updated or failed. */
+export const trendRuns = createTable(
+  "trend_run",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    tenantId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => tenants.id),
+    trigger: d.varchar({ length: 16 }).notNull(),
+    status: trendRunStatus("status").notNull(),
+    requestsMade: d.integer("requests_made").notNull().default(0),
+    termsUpdated: d.integer("terms_updated").notNull().default(0),
+    error: d.text(),
+    startedAt: d.timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: d.timestamp("finished_at", { withTimezone: true }).defaultNow().notNull(),
+  }),
+  (t) => [index("trend_run_tenant_started_idx").on(t.tenantId, t.startedAt)],
+);

@@ -39,6 +39,8 @@ const publicApiRoutes = [
   "/api/solar",
   "/api/trpc",
   "/api/feed",
+  // Authenticates itself with CRON_SECRET.
+  "/api/cron",
 ];
 
 /**

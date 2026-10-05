@@ -4,6 +4,20 @@ export type PublicSurface = "app" | "home" | "shop" | "solar" | "used";
 
 const PRIVATE_PATHS = ["/inventory/", "/pos/", "/sales/", "/auth/", "/api/"];
 
+/**
+ * Crawlers that fetch pages to cite in AI answers or to act for a user who
+ * asked about the store. Named explicitly so the intent is on record; a named
+ * group replaces the "*" group for that bot, so each repeats the same rules.
+ */
+const AI_SEARCH_AGENTS = [
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "Claude-SearchBot",
+  "Claude-User",
+  "PerplexityBot",
+  "Perplexity-User",
+];
+
 export function crawlerPolicy(
   surface: PublicSurface,
 ): Pick<MetadataRoute.Robots, "rules"> {
@@ -28,10 +42,14 @@ export function crawlerPolicy(
     rules: [
       {
         userAgent: "*",
-        allow: publicAllow,
+        allow: [...publicAllow, "/llms.txt"],
         disallow: PRIVATE_PATHS,
       },
-      { userAgent: "OAI-SearchBot", allow: "/" },
+      ...AI_SEARCH_AGENTS.map((userAgent) => ({
+        userAgent,
+        allow: [...publicAllow, "/llms.txt"],
+        disallow: PRIVATE_PATHS,
+      })),
       { userAgent: "GPTBot", disallow: "/" },
     ],
   };

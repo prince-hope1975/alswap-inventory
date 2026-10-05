@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { canonicalCommerceBaseUrl, requestBaseUrl } from "~/lib/seo/base-url";
-import { surfaceLabelFromHost } from "~/lib/seo/host";
+import { homeBaseUrlFromHost, surfaceLabelFromHost } from "~/lib/seo/host";
 import { blogPostsForTenant, blogSitemap } from "~/lib/content/blog";
 import { env } from "~/env";
 import { db } from "~/server/db";
@@ -20,6 +20,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Read from the host, not x-storefront-surface: sitemap.xml matches
   // publicAssetPatterns and returns before the middleware sets that header.
   const surface = surfaceLabelFromHost(
+    headerList.get("x-forwarded-host") ?? headerList.get("host"),
+  );
+  const homeBase = homeBaseUrlFromHost(
     headerList.get("x-forwarded-host") ?? headerList.get("host"),
   );
   const [surfaceBase, canonicalBase] = await Promise.all([
@@ -108,8 +111,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.75,
     },
-    // The only page carrying LocalBusiness JSON-LD, so it is what ties the site
-    // to the Business Profile. Listed at the commerce host because that is what
+    // Brand-name page: names the business and its alternate spellings. Its
+    // canonical is the home host (`canonicalHomeUrl("/about")`), not commerce.
+    {
+      url: `${homeBase}/about`,
+      lastModified: tenant.updatedAt ?? tenant.createdAt,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    // Carries LocalBusiness JSON-LD, so it ties the site to the Business
+    // Profile. Listed at the commerce host because that is what
     // its own canonical resolves to (`canonicalUrl("/find-us")`).
     {
       url: `${canonicalBase}/find-us`,

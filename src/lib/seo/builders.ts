@@ -181,6 +181,7 @@ function filled(value: string | null | undefined) {
 
 export function buildLocalBusiness(input: {
   name: string;
+  alternateNames?: string[];
   url: string;
   image?: string | null;
   phone?: string | null;
@@ -214,6 +215,9 @@ export function buildLocalBusiness(input: {
     "@type": "LocalBusiness",
     "@id": `${input.url}#localbusiness`,
     name: input.name,
+    alternateName: input.alternateNames?.length
+      ? input.alternateNames
+      : undefined,
     url: input.url,
     image: input.image ?? undefined,
     telephone: input.phone ?? undefined,

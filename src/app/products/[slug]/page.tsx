@@ -16,6 +16,12 @@ import { StorefrontImage } from "~/app/_components/shop/storefront-image";
 import { buildBreadcrumbs, buildProduct } from "~/lib/seo/builders";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { canonicalUrl } from "~/lib/seo/base-url";
+import {
+  isAvailable,
+  productMetaDescription,
+  productMetaTitle,
+  shownPrice,
+} from "~/lib/seo/commerce-copy";
 import { db } from "~/server/db";
 import { products, reviews } from "~/server/db/schema";
 import { resolvePublicTenant } from "~/server/tenant";
@@ -59,11 +65,18 @@ export async function generateMetadata({
   const result = await getProduct(slug);
   if (!result) return { title: "Product not found" };
   const { product, tenant } = result;
+  const price = shownPrice(product.price, product.salePrice);
   // The store name is appended by the root layout's title template.
-  const title = product.name;
-  const description =
-    product.description?.slice(0, 155) ??
-    `Buy ${product.name} from ${tenant.name}. Check availability, pricing and delivery options.`;
+  const title = productMetaTitle(product.name, price, tenant.location);
+  const description = productMetaDescription({
+    name: product.name,
+    price,
+    currency: tenant.currency,
+    available: isAvailable(product.stockQuantity),
+    storeName: tenant.name,
+    location: tenant.location,
+    description: product.description,
+  });
   const canonical = await canonicalUrl(
     `/products/${product.slug ?? product.id}`,
   );

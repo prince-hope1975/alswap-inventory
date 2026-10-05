@@ -23,6 +23,8 @@ type ShopSearchParams = {
   search?: string;
   categoryId?: string;
   condition?: string;
+  /** "tile" marks a homepage shortcut link, not a customer-typed search. */
+  src?: string;
 };
 
 function first(value: string | string[] | undefined) {
@@ -78,6 +80,9 @@ export default async function ShopPage({
           initialCategories={categories}
           initialProducts={products}
           initialSearch={search}
+          // A search arriving by URL (e.g. Google's sitelinks search box) is
+          // real customer intent; our own homepage tiles are not.
+          logInitialSearch={Boolean(search) && first(params.src) !== "tile"}
           initialCategoryId={categoryId}
           initialCondition={condition}
         />

@@ -35,6 +35,8 @@ export const env = createEnv({
      * outright on *.localhost, which would silently break sign-in.
      */
     AUTH_COOKIE_DOMAIN: z.string().optional(),
+    /** Bearer token Vercel cron sends to /api/cron/*. Unset keeps those routes closed. */
+    CRON_SECRET: z.string().min(16).optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -70,6 +72,7 @@ export const env = createEnv({
     COMMERCE_SUBDOMAIN: process.env.COMMERCE_SUBDOMAIN,
     BLOG_SUBDOMAIN: process.env.BLOG_SUBDOMAIN,
     AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+    CRON_SECRET: process.env.CRON_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:
       process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,

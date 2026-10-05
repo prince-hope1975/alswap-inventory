@@ -6,6 +6,7 @@ import { env } from "~/env";
 import {
   baseUrlFromHost,
   commerceBaseUrlFromHost,
+  homeBaseUrlFromHost,
   portFromRawHost,
 } from "~/lib/seo/host";
 
@@ -56,5 +57,15 @@ export async function canonicalCommerceBaseUrl() {
  */
 export async function canonicalUrl(path: string) {
   const base = await canonicalCommerceBaseUrl();
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/**
+ * Absolute canonical URL for a path on the brand's home host. See
+ * {@link homeBaseUrlFromHost}.
+ */
+export async function canonicalHomeUrl(path: string) {
+  const raw = await requestHost();
+  const base = homeBaseUrlFromHost(raw, portFromRawHost(raw));
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }

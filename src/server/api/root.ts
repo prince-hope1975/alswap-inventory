@@ -13,6 +13,7 @@ import { reviewsRouter } from "~/server/api/routers/reviews";
 import { articlesRouter } from "~/server/api/routers/articles";
 import { solarRouter } from "~/server/api/routers/solar";
 import { documentsRouter } from "~/server/api/routers/documents";
+import { demandRouter } from "~/server/api/routers/demand";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -35,6 +36,7 @@ export const appRouter = createTRPCRouter({
   articles: articlesRouter,
   solar: solarRouter,
   documents: documentsRouter,
+  demand: demandRouter,
 });
 
 // export type definition of API
