@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingCart } from "lucide-react";
+import { Eye, ImageOff, ShoppingCart } from "lucide-react";
 import { useCart } from "./cart-context";
 import { StorefrontImage } from "./storefront-image";
+import { StockBadge } from "./parts/stock-badge";
 import { productPath } from "~/lib/domain/slug";
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { toDisplayCategoryName } from "~/lib/domain/shop-filters";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
 
 type Product = {
     id: string;
@@ -19,26 +21,33 @@ type Product = {
     category?: { name: string } | null;
     description?: string | null;
     stockQuantity: number | null;
+    lowStockThreshold?: number | null;
 };
 
 interface ProductCardProps {
     product: Product;
     priority?: boolean;
     sizes?: string;
+    /** Opens the quick-look dialog from the image; omit to render a plain image. */
+    onQuickView?: () => void;
 }
 
 export function ProductCard({
     product,
     priority = false,
-    sizes = "(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) 50vw, 33vw",
+    sizes = "(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw",
+    onQuickView,
 }: ProductCardProps) {
     const { addItem } = useCart();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency } = useShopCurrency();
     const [isHovered, setIsHovered] = useState(false);
     const price = Number(product.price);
     const salePrice = product.salePrice ? Number(product.salePrice) : null;
     const displayPrice = salePrice ?? price;
-    const discountPercent = salePrice ? Math.round(((price - salePrice) / price) * 100) : 0;
+    const discountPercent =
+        salePrice != null && price > 0 && salePrice < price
+            ? Math.round(((price - salePrice) / price) * 100)
+            : 0;
     const isOutOfStock = product.stockQuantity === 0;
 
     const allImages = [
@@ -47,87 +56,120 @@ export function ProductCard({
     ];
     const displayImage = isHovered && allImages.length > 1 ? allImages[1] : allImages[0];
 
+    const imageContent = (
+        <>
+            {displayImage ? (
+                <StorefrontImage
+                    src={displayImage}
+                    alt={product.name}
+                    fill
+                    sizes={sizes}
+                    priority={priority}
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+            ) : (
+                <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-[#8a949a]">
+                    <ImageOff className="h-6 w-6" aria-hidden />
+                    No photo yet
+                </span>
+            )}
+            {discountPercent > 0 && (
+                <span className="absolute top-2 left-2 rounded bg-[#c0392b] px-1.5 py-0.5 text-[11px] font-bold text-white">
+                    -{discountPercent}%
+                </span>
+            )}
+        </>
+    );
+
     return (
         <div
-            className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-[#14212b]/15 transition-all hover:border-[#0b6e99]/40 hover:shadow-xl hover:shadow-sky-950/10 dark:bg-white/5 dark:border-white/10 dark:hover:border-white/20 dark:hover:bg-white/10"
+            className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-[#14212b]/12 bg-white transition-all hover:border-[#0b6e99]/40 hover:shadow-lg hover:shadow-sky-950/10 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="aspect-square w-full overflow-hidden bg-[#e7e4dc] dark:bg-gray-800/50 relative">
-                {displayImage ? (
-                    <StorefrontImage
-                        src={displayImage}
-                        alt={product.name}
-                        fill
-                        sizes={sizes}
-                        priority={priority}
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                ) : (
-                    <div className="flex h-full w-full items-center justify-center text-gray-500">
-                        No Image
-                    </div>
-                )}
+            {onQuickView ? (
+                <button
+                    type="button"
+                    onClick={onQuickView}
+                    aria-label={`Quick view: ${product.name}`}
+                    className="relative block aspect-square w-full overflow-hidden bg-[#eeece6] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none focus-visible:ring-inset dark:bg-white/5"
+                >
+                    {imageContent}
+                    <span className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#14212b] opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-[#0a1117]/90 dark:text-white">
+                        <Eye className="h-3.5 w-3.5" aria-hidden />
+                        Quick view
+                    </span>
+                </button>
+            ) : (
+                <div className="relative aspect-square w-full overflow-hidden bg-[#eeece6] dark:bg-white/5">
+                    {imageContent}
+                </div>
+            )}
 
-                {salePrice && (
-                    <div className="absolute top-3 left-3 px-2 py-1 bg-red-500 text-white text-xs font-bold rounded">
-                        -{discountPercent}%
-                    </div>
-                )}
-
-                {!isOutOfStock && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            addItem({
-                                productId: product.id,
-                                name: product.name,
-                                price: displayPrice,
-                                image: product.image,
-                            });
-                        }}
-                        className="absolute bottom-4 right-4 flex h-10 w-10 translate-y-14 items-center justify-center rounded-full bg-[var(--brand-primary-600)] text-white shadow-lg transition-all duration-300 hover:bg-[var(--brand-primary-500)] group-hover:translate-y-0"
-                        aria-label="Add to cart"
-                    >
-                        <ShoppingCart className="h-5 w-5" />
-                    </button>
-                )}
-            </div>
-
-            <div className="flex flex-1 flex-col p-4">
+            <div className="flex flex-1 flex-col gap-1.5 p-3 sm:p-4">
                 {product.category && (
-                    <span className="mb-1 text-xs font-medium text-[var(--brand-primary-400)]">
-                        {product.category.name}
+                    <span className="truncate text-[11px] font-semibold tracking-wide text-[#0b6e99] uppercase dark:text-[#8dc5dc]">
+                        {toDisplayCategoryName(product.category.name)}
                     </span>
                 )}
                 {/*
-                  * The card body opens a quick-look modal, which gives crawlers
-                  * nothing to follow. The title is a real permalink so every
-                  * product has an indexable inbound link; stopPropagation keeps
-                  * the click from also firing the parent's modal handler.
+                  * The image opens quick look, which gives crawlers nothing to
+                  * follow. The title is a real permalink so every product has
+                  * an indexable inbound link.
                   */}
-                <h3 className="mb-1 text-lg font-semibold text-[#14212b] dark:text-white line-clamp-1" title={product.name}>
+                <h3
+                    className="line-clamp-2 min-h-[2.5rem] text-sm leading-5 font-semibold text-[#14212b] sm:text-[15px] dark:text-white"
+                    title={product.name}
+                >
                     <Link
                         href={productPath(product)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-600)]"
+                        className="hover:text-[#0b6e99] hover:underline focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none dark:hover:text-[#8dc5dc]"
                     >
                         {product.name}
                     </Link>
                 </h3>
-                <p className="mb-3 text-sm text-gray-400 line-clamp-2">
-                    {product.description || "No description available"}
-                </p>
-                <div className="mt-auto flex items-center gap-2">
-                    <span className="text-xl font-bold text-[#14212b] dark:text-white">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-lg font-extrabold text-[#14212b] dark:text-white">
                         {formatCurrency(displayPrice)}
                     </span>
-                    {salePrice && (
-                        <span className="text-sm text-gray-400 line-through">
+                    {discountPercent > 0 && (
+                        <span className="text-xs text-[#8a949a] line-through">
                             {formatCurrency(price)}
                         </span>
                     )}
                 </div>
+                <StockBadge
+                    stockQuantity={product.stockQuantity}
+                    lowStockThreshold={product.lowStockThreshold ?? 5}
+                    className="self-start"
+                />
+                {product.description && (
+                    <p className="hidden text-xs leading-5 text-[#5c6870] sm:line-clamp-2 dark:text-gray-400">
+                        {product.description}
+                    </p>
+                )}
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (isOutOfStock) return;
+                        addItem({
+                            productId: product.id,
+                            name: product.name,
+                            price: displayPrice,
+                            image: product.image,
+                            stockQuantity: product.stockQuantity,
+                        });
+                    }}
+                    disabled={isOutOfStock}
+                    className={`mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-bold transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                        isOutOfStock
+                            ? "cursor-not-allowed bg-[#14212b]/5 text-[#8a949a] dark:bg-white/5 dark:text-gray-500"
+                            : "bg-[#f5a623] text-[#14212b] hover:bg-[#ffc04d] focus-visible:ring-[#f5a623] active:scale-[0.98]"
+                    }`}
+                >
+                    <ShoppingCart className="h-4 w-4" aria-hidden />
+                    {isOutOfStock ? "Out of stock" : "Add to cart"}
+                </button>
             </div>
         </div>
     );

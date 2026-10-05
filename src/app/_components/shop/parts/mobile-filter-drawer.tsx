@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import { ShopFilters, type SortOption } from "./shop-filters";
 
@@ -10,12 +11,25 @@ interface MobileFilterDrawerProps {
   setSortBy: (sort: SortOption) => void;
   priceRange: [number, number];
   setPriceRange: (range: [number, number]) => void;
+  maxPrice?: number;
+  hasSearch?: boolean;
+  isPriceFiltered?: boolean;
   inStockOnly: boolean;
   setInStockOnly: (value: boolean) => void;
   onClearFilters: () => void;
-  categories?: Array<{ id: number; name: string }>;
+  categories?: Array<{ id: number; name: string; productCount?: number }>;
   selectedCategory: number | undefined;
   setSelectedCategory: (id: number | undefined) => void;
+  /** Result count for the "Show N results" button. */
+  resultCount?: number;
+}
+
+function chipClass(active: boolean) {
+  return `min-h-10 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+    active
+      ? "border-[#0b6e99] bg-[#0b6e99] text-white"
+      : "border-[#14212b]/15 bg-white text-[#14212b] hover:border-[#0b6e99] dark:border-white/15 dark:bg-white/5 dark:text-gray-200"
+  }`;
 }
 
 export function MobileFilterDrawer({
@@ -25,66 +39,78 @@ export function MobileFilterDrawer({
   setSortBy,
   priceRange,
   setPriceRange,
+  maxPrice,
+  hasSearch,
+  isPriceFiltered,
   inStockOnly,
   setInStockOnly,
   onClearFilters,
   categories,
   selectedCategory,
   setSelectedCategory,
+  resultCount,
 }: MobileFilterDrawerProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity lg:hidden"
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
         onClick={onClose}
+        aria-hidden
       />
 
-      {/* Drawer */}
-      <div className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl transform transition-transform duration-300 ease-in-out lg:hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 p-4 sticky top-0 bg-white dark:bg-gray-900 z-10">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Filters & Sort</h2>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-filter-title"
+        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-2xl bg-[#f6f4ee] shadow-2xl lg:hidden dark:bg-[#0f1a22]"
+      >
+        <div className="flex items-center justify-between border-b border-[#14212b]/10 px-4 py-3 dark:border-white/10">
+          <h2 id="mobile-filter-title" className="text-lg font-bold text-[#14212b] dark:text-white">
+            Filter & sort
+          </h2>
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label="Close filters"
+            className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#14212b]/5 dark:hover:bg-white/10"
           >
-            <X className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+            <X className="h-5 w-5 text-[#41515c] dark:text-gray-300" aria-hidden />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 space-y-6">
-          {/* Categories */}
+        <div className="flex-1 space-y-6 overflow-y-auto p-4">
           {categories && categories.length > 0 && (
             <div className="space-y-3">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Categories</h3>
+              <h3 className="text-xs font-semibold tracking-wide text-[#41515c] uppercase dark:text-gray-300">
+                Category
+              </h3>
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => {
-                    setSelectedCategory(undefined);
-                  }}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    selectedCategory === undefined
-                      ? "bg-[#0b6e99] text-white"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                  }`}
+                  type="button"
+                  aria-pressed={selectedCategory === undefined}
+                  onClick={() => setSelectedCategory(undefined)}
+                  className={chipClass(selectedCategory === undefined)}
                 >
-                  All
+                  All products
                 </button>
                 {categories.map((category) => (
                   <button
                     key={category.id}
-                    onClick={() => {
-                      setSelectedCategory(category.id);
-                    }}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      selectedCategory === category.id
-                        ? "bg-[#0b6e99] text-white"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                    }`}
+                    type="button"
+                    aria-pressed={selectedCategory === category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={chipClass(selectedCategory === category.id)}
                   >
                     {category.name}
                   </button>
@@ -93,37 +119,38 @@ export function MobileFilterDrawer({
             </div>
           )}
 
-          {/* Filters */}
-          <div className="border-t border-gray-200 dark:border-gray-800 pt-6">
-            <ShopFilters
-              sortBy={sortBy}
-              setSortBy={setSortBy}
-              priceRange={priceRange}
-              setPriceRange={setPriceRange}
-              inStockOnly={inStockOnly}
-              setInStockOnly={setInStockOnly}
-              onClearFilters={onClearFilters}
-              className="text-gray-900 dark:text-white"
-            />
-          </div>
+          <ShopFilters
+            hideHeader
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            priceRange={priceRange}
+            setPriceRange={setPriceRange}
+            maxPrice={maxPrice}
+            hasSearch={hasSearch}
+            isPriceFiltered={isPriceFiltered}
+            inStockOnly={inStockOnly}
+            setInStockOnly={setInStockOnly}
+            onClearFilters={onClearFilters}
+          />
         </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 border-t border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-900 space-y-2">
+        <div className="grid grid-cols-2 gap-2 border-t border-[#14212b]/10 p-4 dark:border-white/10">
           <button
+            type="button"
             onClick={() => {
               onClearFilters();
               setSelectedCategory(undefined);
             }}
-            className="w-full py-3 px-6 rounded-xl border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="min-h-11 rounded-xl border border-[#14212b]/20 font-semibold text-[#14212b] hover:bg-[#14212b]/5 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
           >
-            Clear All
+            Clear all
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="w-full py-3 px-6 rounded-xl bg-[#0b6e99] text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+            className="min-h-11 rounded-xl bg-[#f5a623] font-bold text-[#14212b] hover:bg-[#ffc04d]"
           >
-            Show Results
+            {resultCount != null ? `Show ${resultCount} result${resultCount === 1 ? "" : "s"}` : "Show results"}
           </button>
         </div>
       </div>

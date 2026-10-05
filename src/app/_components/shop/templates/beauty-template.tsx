@@ -3,7 +3,7 @@
 import { useState, type ComponentProps } from "react";
 import { ArrowUpRight, Leaf, Sparkles } from "lucide-react";
 
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { useCart } from "../cart-context";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { ShopNavbar } from "../parts/shop-navbar";
@@ -16,7 +16,7 @@ type BeautyProduct = NonNullable<BeautyProps["products"]>[number];
 export function BeautyTemplate({ shopDetails, products, categories, isLoading, search, setSearch, selectedCategory, setSelectedCategory, config }: BeautyProps) {
   const tenant = shopDetails?.tenant;
   const { addItem } = useCart();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency } = useShopCurrency();
   const [selectedProduct, setSelectedProduct] = useState<BeautyProduct | null>(null);
 
   return (

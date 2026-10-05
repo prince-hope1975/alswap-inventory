@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X, Minus, Plus, ShoppingCart, Package, AlertCircle, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCart } from "../cart-context";
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { api } from "~/trpc/react";
 import { StorefrontImage } from "../storefront-image";
 
@@ -31,7 +31,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const { addItem } = useCart();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency } = useShopCurrency();
 
   const { data: reviewsData } = api.reviews.getProductReviews.useQuery({
     productId: product.id,
@@ -73,14 +73,18 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
   const handleAddToCart = () => {
     if (isOutOfStock) return;
 
-    addItem({
-      productId: product.id,
-      name: product.name,
-      price: displayPrice,
-      image: product.image,
-    });
+    addItem(
+      {
+        productId: product.id,
+        name: product.name,
+        price: displayPrice,
+        image: product.image,
+        stockQuantity: product.stockQuantity,
+      },
+      quantity,
+    );
 
-    setTimeout(() => onClose(), 300);
+    onClose();
   };
 
   const incrementQuantity = () => {
@@ -113,7 +117,9 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl">
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close"
             className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 transition-colors"
           >
             <X className="h-5 w-5 text-gray-700 dark:text-gray-300" />
@@ -147,13 +153,17 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                 {allImages.length > 1 && (
                   <>
                     <button
+                      type="button"
                       onClick={prevImage}
+                      aria-label="Previous image"
                       className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg"
                     >
                       <ChevronLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                     </button>
                     <button
+                      type="button"
                       onClick={nextImage}
+                      aria-label="Next image"
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg"
                     >
                       <ChevronRight className="h-5 w-5 text-gray-700 dark:text-gray-300" />
@@ -167,7 +177,10 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                   {allImages.map((img, idx) => (
                     <button
                       key={idx}
+                      type="button"
                       onClick={() => setCurrentImageIndex(idx)}
+                      aria-label={`Show image ${idx + 1}`}
+                      aria-current={idx === currentImageIndex}
                       className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
                         idx === currentImageIndex
                           ? "border-[#0b6e99] dark:border-[#8dc5dc]"
@@ -203,7 +216,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
               {ratingData && ratingData.count > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
+                    {Array.from({ length: 5 }, (_, i) => (
                       <Star
                         key={i}
                         className={`h-5 w-5 ${
@@ -296,21 +309,25 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Quantity:
                     </span>
-                    <div className="flex items-center gap-3 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2">
+                    <div className="flex items-center gap-1 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-1">
                       <button
+                        type="button"
                         onClick={decrementQuantity}
                         disabled={quantity <= 1}
-                        className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Decrease quantity"
+                        className="grid h-11 w-11 place-items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Minus className="h-4 w-4" />
                       </button>
-                      <span className="text-lg font-semibold text-gray-900 dark:text-white w-8 text-center">
+                      <span className="text-lg font-semibold text-gray-900 dark:text-white w-8 text-center" aria-live="polite">
                         {quantity}
                       </span>
                       <button
+                        type="button"
                         onClick={incrementQuantity}
                         disabled={qty !== -1 && quantity >= qty}
-                        className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Increase quantity"
+                        className="grid h-11 w-11 place-items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
@@ -318,6 +335,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleAddToCart}
                     className="w-full py-4 px-6 rounded-xl bg-[#0b6e99] hover:bg-[#07597d] text-white font-bold text-lg shadow-lg shadow-[#167da8]/25 hover:shadow-[#167da8]/40 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
                   >
@@ -354,7 +372,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
                       <div key={review.id} className="border-b border-gray-200 dark:border-gray-700 pb-4 last:border-0">
                         <div className="flex items-center gap-2 mb-2">
                           <div className="flex items-center gap-1">
-                            {[...Array(5)].map((_, i) => (
+                            {Array.from({ length: 5 }, (_, i) => (
                               <Star
                                 key={i}
                                 className={`h-4 w-4 ${

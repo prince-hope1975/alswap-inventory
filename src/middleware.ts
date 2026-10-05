@@ -40,6 +40,8 @@ const publicApiRoutes = [
   "/api/feed",
   // Authenticates itself with CRON_SECRET.
   "/api/cron",
+  // Authenticates itself with the tenant's Paystack HMAC signature.
+  "/api/paystack/webhook",
 ];
 
 /**

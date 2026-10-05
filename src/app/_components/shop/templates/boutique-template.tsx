@@ -6,7 +6,7 @@ import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Filter, Sparkles, Heart } from "lucide-react";
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
@@ -14,7 +14,7 @@ import { StockBadge } from "../parts/stock-badge";
 import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
-type Products = RouterOutputs["shop"]["getProducts"];
+type Products = RouterOutputs["shop"]["getProducts"]["items"];
 type Categories = RouterOutputs["shop"]["getCategories"];
 type Product = Products[number];
 
@@ -57,7 +57,7 @@ export function BoutiqueTemplate({
 }: BoutiqueTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency } = useShopCurrency();
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [showFilters, setShowFilters] = useState(false);
 

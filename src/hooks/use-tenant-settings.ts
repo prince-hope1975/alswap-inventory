@@ -1,4 +1,5 @@
 import { api } from "~/trpc/react";
+import { formatMoney } from "~/lib/domain/checkout";
 
 export function useTenantSettings() {
     const { data: settings, isLoading } = api.settings.getTenantSettings.useQuery(undefined, {
@@ -15,22 +16,33 @@ export function useTenantSettings() {
     };
 }
 
+/**
+ * Back-office currency (signed-in staff). Reads the admin settings query, so
+ * on the public storefront use `useShopCurrency` instead.
+ */
 export function useCurrency() {
     const { currency } = useTenantSettings();
 
-    const formatCurrency = (amount: number | string | undefined | null) => {
-        if (amount === undefined || amount === null) return `${currency}0.00`;
-        const num = typeof amount === "string" ? parseFloat(amount) : amount;
-        if (isNaN(num)) return `${currency}0.00`;
-
-        return `${currency}${Intl.NumberFormat("en-US", {
-            maximumFractionDigits: 2,notation:"standard"
-        }).format(num)}`;
-    };
-
     return {
         currency,
-        formatCurrency,
+        formatCurrency: (amount: number | string | undefined | null) =>
+            formatMoney(amount, currency),
     };
 }
 
+/**
+ * Storefront currency. Reads the public `shop.getShopDetails` query, which
+ * works for anonymous shoppers (the admin settings query 401s for them).
+ */
+export function useShopCurrency() {
+    const { data } = api.shop.getShopDetails.useQuery(undefined, {
+        staleTime: 1000 * 60 * 5,
+    });
+    const currency = data?.tenant?.currency ?? "₦";
+
+    return {
+        currency,
+        formatCurrency: (amount: number | string | undefined | null) =>
+            formatMoney(amount, currency),
+    };
+}

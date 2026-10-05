@@ -3,16 +3,13 @@ import { and, avg, eq, or, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  BadgeCheck,
-  PackageCheck,
-  PhoneCall,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowLeft, MapPin, PhoneCall, Truck, Wallet } from "lucide-react";
 
 import { ProductBuyBox } from "~/app/_components/shop/product-buy-box";
-import { StorefrontImage } from "~/app/_components/shop/storefront-image";
+import { StockBadge } from "~/app/_components/shop/parts/stock-badge";
+import { formatMoney } from "~/lib/domain/checkout";
+import { ProductGallery } from "./product-gallery";
+import { ProductPageShell } from "./product-page-shell";
 import { buildBreadcrumbs, buildProduct } from "~/lib/seo/builders";
 import { JsonLd } from "~/lib/seo/json-ld";
 import { canonicalUrl } from "~/lib/seo/base-url";
@@ -151,61 +148,40 @@ export default async function ProductPage({
     { name: product.name, url: productUrl },
   ]);
 
+  // Never ship the encrypted Paystack secret to the client.
+  const { paystackSecretKey: _paystackSecretKey, ...publicTenant } = tenant;
+  const money = (value: number | string) => formatMoney(value, tenant.currency);
+  const regularPrice = Number(product.price);
+  const salePrice = product.salePrice == null ? null : Number(product.salePrice);
+  const onSale = salePrice != null && salePrice >= 0 && salePrice < regularPrice;
+  const discountPercent = onSale
+    ? Math.round(((regularPrice - salePrice) / regularPrice) * 100)
+    : 0;
+  const storeConfig = tenant.storeConfig;
+  const offersDelivery =
+    Boolean(tenant.paystackPublicKey) &&
+    (storeConfig?.deliveryPricing != null || (storeConfig?.deliveryFee ?? 0) > 0);
+  const pickupPlace = tenant.address ?? tenant.location;
+
   return (
+    <ProductPageShell tenant={publicTenant}>
     <main
       id="main-content"
-      className="min-h-screen bg-[#f3f0e8] text-stone-950"
+      className="min-h-screen bg-[#f3f0e8] text-stone-950 dark:bg-[#0a1117] dark:text-white"
     >
       <JsonLd data={productJsonLd} />
       <JsonLd data={breadcrumbJsonLd} />
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
         <Link
-          href="/"
+          href="/shop"
           className="inline-flex min-h-11 items-center gap-2 rounded-lg font-bold focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to store
+          <ArrowLeft className="h-4 w-4" /> Back to shop
         </Link>
         <div className="mt-8 grid gap-10 lg:grid-cols-2">
-          <div>
-            <div className="aspect-square overflow-hidden rounded-[2rem] border border-stone-300 bg-white">
-              {displayImages[0] ? (
-                <div className="relative h-full w-full">
-                  <StorefrontImage
-                    src={displayImages[0]}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 1024px) 100vw, 50vw"
-                    priority
-                    className="object-contain p-8"
-                  />
-                </div>
-              ) : (
-                <div className="grid h-full place-items-center text-stone-400">
-                  Product image coming soon
-                </div>
-              )}
-            </div>
-            {displayImages.length > 1 && (
-              <div className="mt-4 grid grid-cols-4 gap-3">
-                {displayImages.slice(1, 5).map((image, index) => (
-                  <div
-                    key={image}
-                    className="relative aspect-square overflow-hidden border border-stone-300 bg-white"
-                  >
-                    <StorefrontImage
-                      src={image}
-                      alt={`${product.name} view ${index + 2}`}
-                      fill
-                      sizes="12vw"
-                      className="object-contain p-2"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ProductGallery images={displayImages} name={product.name} />
           <div className="py-4 lg:py-10">
-            <div className="flex flex-wrap gap-2 text-xs font-bold tracking-[0.12em] text-amber-700 uppercase">
+            <div className="flex flex-wrap gap-2 text-xs font-bold tracking-[0.12em] text-amber-700 uppercase dark:text-amber-400">
               {categoryEntries.length ? (
                 categoryEntries.map((category) =>
                   category.slug ? (
@@ -227,11 +203,26 @@ export default async function ProductPage({
             <h1 className="mt-4 text-4xl leading-none font-black tracking-[-0.04em] sm:text-6xl">
               {product.name}
             </h1>
-            <p className="mt-6 text-3xl font-black">
-              {tenant.currency ?? "₦"}
-              {Number(price).toLocaleString("en-NG")}
-            </p>
-            <p className="mt-6 text-lg leading-8 text-stone-600">
+            <div className="mt-6 flex flex-wrap items-baseline gap-3">
+              <p className="text-3xl font-black">{money(price)}</p>
+              {onSale && (
+                <>
+                  <p className="text-xl text-stone-500 line-through dark:text-stone-400">
+                    <span className="sr-only">Was </span>
+                    {money(regularPrice)}
+                  </p>
+                  <span className="rounded-full bg-red-100 px-2.5 py-1 text-sm font-bold text-red-700 dark:bg-red-500/15 dark:text-red-300">
+                    -{discountPercent}%
+                  </span>
+                </>
+              )}
+            </div>
+            <StockBadge
+              stockQuantity={product.stockQuantity}
+              lowStockThreshold={product.lowStockThreshold ?? undefined}
+              className="mt-4"
+            />
+            <p className="mt-6 text-lg leading-8 text-stone-600 dark:text-stone-300">
               {product.description ??
                 "Contact our team for specifications, compatibility and installation guidance."}
             </p>
@@ -243,7 +234,7 @@ export default async function ProductPage({
               product.warrantyMonths,
               product.conditionNotes,
             ].some(Boolean) && (
-              <dl className="mt-8 grid gap-px overflow-hidden border border-stone-300 bg-stone-300 sm:grid-cols-2">
+              <dl className="mt-8 grid gap-px overflow-hidden border border-stone-300 bg-stone-300 sm:grid-cols-2 dark:border-white/10 dark:bg-white/10">
                 {[
                   ["Brand", product.brand],
                   ["SKU", product.sku],
@@ -266,46 +257,25 @@ export default async function ProductPage({
                 ]
                   .filter((entry) => entry[1])
                   .map(([label, value]) => (
-                    <div key={String(label)} className="bg-white p-4">
-                      <dt className="text-xs font-bold tracking-wider text-stone-500 uppercase">
+                    <div key={String(label)} className="bg-white p-4 dark:bg-[#0f1a22]">
+                      <dt className="text-xs font-bold tracking-wider text-stone-500 uppercase dark:text-stone-400">
                         {label}
                       </dt>
                       <dd className="mt-1 font-bold">{value}</dd>
                     </div>
                   ))}
                 {product.conditionNotes && (
-                  <div className="bg-white p-4 sm:col-span-2">
-                    <dt className="text-xs font-bold tracking-wider text-stone-500 uppercase">
+                  <div className="bg-white p-4 sm:col-span-2 dark:bg-[#0f1a22]">
+                    <dt className="text-xs font-bold tracking-wider text-stone-500 uppercase dark:text-stone-400">
                       Condition notes
                     </dt>
-                    <dd className="mt-1 leading-6 text-stone-700">
+                    <dd className="mt-1 leading-6 text-stone-700 dark:text-stone-300">
                       {product.conditionNotes}
                     </dd>
                   </div>
                 )}
               </dl>
             )}
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {[
-                [
-                  PackageCheck,
-                  product.stockQuantity > 0 ? "In stock" : "Confirm stock",
-                ],
-                [ShieldCheck, "Store support"],
-                [BadgeCheck, "Current listing"],
-              ].map(([Icon, label]) => {
-                const ItemIcon = Icon as typeof PackageCheck;
-                return (
-                  <div
-                    key={String(label)}
-                    className="rounded-2xl border border-stone-300 bg-white p-4"
-                  >
-                    <ItemIcon className="h-5 w-5 text-amber-700" />
-                    <p className="mt-3 text-sm font-bold">{String(label)}</p>
-                  </div>
-                );
-              })}
-            </div>
             <ProductBuyBox
               product={{
                 id: product.id,
@@ -315,11 +285,47 @@ export default async function ProductPage({
                 stockQuantity: product.stockQuantity,
               }}
             />
+            <ul className="mt-8 grid gap-3 sm:grid-cols-3">
+              <li>
+                <Link
+                  href="/find-us"
+                  className="block h-full rounded-2xl border border-stone-300 bg-white p-4 transition hover:border-amber-600 focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:outline-none dark:border-white/10 dark:bg-white/5"
+                >
+                  <MapPin className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                  <p className="mt-3 text-sm font-bold">Pick up in store</p>
+                  <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                    {pickupPlace ?? "See our location"}
+                  </p>
+                </Link>
+              </li>
+              <li className="rounded-2xl border border-stone-300 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+                <Truck className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                <p className="mt-3 text-sm font-bold">
+                  {offersDelivery ? "Delivery available" : "Pickup only"}
+                </p>
+                <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                  {offersDelivery
+                    ? storeConfig?.deliveryPricing?.type === "distance"
+                      ? "Fee depends on distance; paid online"
+                      : `${money(storeConfig?.deliveryFee ?? 0)} fee, paid online`
+                    : "Collect from the store"}
+                </p>
+              </li>
+              <li className="rounded-2xl border border-stone-300 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+                <Wallet className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                <p className="mt-3 text-sm font-bold">Pay on pickup</p>
+                <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                  {tenant.paystackPublicKey
+                    ? "Or pay online with Paystack"
+                    : "Pay when you collect"}
+                </p>
+              </li>
+            </ul>
             {tenant.phone && (
               <TrackedLink
                 href={`https://wa.me/${tenant.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hello, I need help with ${product.name}`)}`}
                 eventName="click_whatsapp"
-                className="mt-6 inline-flex min-h-14 items-center gap-3 rounded-full border border-stone-400 px-7 font-black text-stone-800"
+                className="mt-6 inline-flex min-h-14 items-center gap-3 rounded-full border border-stone-400 px-7 font-black text-stone-800 dark:border-white/30 dark:text-white"
               >
                 <PhoneCall className="h-5 w-5" /> Ask about this product
               </TrackedLink>
@@ -327,17 +333,17 @@ export default async function ProductPage({
           </div>
         </div>
         {specifications.length > 0 && (
-          <section className="mt-16 border-t border-stone-300 py-12">
-            <p className="text-xs font-black tracking-[0.18em] text-amber-700 uppercase">
+          <section className="mt-16 border-t border-stone-300 py-12 dark:border-white/10">
+            <p className="text-xs font-black tracking-[0.18em] text-amber-700 uppercase dark:text-amber-400">
               Product details
             </p>
             <h2 className="mt-3 text-3xl font-black tracking-[-0.04em]">
               Specifications
             </h2>
-            <dl className="mt-7 grid gap-px border border-stone-300 bg-stone-300 sm:grid-cols-2 lg:grid-cols-3">
+            <dl className="mt-7 grid gap-px border border-stone-300 bg-stone-300 sm:grid-cols-2 lg:grid-cols-3 dark:border-white/10 dark:bg-white/10">
               {specifications.map(([label, value]) => (
-                <div key={label} className="bg-white p-5">
-                  <dt className="text-xs font-bold tracking-wider text-stone-500 uppercase">
+                <div key={label} className="bg-white p-5 dark:bg-[#0f1a22]">
+                  <dt className="text-xs font-bold tracking-wider text-stone-500 uppercase dark:text-stone-400">
                     {label}
                   </dt>
                   <dd className="mt-2 font-bold">{String(value)}</dd>
@@ -347,7 +353,7 @@ export default async function ProductPage({
           </section>
         )}
         {categoryEntries.some((category) => category.slug) && (
-          <section className="border-t border-stone-300 py-12">
+          <section className="border-t border-stone-300 py-12 dark:border-white/10">
             <h2 className="text-2xl font-black">Browse related departments</h2>
             <div className="mt-5 flex flex-wrap gap-3">
               {categoryEntries
@@ -359,7 +365,7 @@ export default async function ProductPage({
                   <Link
                     key={category.id}
                     href={`/categories/${category.slug}`}
-                    className="inline-flex min-h-11 items-center border-2 border-stone-800 px-5 font-black hover:bg-white"
+                    className="inline-flex min-h-11 items-center border-2 border-stone-800 px-5 font-black hover:bg-white dark:border-white/40 dark:hover:bg-white/10"
                   >
                     More {category.name}
                   </Link>
@@ -369,5 +375,6 @@ export default async function ProductPage({
         )}
       </div>
     </main>
+    </ProductPageShell>
   );
 }

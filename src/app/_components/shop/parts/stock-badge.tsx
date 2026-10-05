@@ -16,17 +16,17 @@ export function StockBadge({ stockQuantity, className = "", lowStockThreshold = 
 
   if (isOutOfStock) {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-semibold ${className}`}>
-        <AlertCircle className="h-3.5 w-3.5" />
-        Out of Stock
+      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-[11px] font-semibold ${className}`}>
+        <AlertCircle className="h-3 w-3" aria-hidden />
+        Out of stock
       </div>
     );
   }
 
   if (isLowStock) {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-semibold ${className}`}>
-        <AlertCircle className="h-3.5 w-3.5" />
+      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-[11px] font-semibold ${className}`}>
+        <AlertCircle className="h-3 w-3" aria-hidden />
         Only {qty} left
       </div>
     );
@@ -34,9 +34,9 @@ export function StockBadge({ stockQuantity, className = "", lowStockThreshold = 
 
   if (isInStock) {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-semibold ${className}`}>
-        <CheckCircle className="h-3.5 w-3.5" />
-        In Stock
+      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[11px] font-semibold ${className}`}>
+        <CheckCircle className="h-3 w-3" aria-hidden />
+        In stock
       </div>
     );
   }

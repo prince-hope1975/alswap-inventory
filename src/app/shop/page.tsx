@@ -10,6 +10,7 @@ import {
   getSocialLanding,
 } from "~/lib/seo/social-metadata";
 import { CrawlableCategoryLinks } from "../_components/shop/crawlable-category-links";
+import { SHOP_PAGE_SIZE, parseShopSort } from "~/lib/domain/shop-filters";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [base, rawHost] = await Promise.all([requestBaseUrl(), requestHost()]);
@@ -23,6 +24,7 @@ type ShopSearchParams = {
   search?: string;
   categoryId?: string;
   condition?: string;
+  sort?: string;
   /** "tile" marks a homepage shortcut link, not a customer-typed search. */
   src?: string;
 };
@@ -62,11 +64,19 @@ export default async function ShopPage({
       ? rawCategoryId
       : undefined;
   const condition = parseConditions(first(params.condition));
+  const sort = parseShopSort(first(params.sort)) ?? undefined;
 
   const [shopDetails, categories, products] = await Promise.all([
     api.shop.getShopDetails(),
     api.shop.getCategories(),
-    api.shop.getProducts({ limit: 20, search, categoryId, condition }),
+    // Must match the client's first page exactly so it reuses this result.
+    api.shop.getProducts({
+      limit: SHOP_PAGE_SIZE,
+      search,
+      categoryId,
+      condition,
+      sort,
+    }),
   ]);
 
   if (!shopDetails.tenant) return <PublicStoreUnavailable />;
@@ -74,7 +84,6 @@ export default async function ShopPage({
   return (
     <HydrateClient>
       <CartProvider>
-        <CrawlableCategoryLinks categories={categories} />
         <StoreLayout
           initialShopDetails={shopDetails}
           initialCategories={categories}
@@ -85,7 +94,11 @@ export default async function ShopPage({
           logInitialSearch={Boolean(search) && first(params.src) !== "tile"}
           initialCategoryId={categoryId}
           initialCondition={condition}
+          initialSort={sort}
         />
+        {/* Real department links for crawlers, below the grid so they never
+            sit hidden under the fixed navbar or push products down. */}
+        <CrawlableCategoryLinks categories={categories} />
       </CartProvider>
     </HydrateClient>
   );

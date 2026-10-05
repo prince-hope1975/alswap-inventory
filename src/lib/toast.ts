@@ -19,6 +19,10 @@ class ToastManager {
         if (!this.container) {
             this.container = document.createElement("div");
             this.container.id = "toast-container";
+            // Announce toasts to screen readers without stealing focus.
+            this.container.setAttribute("role", "status");
+            this.container.setAttribute("aria-live", "polite");
+            this.container.setAttribute("aria-atomic", "false");
             this.container.style.cssText = `
                 position: fixed;
                 top: 1rem;
@@ -58,7 +62,7 @@ class ToastManager {
         setTimeout(() => {
             toast.style.animation = "slideOut 0.3s ease-in";
             setTimeout(() => {
-                container.removeChild(toast);
+                toast.remove();
             }, 300);
         }, duration);
     }

@@ -2,17 +2,22 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type CartItem = {
-    productId: string;
-    name: string;
-    price: number;
-    image?: string | null;
-    quantity: number;
-};
+import { addCartItem, capQuantity, type CartLine } from "~/lib/domain/checkout";
+import { toast } from "~/lib/toast";
+
+export type CartItem = CartLine;
 
 type CartContextType = {
     items: CartItem[];
-    addItem: (item: Omit<CartItem, "quantity">) => void;
+    /**
+     * Add `quantity` (default 1) of a product, merging with an existing line
+     * and capping at `stockQuantity` when the store tracks it.
+     */
+    addItem: (
+        item: Omit<CartItem, "quantity">,
+        quantity?: number,
+        options?: { openCart?: boolean; silent?: boolean },
+    ) => void;
     removeItem: (productId: string) => void;
     updateQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
@@ -34,7 +39,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const savedCart = localStorage.getItem("alswap-cart");
         if (savedCart) {
             try {
-                setItems(JSON.parse(savedCart));
+                setItems(JSON.parse(savedCart) as CartItem[]);
             } catch (e) {
                 console.error("Failed to parse cart", e);
             }
@@ -49,19 +54,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
     }, [items, isLoaded]);
 
-    const addItem = (newItem: Omit<CartItem, "quantity">) => {
-        setItems((prev) => {
-            const existing = prev.find((item) => item.productId === newItem.productId);
-            if (existing) {
-                return prev.map((item) =>
-                    item.productId === newItem.productId
-                        ? { ...item, quantity: item.quantity + 1 }
-                        : item
+    const addItem: CartContextType["addItem"] = (newItem, quantity = 1, options = {}) => {
+        // Compute against the current snapshot so the toast reflects what
+        // actually went in; the functional update keeps rapid clicks correct.
+        const preview = addCartItem(items, newItem, quantity);
+        setItems((prev) => addCartItem(prev, newItem, quantity).lines);
+
+        if (!options.silent) {
+            if (preview.added === 0) {
+                toast.warning(`No more ${newItem.name} in stock.`);
+            } else if (preview.capped) {
+                toast.info(`Only ${preview.added} more ${newItem.name} available; added ${preview.added}.`);
+            } else {
+                toast.success(
+                    preview.added > 1
+                        ? `Added ${preview.added} × ${newItem.name} to cart`
+                        : `Added ${newItem.name} to cart`,
                 );
             }
-            return [...prev, { ...newItem, quantity: 1 }];
-        });
-        setIsCartOpen(true);
+        }
+        if (options.openCart ?? true) setIsCartOpen(true);
     };
 
     const removeItem = (productId: string) => {
@@ -75,7 +87,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
         setItems((prev) =>
             prev.map((item) =>
-                item.productId === productId ? { ...item, quantity } : item
+                item.productId === productId
+                    ? { ...item, quantity: Math.max(1, capQuantity(quantity, item.stockQuantity)) }
+                    : item
             )
         );
     };
