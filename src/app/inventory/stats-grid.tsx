@@ -1,4 +1,5 @@
 import { Package, AlertTriangle, DollarSign, TrendingUp, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 
 interface StatsGridProps {
@@ -34,8 +35,9 @@ export function StatsGrid({ stats, isLoading }: StatsGridProps) {
                 title="Low Stock Alerts"
                 value={stats.lowStock}
                 icon={AlertTriangle}
-                description="Items below threshold"
+                description={stats.lowStock > 0 ? "View items at or below threshold" : "Items at or below threshold"}
                 gradient="from-red-500 to-orange-500"
+                href={stats.lowStock > 0 ? "/inventory/products?stock=low" : undefined}
                 isLoading={isLoading}
             />
             <StatsCard
@@ -65,6 +67,7 @@ function StatsCard({
     description,
     gradient,
     isLoading,
+    href,
 }: {
     title: string;
     value: string | number;
@@ -72,6 +75,7 @@ function StatsCard({
     description: string;
     gradient: string;
     isLoading?: boolean;
+    href?: string;
 }) {
     if (isLoading) {
         return (
@@ -88,8 +92,10 @@ function StatsCard({
         );
     }
 
-    return (
-        <div className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg dark:border-gray-700 dark:bg-gray-800">
+    const cardCls =
+        "group relative block overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg dark:border-gray-700 dark:bg-gray-800";
+    const body = (
+        <>
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 transition-opacity group-hover:opacity-5`} />
             <div className="relative">
                 <div className="flex items-center justify-between">
@@ -102,10 +108,25 @@ function StatsCard({
                 </div>
                 <div className="mt-3">
                     <div className="text-3xl font-bold text-gray-900 dark:text-white">{value}</div>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{description}</p>
+                    <p className={`mt-1 text-xs ${href ? "font-medium text-[var(--brand-primary-600)] dark:text-[var(--brand-primary-400)]" : "text-gray-500 dark:text-gray-400"}`}>
+                        {description}
+                        {href && <span aria-hidden="true"> &rarr;</span>}
+                    </p>
                 </div>
             </div>
-        </div>
+        </>
     );
+
+    if (href) {
+        return (
+            <Link
+                href={href}
+                className={`${cardCls} focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none`}
+            >
+                {body}
+            </Link>
+        );
+    }
+    return <div className={cardCls}>{body}</div>;
 }
 

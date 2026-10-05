@@ -5,6 +5,7 @@ import { api } from "~/trpc/react";
 import { Plus, Pencil, Trash2, Search, X, History } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "~/lib/toast";
 
 type Customer = {
     id: string;
@@ -16,7 +17,14 @@ type Customer = {
     loyaltyPoints: number | null;
 };
 
-export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Customer[] }) {
+export function CustomerList({
+    initialCustomers = [],
+    canDelete = false,
+}: {
+    initialCustomers?: Customer[];
+    /** Deleting customers stays ADMIN-only (enforced by the crm router too). */
+    canDelete?: boolean;
+}) {
     const router = useRouter();
     const [search, setSearch] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,22 +38,28 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
 
     const createMutation = api.crm.createCustomer.useMutation({
         onSuccess: () => {
+            toast.success("Customer added");
             void refetch();
             closeModal();
         },
+        onError: (e) => toast.error(`Could not add customer: ${e.message}`),
     });
 
     const updateMutation = api.crm.updateCustomer.useMutation({
         onSuccess: () => {
+            toast.success("Customer updated");
             void refetch();
             closeModal();
         },
+        onError: (e) => toast.error(`Could not update customer: ${e.message}`),
     });
 
     const deleteMutation = api.crm.deleteCustomer.useMutation({
         onSuccess: () => {
+            toast.success("Customer deleted");
             void refetch();
         },
+        onError: (e) => toast.error(`Could not delete customer: ${e.message}`),
     });
 
     const openCreateModal = () => {
@@ -122,7 +136,7 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
                 </div>
             </div>
 
-            <div className="overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="overflow-x-auto rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
@@ -165,17 +179,23 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
                                                 <History className="h-4 w-4" />
                                             </Link>
                                             <button
+                                                type="button"
                                                 onClick={() => openEditModal(customer)}
+                                                aria-label={`Edit ${customer.name}`}
                                                 className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </button>
-                                            <button
-                                                onClick={() => handleDelete(customer.id)}
-                                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            {canDelete && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDelete(customer.id)}
+                                                    aria-label={`Delete ${customer.name}`}
+                                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

@@ -38,6 +38,8 @@ interface MultiImageUploadProps {
     onBlur?: () => void;
     /** Maximum number of images allowed */
     maxImages?: number;
+    /** Reports whether any image is still uploading (disable form submit meanwhile). */
+    onUploadingChange?: (uploading: boolean) => void;
 }
 
 export function MultiImageUpload({
@@ -45,6 +47,7 @@ export function MultiImageUpload({
     onChange,
     onBlur,
     maxImages = MAX_IMAGES,
+    onUploadingChange,
 }: MultiImageUploadProps) {
     const [images, setImages] = useState<ImageItem[]>([]);
     const [cropState, setCropState] = useState<{
@@ -56,6 +59,14 @@ export function MultiImageUpload({
     } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const anyUploading = images.some((img) => img.isUploading);
+    const onUploadingChangeRef = useRef(onUploadingChange);
+    onUploadingChangeRef.current = onUploadingChange;
+    useEffect(() => {
+        onUploadingChangeRef.current?.(anyUploading);
+    }, [anyUploading]);
+    useEffect(() => () => onUploadingChangeRef.current?.(false), []);
 
     // Initialize images from value prop
     useEffect(() => {

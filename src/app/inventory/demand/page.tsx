@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Line, LineChart, ResponsiveContainer, Bar, BarChart, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { AlertTriangle, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Minus } from "lucide-react";
 
 import { api, type RouterOutputs } from "~/trpc/react";
 import { toast } from "~/lib/toast";
@@ -16,6 +17,26 @@ const button =
   "flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700";
 const input =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white";
+
+function LoadError({ message, onRetry, retrying }: { message: string; onRetry: () => void; retrying: boolean }) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200"
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p>
+          <span className="font-semibold">Couldn&apos;t load this data.</span> {message}
+        </p>
+      </div>
+      <button className={button} onClick={onRetry} disabled={retrying}>
+        <RefreshCw className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
+        Retry
+      </button>
+    </div>
+  );
+}
 
 function formatDate(value: Date | string | null) {
   if (!value) return "never";
@@ -62,7 +83,7 @@ export default function DemandPage() {
 
 function SearchesTab() {
   const [days, setDays] = useState(30);
-  const { data, isLoading } = api.demand.getSearchInsights.useQuery({ days });
+  const { data, isLoading, error, refetch, isRefetching } = api.demand.getSearchInsights.useQuery({ days });
 
   return (
     <div className="space-y-6">
@@ -78,7 +99,9 @@ function SearchesTab() {
         ))}
       </div>
 
-      {isLoading || !data ? (
+      {error ? (
+        <LoadError message={error.message} onRetry={() => void refetch()} retrying={isRefetching} />
+      ) : isLoading || !data ? (
         <p className={muted}>Loading…</p>
       ) : data.totals.searches === 0 ? (
         <div className={card}>
@@ -120,6 +143,7 @@ function SearchesTab() {
               hint="Customers wanted these and the shop showed nothing. Consider stocking them or listing what you already have."
               rows={data.unmet.map((t) => ({ term: t.term, count: t.zeroResultSearches, total: t.searches }))}
               countLabel="Not found"
+              createProductLinks
             />
             <TermTable
               title="Most searched"
@@ -148,11 +172,14 @@ function TermTable({
   hint,
   rows,
   countLabel,
+  createProductLinks = false,
 }: {
   title: string;
   hint?: string;
   rows: { term: string; count: number; total: number }[];
   countLabel: string;
+  /** Offer "Create product" prefilled with the term (for unmet searches). */
+  createProductLinks?: boolean;
 }) {
   return (
     <div className={card}>
@@ -171,7 +198,20 @@ function TermTable({
           <tbody>
             {rows.map((r) => (
               <tr key={r.term} className="border-t border-gray-100 dark:border-gray-700">
-                <td className="py-2 text-gray-900 dark:text-white">{r.term}</td>
+                <td className="py-2 text-gray-900 dark:text-white">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>{r.term}</span>
+                    {createProductLinks && (
+                      <Link
+                        href={`/inventory/products/new?name=${encodeURIComponent(r.term)}`}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--brand-primary-600)] hover:underline dark:text-[var(--brand-primary-400)]"
+                      >
+                        <Plus className="h-3 w-3" aria-hidden="true" />
+                        Create product
+                      </Link>
+                    )}
+                  </div>
+                </td>
                 <td className="py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{r.count}</td>
               </tr>
             ))}
@@ -184,7 +224,7 @@ function TermTable({
 
 function TrendsTab() {
   const utils = api.useUtils();
-  const { data, isLoading } = api.demand.getTrends.useQuery();
+  const { data, isLoading, error, refetch, isRefetching } = api.demand.getTrends.useQuery();
   const refresh = api.demand.refreshNow.useMutation({
     onSuccess: (r) => {
       if (r.status === "OK") toast.success(`Updated ${r.termsUpdated} terms`);
@@ -196,11 +236,14 @@ function TrendsTab() {
   });
   const setActive = api.demand.setTermActive.useMutation({
     onSuccess: () => utils.demand.getTrends.invalidate(),
+    onError: (e) => toast.error(e.message),
   });
   const remove = api.demand.removeTerm.useMutation({
     onSuccess: () => utils.demand.getTrends.invalidate(),
+    onError: (e) => toast.error(e.message),
   });
 
+  if (error) return <LoadError message={error.message} onRetry={() => void refetch()} retrying={isRefetching} />;
   if (isLoading || !data) return <p className={muted}>Loading…</p>;
 
   const anchors = data.terms.filter((t) => t.kind === "ANCHOR" && t.isActive);

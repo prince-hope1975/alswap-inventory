@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,7 +11,12 @@ import { MultiImageUpload } from "~/app/_components/multi-image-upload";
 import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
 import { SimilarProductsPanel } from "./similar-products-panel";
 import { toast } from "~/lib/toast";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, AlertTriangle } from "lucide-react";
+import {
+    lowStockThresholdWarning,
+    optionalNumberInput,
+    parseOptionalPrice,
+} from "~/lib/domain/product-form-data";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -26,24 +31,7 @@ const productSchema = z.object({
     costPrice: z.number().min(0, "Cost price is required and must be positive"),
     stockQuantity: z.number().int().min(-1, "Stock must be -1 (unknown) or greater"),
     lowStockThreshold: z.number().int().min(0),
-}).refine(
-    (data) => {
-        // Skip validation if quantity is unknown (-1)
-        if (data.stockQuantity === -1) {
-            return true;
-        }
-        // If stockQuantity is 0, allow any threshold >= 0
-        // Otherwise, threshold must be less than stockQuantity
-        if (data.stockQuantity === 0) {
-            return data.lowStockThreshold >= 0;
-        }
-        return data.lowStockThreshold < data.stockQuantity;
-    },
-    {
-        message: "Low stock threshold must be less than current stock quantity",
-        path: ["lowStockThreshold"],
-    }
-);
+});
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
@@ -66,12 +54,15 @@ interface ProductFormProps {
     };
     isEditing?: boolean;
     categories?: { id: number; name: string }[];
+    /** Prefills the name for a new product (e.g. from a Demand "not found" term). */
+    defaultName?: string;
 }
 
-export function ProductForm({ initialData, isEditing = false, categories: _categories }: ProductFormProps) {
+export function ProductForm({ initialData, isEditing = false, categories: _categories, defaultName }: ProductFormProps) {
     const router = useRouter();
     const { currency } = useCurrency();
     const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+    const [isUploadingImages, setIsUploadingImages] = useState(false);
 
     const utils = api.useUtils();
 
@@ -110,7 +101,6 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
         handleSubmit,
         setValue,
         watch,
-        trigger,
         formState: { errors },
     } = useForm<ProductFormValues>({
         resolver: zodResolver(productSchema),
@@ -124,13 +114,13 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                 sku: initialData.sku ?? "",
                 barcode: initialData.barcode ?? "",
                 price: parseFloat(initialData.price),
-                salePrice: initialData.salePrice ? parseFloat(initialData.salePrice) : null,
+                salePrice: parseOptionalPrice(initialData.salePrice),
                 costPrice: parseFloat(initialData.costPrice ?? "0"),
                 stockQuantity: initialData.stockQuantity,
                 lowStockThreshold: initialData.lowStockThreshold ?? 5,
             }
             : {
-                name: "",
+                name: isEditing ? "" : (defaultName ?? ""),
                 description: "",
                 price: 0,
                 salePrice: null,
@@ -143,17 +133,10 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
             },
     });
 
-    // Watch stockQuantity and lowStockThreshold to trigger validation
     const stockQuantity = watch("stockQuantity");
     const lowStockThreshold = watch("lowStockThreshold");
     const selectedCategoryIds = watch("categoryIds") || [];
-
-    // Trigger validation when stockQuantity or lowStockThreshold changes
-    useEffect(() => {
-        if (stockQuantity !== undefined && lowStockThreshold !== undefined) {
-            trigger("lowStockThreshold");
-        }
-    }, [stockQuantity, lowStockThreshold, trigger]);
+    const thresholdWarning = lowStockThresholdWarning(stockQuantity, lowStockThreshold);
 
     const onSubmit = (data: ProductFormValues) => {
         const formattedData = {
@@ -161,7 +144,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
             categoryIds: data.categoryIds || [],
             categoryId: data.categoryIds?.[0], // First category as primary for backward compat
             price: Number(data.price),
-            salePrice: data.salePrice ? Number(data.salePrice) : null,
+            salePrice: data.salePrice ?? null,
             costPrice: Number(data.costPrice),
             image: data.image || undefined,
             description: data.description || undefined,
@@ -204,6 +187,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
     };
 
     const isPending = createProduct.isPending || updateProduct.isPending;
+    const submitDisabled = isPending || isUploadingImages;
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -379,6 +363,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                                     setValue("image", primary || "");
                                     setValue("images", additional);
                                 }}
+                                onUploadingChange={setIsUploadingImages}
                             />
                             {errors.image && (
                                 <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
@@ -470,7 +455,7 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                             <input
                                 type="number"
                                 step="0.01"
-                                {...register("salePrice", { valueAsNumber: true })}
+                                {...register("salePrice", { setValueAs: optionalNumberInput })}
                                 placeholder="Leave empty for no sale"
                                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                             />
@@ -555,8 +540,14 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                                     {errors.lowStockThreshold.message}
                                 </p>
                             )}
+                            {thresholdWarning && !errors.lowStockThreshold && (
+                                <p role="status" className="mt-1 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                    {thresholdWarning}
+                                </p>
+                            )}
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Alert me when stock falls below this number. Must be less than current stock.
+                                The product shows as low stock once stock is at or below this number.
                             </p>
                         </div>
                     </div>
@@ -571,9 +562,14 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                 >
                     Cancel
                 </button>
+                {isUploadingImages && (
+                    <p role="status" className="self-center text-sm text-gray-500 dark:text-gray-400">
+                        Waiting for images to finish uploading…
+                    </p>
+                )}
                 <button
                     type="submit"
-                    disabled={isPending}
+                    disabled={submitDisabled}
                     className="rounded-md bg-[var(--brand-primary-600)] px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[var(--brand-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)] focus:ring-offset-2 disabled:opacity-50 dark:focus:ring-offset-gray-900"
                 >
                     {isPending ? "Saving Product..." : isEditing ? "Update Product" : "Create Product"}

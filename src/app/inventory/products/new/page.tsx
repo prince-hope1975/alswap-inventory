@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { api } from "~/trpc/react";
 import { ProductForm } from "./product-form";
 import { BulkImport } from "./bulk-import";
 import { ErrorBoundary } from "~/components/error-boundary";
 import { ComponentErrorFallback } from "~/components/route-error-boundary";
 
-export default function NewProductPage() {
+export default function NewProductPage(props: {
+    searchParams: Promise<{ name?: string | string[] }>;
+}) {
+    const { name } = use(props.searchParams);
+    const rawName = (Array.isArray(name) ? name[0] : name)?.trim().slice(0, 255);
+    const defaultName = rawName?.length ? rawName : undefined;
     const [activeTab, setActiveTab] = useState<"single" | "bulk">("single");
     const { data: categories = [] } = api.inventory.listCategories.useQuery();
 
@@ -53,7 +58,7 @@ export default function NewProductPage() {
                         componentName="ProductForm"
                         fallback={<ComponentErrorFallback title="Form Error" message="Failed to load product form" />}
                     >
-                        <ProductForm categories={categories} />
+                        <ProductForm categories={categories} defaultName={defaultName} />
                     </ErrorBoundary>
                 ) : (
                     <ErrorBoundary

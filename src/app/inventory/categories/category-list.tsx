@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "~/lib/toast";
 
 type Category = {
   id: number;
@@ -15,8 +16,11 @@ type Category = {
 
 export function CategoryList({
   initialCategories,
+  canDelete,
 }: {
   initialCategories: Category[];
+  /** Hard deletes stay ADMIN-only (the router enforces it too). */
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,23 +28,29 @@ export function CategoryList({
   const [formData, setFormData] = useState({ name: "", description: "" });
 
   const createMutation = api.inventory.createCategory.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      toast.success(`Created ${vars.name}`);
       router.refresh();
       closeModal();
     },
+    onError: (e) => toast.error(`Could not create category: ${e.message}`),
   });
 
   const updateMutation = api.inventory.updateCategory.useMutation({
     onSuccess: () => {
+      toast.success("Category updated");
       router.refresh();
       closeModal();
     },
+    onError: (e) => toast.error(`Could not update category: ${e.message}`),
   });
 
   const deleteMutation = api.inventory.deleteCategory.useMutation({
     onSuccess: () => {
+      toast.success("Category deleted");
       router.refresh();
     },
+    onError: (e) => toast.error(`Could not delete category: ${e.message}`),
   });
 
   const openCreateModal = () => {
@@ -80,9 +90,9 @@ export function CategoryList({
     }
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this category?")) {
-      deleteMutation.mutate({ id });
+  const handleDelete = (category: Category) => {
+    if (confirm(`Delete the "${category.name}" category? This cannot be undone.`)) {
+      deleteMutation.mutate({ id: category.id });
     }
   };
 
@@ -103,7 +113,7 @@ export function CategoryList({
         </button>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="mt-6 overflow-x-auto rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
@@ -142,17 +152,24 @@ export function CategoryList({
                   <td className="px-6 py-4 text-right text-sm font-medium">
                     <div className="flex justify-end gap-2">
                       <button
+                        type="button"
                         onClick={() => openEditModal(category)}
-                        className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
+                        aria-label={`Edit ${category.name}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(category.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(category)}
+                          disabled={deleteMutation.isPending}
+                          aria-label={`Delete ${category.name}`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 hover:text-red-900 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

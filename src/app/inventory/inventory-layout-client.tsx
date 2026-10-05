@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -28,6 +28,7 @@ import { cn } from "~/lib/utils";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { LowStockAlerts } from "./low-stock-alerts";
 import { api } from "~/trpc/react";
+import { activeNavHref, canSeeNavItem, isManagerRole } from "~/lib/domain/staff-nav";
 
 interface InventoryLayoutClientProps {
     children: React.ReactNode;
@@ -49,12 +50,14 @@ export function InventoryLayoutClient({
 }: InventoryLayoutClientProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const pathname = usePathname();
+    const isManager = isManagerRole(user.role);
     const { data: unread } = api.notifications.unreadCount.useQuery(undefined, {
         refetchInterval: 30_000,
+        enabled: isManager,
     });
     const unreadCount = unread?.count ?? 0;
 
-    const navItems = [
+    const allNavItems = [
         { href: "/inventory", label: "Dashboard", icon: LayoutDashboard },
         { href: "/inventory/products", label: "Products", icon: Package },
         { href: "/inventory/categories", label: "Categories", icon: Layers },
@@ -73,15 +76,26 @@ export function InventoryLayoutClient({
         { href: "/inventory/settings/store", label: "Online Store", icon: Globe },
         { href: "/inventory/settings", label: "Settings", icon: Settings },
     ];
+    const navItems = allNavItems.filter((item) => canSeeNavItem(item.href, user.role));
+    const activeHref = activeNavHref(pathname, navItems.map((item) => item.href));
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
+    useEffect(() => {
+        if (!isSidebarOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setIsSidebarOpen(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [isSidebarOpen]);
+
     return (
         <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-            <LowStockAlerts />
+            {isManager && <LowStockAlerts />}
 
             {/* Desktop Sidebar */}
-            <aside className="hidden w-64 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 md:flex">
+            <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 md:flex">
                 <div className="flex h-16 items-center border-b border-gray-200 px-6 dark:border-gray-800">
                     <div className="flex items-center gap-2">
                         {companyLogo ? (
@@ -103,16 +117,17 @@ export function InventoryLayoutClient({
                         </span>
                     </div>
                 </div>
-                <nav className="flex-1 space-y-1 px-3 py-4">
+                <nav aria-label="Dashboard" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
                     {navItems.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
+                            aria-current={activeHref === item.href ? "page" : undefined}
                             className={cn(
                                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                                 "text-gray-700 hover:bg-gradient-to-r hover:from-[var(--brand-primary-50)] hover:to-[var(--brand-primary-100)] hover:text-[var(--brand-primary-700)]",
                                 "dark:text-gray-300 dark:hover:bg-gradient-to-r dark:hover:from-[var(--brand-primary-900)]/20 dark:hover:to-[var(--brand-primary-800)]/20 dark:hover:text-[var(--brand-primary-400)]",
-                                pathname === item.href && "bg-gradient-to-r from-[var(--brand-primary-50)] to-[var(--brand-primary-100)] text-[var(--brand-primary-700)] dark:from-[var(--brand-primary-900)]/20 dark:to-[var(--brand-primary-800)]/20 dark:text-[var(--brand-primary-400)]"
+                                activeHref === item.href && "bg-gradient-to-r from-[var(--brand-primary-50)] to-[var(--brand-primary-100)] text-[var(--brand-primary-700)] dark:from-[var(--brand-primary-900)]/20 dark:to-[var(--brand-primary-800)]/20 dark:text-[var(--brand-primary-400)]"
                             )}
                         >
                             <item.icon className="h-5 w-5" />
@@ -140,7 +155,7 @@ export function InventoryLayoutClient({
                         </div>
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
-                            <Link href="/api/auth/signout" className="rounded-lg p-1.5 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20">
+                            <Link href="/api/auth/signout" aria-label="Sign out" title="Sign out" className="rounded-lg p-1.5 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20">
                                 <LogOut className="h-4 w-4 text-gray-500 hover:text-red-500 dark:text-gray-400" />
                             </Link>
                         </div>
@@ -157,11 +172,13 @@ export function InventoryLayoutClient({
             )}
 
             {/* Mobile Sidebar */}
-            <div className={cn(
-                "fixed inset-y-0 left-0 z-50 w-64 transform bg-white transition-transform duration-200 ease-in-out dark:bg-gray-900 md:hidden",
+            <div
+                inert={!isSidebarOpen}
+                className={cn(
+                "fixed inset-y-0 left-0 z-50 flex w-64 transform flex-col bg-white transition-transform duration-200 ease-in-out dark:bg-gray-900 md:hidden",
                 isSidebarOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6 dark:border-gray-800">
+                <div className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 px-6 dark:border-gray-800">
                     <div className="flex items-center gap-2">
                         {companyLogo ? (
                             <div className="relative h-8 w-8 overflow-hidden rounded-lg">
@@ -182,23 +199,26 @@ export function InventoryLayoutClient({
                         </span>
                     </div>
                     <button
+                        type="button"
                         onClick={() => setIsSidebarOpen(false)}
+                        aria-label="Close menu"
                         className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                <nav className="flex-1 space-y-1 px-3 py-4">
+                <nav aria-label="Dashboard" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
                     {navItems.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
+                            aria-current={activeHref === item.href ? "page" : undefined}
                             onClick={() => setIsSidebarOpen(false)}
                             className={cn(
                                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                                 "text-gray-700 hover:bg-gradient-to-r hover:from-[var(--brand-primary-50)] hover:to-[var(--brand-primary-100)] hover:text-[var(--brand-primary-700)]",
                                 "dark:text-gray-300 dark:hover:bg-gradient-to-r dark:hover:from-[var(--brand-primary-900)]/20 dark:hover:to-[var(--brand-primary-800)]/20 dark:hover:text-[var(--brand-primary-400)]",
-                                pathname === item.href && "bg-gradient-to-r from-[var(--brand-primary-50)] to-[var(--brand-primary-100)] text-[var(--brand-primary-700)] dark:from-[var(--brand-primary-900)]/20 dark:to-[var(--brand-primary-800)]/20 dark:text-[var(--brand-primary-400)]"
+                                activeHref === item.href && "bg-gradient-to-r from-[var(--brand-primary-50)] to-[var(--brand-primary-100)] text-[var(--brand-primary-700)] dark:from-[var(--brand-primary-900)]/20 dark:to-[var(--brand-primary-800)]/20 dark:text-[var(--brand-primary-400)]"
                             )}
                         >
                             <item.icon className="h-5 w-5" />
@@ -211,7 +231,7 @@ export function InventoryLayoutClient({
                         </Link>
                     ))}
                 </nav>
-                <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 p-4 dark:border-gray-800">
+                <div className="shrink-0 border-t border-gray-200 p-4 dark:border-gray-800">
                     <div className="flex items-center gap-3 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-3 dark:from-gray-800 dark:to-gray-700">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] text-sm font-bold text-white">
                             {user.name?.[0] ?? "U"}
@@ -226,7 +246,7 @@ export function InventoryLayoutClient({
                         </div>
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
-                            <Link href="/api/auth/signout" className="rounded-lg p-1.5 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20">
+                            <Link href="/api/auth/signout" aria-label="Sign out" title="Sign out" className="rounded-lg p-1.5 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20">
                                 <LogOut className="h-4 w-4 text-gray-500 hover:text-red-500 dark:text-gray-400" />
                             </Link>
                         </div>
@@ -235,7 +255,7 @@ export function InventoryLayoutClient({
             </div>
 
             {/* Main Content */}
-            <div className="flex flex-1 flex-col">
+            <div className="flex min-w-0 flex-1 flex-col">
                 {/* Mobile Header */}
                 <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 md:hidden">
                     <div className="flex items-center gap-2">
@@ -260,7 +280,10 @@ export function InventoryLayoutClient({
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
                         <button
+                            type="button"
                             onClick={toggleSidebar}
+                            aria-label="Open menu"
+                            aria-expanded={isSidebarOpen}
                             className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                         >
                             <Menu className="h-6 w-6" />

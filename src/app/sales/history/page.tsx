@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { exportToPDF, exportToExcel } from "~/lib/export-utils";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { countsAsSale, isAwaitingOnlinePayment, orderStatusLabel } from "~/lib/domain/order-status";
 
 export default function SalesHistoryPage() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -21,7 +22,9 @@ export default function SalesHistoryPage() {
         );
     });
 
-    const totalRevenue = orders?.reduce((sum, order) => sum + Number(order.totalAmount), 0) ?? 0;
+    // Cancelled orders and Paystack checkouts still awaiting payment are not sales.
+    const totalRevenue =
+        orders?.filter(countsAsSale).reduce((sum, order) => sum + Number(order.totalAmount), 0) ?? 0;
 
     if (isLoading) {
         return (
@@ -113,7 +116,7 @@ export default function SalesHistoryPage() {
             </div>
 
             {/* Orders Table */}
-            <div className="overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="overflow-x-auto rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
@@ -179,6 +182,11 @@ export default function SalesHistoryPage() {
                                     </td>
                                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                         {order.paymentMethod}
+                                        {!countsAsSale(order) && (
+                                            <span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${isAwaitingOnlinePayment(order) ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"}`}>
+                                                {orderStatusLabel(order)}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                         {new Date(order.createdAt).toLocaleDateString()}

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, FileScan, Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
 
 import { api } from "~/trpc/react";
+import { toast } from "~/lib/toast";
 
 type DraftLine = { description: string; quantity: number; unitPrice: number; sku?: string; productVariantId?: string };
 type Draft = {
@@ -33,9 +34,15 @@ export default function DocumentsPage() {
     setSelectedId(job?.id);
     if (isDraft(job?.draft)) setDraft(job.draft);
     setMessage("Extraction ready. Review every line before approval.");
-  }, onError: (error) => setMessage(error.message) });
-  const save = api.documents.saveDraft.useMutation({ onSuccess: () => { refresh(); setMessage("Draft saved."); } });
-  const approve = api.documents.approve.useMutation({ onSuccess: () => { refresh(); setMessage("Approved and posted successfully."); } });
+  }, onError: (error) => { setMessage(error.message); toast.error(`Extraction failed: ${error.message}`); } });
+  const save = api.documents.saveDraft.useMutation({
+    onSuccess: () => { refresh(); setMessage("Draft saved."); toast.success("Draft saved"); },
+    onError: (error) => { setMessage(error.message); toast.error(`Could not save draft: ${error.message}`); },
+  });
+  const approve = api.documents.approve.useMutation({
+    onSuccess: () => { refresh(); setMessage("Approved and posted successfully."); toast.success("Document approved and posted"); },
+    onError: (error) => { setMessage(error.message); toast.error(`Could not approve: ${error.message}`); },
+  });
 
   const total = useMemo(() => draft?.lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0) ?? 0, [draft]);
 
