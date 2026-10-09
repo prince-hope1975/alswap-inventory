@@ -5,12 +5,13 @@ import { api } from "~/trpc/react";
 import { StatsGrid } from "./stats-grid";
 import { RecentSales } from "./recent-sales";
 import { TopSelling } from "./top-selling";
-import { Plus } from "lucide-react";
+import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { ErrorBoundary } from "~/components/error-boundary";
 import { ComponentErrorFallback } from "~/components/route-error-boundary";
+import { btnPrimary } from "~/components/ui/styles";
 
 export default function InventoryDashboard() {
-    const { data: stats, isLoading } = api.inventory.getDashboardStats.useQuery(undefined, {
+    const { data: stats, isLoading, error, refetch, isRefetching } = api.inventory.getDashboardStats.useQuery(undefined, {
         refetchInterval: 1000 * 60, // Refresh every minute
     });
 
@@ -22,17 +23,40 @@ export default function InventoryDashboard() {
                         Dashboard
                     </h1>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Welcome back! Here&apos;s your inventory overview
+                        Your inventory and sales at a glance
                     </p>
                 </div>
                 <Link
                     href="/inventory/products/new"
-                    className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[var(--brand-primary-600)] to-[var(--brand-gradient-to)] px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+                    className={btnPrimary}
                 >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4" aria-hidden="true" />
                     Add Product
                 </Link>
             </div>
+
+            {error && (
+                <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <p>
+                            <span className="font-semibold">Couldn&apos;t load the dashboard.</span>{" "}
+                            {error.data?.code === "FORBIDDEN"
+                                ? "Your account doesn't have access to inventory data."
+                                : "Check your connection and try again."}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void refetch()}
+                        disabled={isRefetching}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-300"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} aria-hidden="true" />
+                        Retry
+                    </button>
+                </div>
+            )}
 
             <ErrorBoundary
                 componentName="StatsGrid"

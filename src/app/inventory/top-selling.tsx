@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { useCurrency } from "~/hooks/use-tenant-settings";
+import { rowFocus } from "~/components/ui/styles";
 
 interface TopSellingProps {
     products: {
@@ -19,7 +21,7 @@ export function TopSelling({ products, isLoading }: TopSellingProps) {
             <div className="col-span-3 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Top Selling Items</h3>
                 <div className="space-y-4">
-                    {[...Array(5)].map((_, i) => (
+                    {Array.from({ length: 5 }, (_, i) => (
                         <div key={i} className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" />
@@ -44,11 +46,15 @@ export function TopSelling({ products, isLoading }: TopSellingProps) {
                     <p>No sales data yet</p>
                 </div>
             ) : (
-                <div className="space-y-4">
+                <ol className="space-y-3">
                     {products.map((item, i) => (
-                        <div key={item.productId} className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50">
+                        <li key={item.productId}>
+                        <Link
+                            href={`/inventory/products/${item.productId}`}
+                            className={`flex items-center justify-between gap-3 rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700 ${rowFocus}`}
+                        >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-primary-500)] to-[var(--brand-gradient-to)] text-sm font-bold text-white">
+                                <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-primary-500)] to-[var(--brand-gradient-to)] text-sm font-bold text-white">
                                     {i + 1}
                                 </div>
                                 <div>
@@ -63,9 +69,10 @@ export function TopSelling({ products, isLoading }: TopSellingProps) {
                             <div className="text-sm font-semibold text-gray-900 dark:text-white">
                                 {formatCurrency(item.totalRevenue)}
                             </div>
-                        </div>
+                        </Link>
+                        </li>
                     ))}
-                </div>
+                </ol>
             )}
         </div>
     );

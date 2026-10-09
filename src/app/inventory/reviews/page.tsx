@@ -1,10 +1,12 @@
 "use client";
 
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { CheckCircle, XCircle, Trash2, Star } from "lucide-react";
 
 export default function ReviewsPage() {
+    const confirm = useConfirm();
   const [filter, setFilter] = useState<"all" | "pending" | "approved">("all");
 
   const { data, isLoading, refetch } = api.reviews.listReviews.useQuery({
@@ -157,11 +159,11 @@ export default function ReviewsPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      if (confirm("Are you sure you want to delete this review?")) {
-                        deleteReview.mutate({ id: review.id });
-                      }
+                    onClick={async () => {
+                      const ok = await confirm({ title: "Delete this review?", message: "It is removed from your shop. This cannot be undone.", confirmLabel: "Delete review", destructive: true });
+                      if (ok) deleteReview.mutate({ id: review.id });
                     }}
+                    aria-label="Delete review"
                     disabled={deleteReview.isPending}
                     className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                     title="Delete"

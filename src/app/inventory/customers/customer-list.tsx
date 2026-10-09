@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { api } from "~/trpc/react";
-import { Plus, Pencil, Trash2, Search, X, History } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Plus, Pencil, Trash2, Search, History } from "lucide-react";
 import Link from "next/link";
+import { toast } from "~/lib/toast";
+import { Dialog, DialogFooter } from "~/components/ui/dialog";
+import { useConfirm } from "~/components/ui/confirm-dialog";
+import { btnPrimary, btnSecondary, iconBtn, inputCls, labelCls } from "~/components/ui/styles";
 
 type Customer = {
     id: string;
@@ -16,8 +19,16 @@ type Customer = {
     loyaltyPoints: number | null;
 };
 
-export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Customer[] }) {
-    const router = useRouter();
+export function CustomerList({
+    initialCustomers = [],
+    canDelete = false,
+}: {
+    initialCustomers?: Customer[];
+    /** Deleting customers stays ADMIN-only (enforced by the crm router too). */
+    canDelete?: boolean;
+}) {
+    const confirm = useConfirm();
+    const fieldId = useId();
     const [search, setSearch] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -30,22 +41,28 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
 
     const createMutation = api.crm.createCustomer.useMutation({
         onSuccess: () => {
+            toast.success("Customer added");
             void refetch();
             closeModal();
         },
+        onError: (e) => toast.error(`Could not add customer: ${e.message}`),
     });
 
     const updateMutation = api.crm.updateCustomer.useMutation({
         onSuccess: () => {
+            toast.success("Customer updated");
             void refetch();
             closeModal();
         },
+        onError: (e) => toast.error(`Could not update customer: ${e.message}`),
     });
 
     const deleteMutation = api.crm.deleteCustomer.useMutation({
         onSuccess: () => {
+            toast.success("Customer deleted");
             void refetch();
         },
+        onError: (e) => toast.error(`Could not delete customer: ${e.message}`),
     });
 
     const openCreateModal = () => {
@@ -88,10 +105,14 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
         }
     };
 
-    const handleDelete = (id: string) => {
-        if (confirm("Are you sure you want to delete this customer?")) {
-            deleteMutation.mutate({ id });
-        }
+    const handleDelete = async (customer: Customer) => {
+        const ok = await confirm({
+            title: `Delete ${customer.name}?`,
+            message: "Their contact details and loyalty points are removed. This cannot be undone.",
+            confirmLabel: "Delete customer",
+            destructive: true,
+        });
+        if (ok) deleteMutation.mutate({ id: customer.id });
     };
 
     return (
@@ -100,29 +121,27 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
                 <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
                     Customers
                 </h1>
-                <button
-                    onClick={openCreateModal}
-                    className="flex items-center justify-center gap-2 rounded-md bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)]"
-                >
-                    <Plus className="h-4 w-4" />
+                <button type="button" onClick={openCreateModal} className={btnPrimary}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
                     Add Customer
                 </button>
             </div>
 
-            <div className="flex items-center gap-4 rounded-lg border bg-white p-4 dark:bg-gray-800">
+            <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                     <input
-                        type="text"
-                        placeholder="Search customers..."
+                        type="search"
+                        aria-label="Search customers"
+                        placeholder="Search by name, email or phone…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        className={`${inputCls} pl-10`}
                     />
                 </div>
             </div>
 
-            <div className="overflow-hidden rounded-lg border bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
@@ -147,35 +166,41 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
                                         <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                        {customer.email || "-"}
+                                        {customer.email?.trim() ? customer.email : "-"}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                        {customer.phone || "-"}
+                                        {customer.phone?.trim() ? customer.phone : "-"}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {customer.loyaltyPoints ?? 0}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex justify-end gap-1">
                                             <Link
                                                 href={`/inventory/customers/${customer.id}`}
-                                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                                title="View Purchase History"
+                                                aria-label={`Purchase history for ${customer.name}`}
+                                                className={`${iconBtn} text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700`}
                                             >
-                                                <History className="h-4 w-4" />
+                                                <History className="h-4 w-4" aria-hidden="true" />
                                             </Link>
                                             <button
+                                                type="button"
                                                 onClick={() => openEditModal(customer)}
-                                                className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
+                                                aria-label={`Edit ${customer.name}`}
+                                                className={`${iconBtn} text-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-50)] dark:text-[var(--brand-primary-400)] dark:hover:bg-gray-700`}
                                             >
-                                                <Pencil className="h-4 w-4" />
+                                                <Pencil className="h-4 w-4" aria-hidden="true" />
                                             </button>
-                                            <button
-                                                onClick={() => handleDelete(customer.id)}
-                                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            {canDelete && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleDelete(customer)}
+                                                    aria-label={`Delete ${customer.name}`}
+                                                    className={`${iconBtn} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20`}
+                                                >
+                                                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -185,59 +210,52 @@ export function CustomerList({ initialCustomers = [] }: { initialCustomers?: Cus
                 </table>
             </div>
 
-            {/* Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
-                        <div className="mb-4 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                                {editingCustomer ? "Edit Customer" : "New Customer"}
-                            </h2>
-                            <button onClick={closeModal} className="rounded-full p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone</label>
-                                <input
-                                    type="tel"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <button type="button" onClick={closeModal} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="rounded-md bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50">
-                                    {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
-                                </button>
-                            </div>
-                        </form>
+            <Dialog open={isModalOpen} onClose={closeModal} title={editingCustomer ? "Edit customer" : "New customer"}>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label htmlFor={`${fieldId}-name`} className={labelCls}>Name</label>
+                        <input
+                            id={`${fieldId}-name`}
+                            type="text"
+                            required
+                            autoComplete="off"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className={`mt-1 ${inputCls}`}
+                        />
                     </div>
-                </div>
-            )}
+                    <div>
+                        <label htmlFor={`${fieldId}-email`} className={labelCls}>Email</label>
+                        <input
+                            id={`${fieldId}-email`}
+                            type="email"
+                            autoComplete="off"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className={`mt-1 ${inputCls}`}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor={`${fieldId}-phone`} className={labelCls}>Phone</label>
+                        <input
+                            id={`${fieldId}-phone`}
+                            type="tel"
+                            autoComplete="off"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className={`mt-1 ${inputCls}`}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <button type="button" onClick={closeModal} className={btnSecondary}>
+                            Cancel
+                        </button>
+                        <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className={btnPrimary}>
+                            {createMutation.isPending || updateMutation.isPending ? "Saving…" : "Save"}
+                        </button>
+                    </DialogFooter>
+                </form>
+            </Dialog>
         </div>
     );
 }

@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { logger } from "~/lib/error-logger";
-import { AlertCircle, RefreshCcw, Home } from "lucide-react";
+import { AlertCircle, RefreshCcw, Home, LayoutDashboard } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 export default function Error({
     error,
@@ -11,6 +12,11 @@ export default function Error({
     error: Error & { digest?: string };
     reset: () => void;
 }) {
+    // Shoppers never see a staff dashboard link; staff keep their shortcut.
+    const { data: session } = useSession();
+    const role = session?.user?.role;
+    const isStaff = role === "ADMIN" || role === "MANAGER";
+
     useEffect(() => {
         // Log the error to our custom logger
         logger.log(error, { componentName: "GlobalAppError" });
@@ -46,6 +52,7 @@ export default function Error({
 
             <div className="flex flex-wrap items-center justify-center gap-4">
                 <button
+                    type="button"
                     onClick={() => reset()}
                     className="flex items-center gap-2 rounded-xl bg-[var(--brand-primary-600)] px-8 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:bg-[var(--brand-primary-700)] active:scale-95"
                 >
@@ -54,11 +61,12 @@ export default function Error({
                 </button>
 
                 <button
-                    onClick={() => window.location.href = "/"}
+                    type="button"
+                    onClick={() => (window.location.href = isStaff ? "/inventory" : "/")}
                     className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-8 py-3 font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 active:scale-95"
                 >
-                    <Home className="h-5 w-5" />
-                    Go to Dashboard
+                    {isStaff ? <LayoutDashboard className="h-5 w-5" /> : <Home className="h-5 w-5" />}
+                    {isStaff ? "Go to Dashboard" : "Go to home page"}
                 </button>
             </div>
         </div>

@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, managerProcedure } from "~/server/api/trpc";
 import { adminNotifications } from "~/server/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 export const notificationsRouter = createTRPCRouter({
-  list: tenantProcedure
+  list: managerProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(20),
@@ -37,7 +37,7 @@ export const notificationsRouter = createTRPCRouter({
       return { items, nextCursor };
     }),
 
-  unreadCount: tenantProcedure.query(async ({ ctx }) => {
+  unreadCount: managerProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({ count: sql<number>`count(*)` })
       .from(adminNotifications)
@@ -45,7 +45,7 @@ export const notificationsRouter = createTRPCRouter({
     return { count: rows[0]?.count ?? 0 };
   }),
 
-  markRead: tenantProcedure
+  markRead: managerProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db
@@ -55,7 +55,7 @@ export const notificationsRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  markAllRead: tenantProcedure.mutation(async ({ ctx }) => {
+  markAllRead: managerProcedure.mutation(async ({ ctx }) => {
     await ctx.db
       .update(adminNotifications)
       .set({ isRead: true })

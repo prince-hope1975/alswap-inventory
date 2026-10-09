@@ -11,35 +11,52 @@ interface ShopSidebarProps {
     className?: string;
 }
 
+function itemClass(active: boolean) {
+    return `flex w-full min-h-10 items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none ${
+        active
+            ? "bg-[#0b6e99] font-semibold text-white"
+            : "text-[#41515c] hover:bg-[#dcecf2] hover:text-[#14212b] dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
+    }`;
+}
+
 export function ShopSidebar({ categories, selectedCategory, setSelectedCategory, className = "" }: ShopSidebarProps) {
     return (
-        <aside className={`w-full lg:w-64 flex-shrink-0 ${className}`}>
-            <div className="sticky top-24 rounded-2xl border border-[#14212b]/15 bg-white p-6 dark:border-white/10 dark:bg-white/5">
-                <h3 className="mb-4 text-lg font-semibold text-[#14212b] dark:text-white">Categories</h3>
-                <div className="space-y-2">
+        <nav aria-label="Categories" className={`w-full ${className}`}>
+            <h3 className="mb-2 px-3 text-xs font-semibold tracking-wide text-[#41515c] uppercase dark:text-gray-300">
+                Categories
+            </h3>
+            <ul className="space-y-0.5">
+                <li>
                     <button
+                        type="button"
+                        aria-pressed={selectedCategory === undefined}
                         onClick={() => setSelectedCategory(undefined)}
-                        className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors ${selectedCategory === undefined
-                            ? "bg-[#0b6e99] text-white"
-                            : "text-[#5c6870] hover:bg-[#dcecf2] hover:text-[#14212b] dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
-                            }`}
+                        className={itemClass(selectedCategory === undefined)}
                     >
-                        All Products
+                        All products
                     </button>
-                    {categories?.map((category) => (
-                        <button
-                            key={category.id}
-                            onClick={() => setSelectedCategory(category.id)}
-                            className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors ${selectedCategory === category.id
-                                ? "bg-[#0b6e99] text-white"
-                                : "text-[#5c6870] hover:bg-[#dcecf2] hover:text-[#14212b] dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
-                                }`}
-                        >
-                            {category.name}
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </aside>
+                </li>
+                {categories?.map((category) => {
+                    const active = selectedCategory === category.id;
+                    return (
+                        <li key={category.id}>
+                            <button
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => setSelectedCategory(category.id)}
+                                className={itemClass(active)}
+                            >
+                                <span className="truncate">{category.name}</span>
+                                {"productCount" in category && (
+                                    <span className={`shrink-0 text-xs tabular-nums ${active ? "text-white/80" : "text-[#8a949a]"}`}>
+                                        {category.productCount}
+                                    </span>
+                                )}
+                            </button>
+                        </li>
+                    );
+                })}
+            </ul>
+        </nav>
     );
 }

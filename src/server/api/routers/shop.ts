@@ -1,17 +1,48 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { adminNotifications, products, categories, orders, orderItems, tenants, users, productCategories } from "~/server/db/schema";
-import { toRows } from "~/server/db/rows";
-import { eq, and, or, desc, sql, inArray, gte } from "drizzle-orm";
+import { products, orders, orderItems, tenants, users } from "~/server/db/schema";
+import { eq, and, or, sql, inArray, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { sendDeliveryOrderEmail } from "~/server/email";
-import { decryptString } from "~/server/utils/encryption";
+import type { db } from "~/server/db";
 import { resolvePublicTenant } from "~/server/tenant";
+import {
+    effectivePrice,
+    isPriceOnRequest,
+    newPaymentReference,
+    orderNumber,
+    PAY_ON_PICKUP_MAX_OPEN_PER_PHONE,
+    paystackEmailFor,
+    phoneMatchKey,
+    pickupQuantityError,
+    storefrontOptions,
+    toKobo,
+} from "~/lib/domain/checkout";
+import { enforceRateLimit, shopRateLimits } from "~/server/security/rate-limit";
+import { notifyOrderPlaced } from "~/server/orders/notify";
+import {
+    finalizePaystackOrder,
+    initializePaystackTransaction,
+    PaymentNotFoundError,
+    PaymentVerificationError,
+    tenantPaystackSecret,
+} from "~/server/payments/paystack";
+import { SHOP_PAGE_SIZE, SHOP_SORT_OPTIONS } from "~/lib/domain/shop-filters";
+import { browseStorefrontProducts, emptyBrowseResult, listStorefrontCategories } from "~/server/shop/browse";
+import { publicProductColumns, publicProductRelations } from "~/server/shop/public-product";
 
 /** Storefront checkout honors salePrice, same rule as the POS (`prepareSale` in `~/lib/domain/sale.ts`). */
 function effectiveUnitPrice(product: { price: string; salePrice: string | null }): number {
-    const salePrice = product.salePrice == null ? null : Number(product.salePrice);
-    return salePrice != null && salePrice >= 0 ? salePrice : Number(product.price);
+    return effectivePrice(product.price, product.salePrice);
+}
+
+/**
+ * Paystack needs both halves of the key pair; the browser only sees the public
+ * one. Presence check only: decrypting here would run on every storefront
+ * request, and a bad key would take the whole store down instead of failing
+ * cleanly at pay time (initPaystackPayment decrypts and refuses).
+ */
+function tenantCanPayOnline(tenant: typeof tenants.$inferSelect) {
+    return Boolean(tenant.paystackPublicKey && tenant.paystackSecretKey);
 }
 
 type DeliveryPricingConfig =
@@ -116,6 +147,128 @@ async function computeDeliveryFee(input: {
     return { fee, distanceKm };
 }
 
+const checkoutItemsInput = z
+    .array(
+        z.object({
+            productId: z.string().min(1),
+            quantity: z.number().int().min(1).max(999),
+        })
+    )
+    .min(1, "Your cart is empty.")
+    .max(100);
+
+/** Phone is how the store reaches the shopper; email is optional. */
+const customerDetailsInput = z.object({
+    name: z.string().trim().min(1, "Name is required").max(120, "Name is too long"),
+    phone: z.string().trim().min(7, "Phone number is required").max(30, "Phone number is too long"),
+    email: z.preprocess(
+        (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+        z.string().trim().email().max(254).optional(),
+    ),
+});
+
+const deliveryAddressInput = z.string().max(500, "Delivery address is too long");
+
+type CheckoutLine = {
+    productId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    unlimitedStock: boolean;
+};
+
+type PricedCart = {
+    lines: CheckoutLine[];
+    /** One shopper-readable sentence per item that can't be bought as asked. */
+    problems: { productId: string; message: string }[];
+};
+
+/**
+ * Re-price the cart on the server. Lines that are gone, unpublished, short or
+ * unpriced become problems instead of lines. Read-only.
+ */
+async function priceCart(
+    database: typeof db,
+    tenantId: string,
+    items: { productId: string; quantity: number }[],
+): Promise<PricedCart> {
+    const wanted = new Map<string, number>();
+    for (const item of items) {
+        wanted.set(item.productId, (wanted.get(item.productId) ?? 0) + item.quantity);
+    }
+
+    const found = await database.query.products.findMany({
+        where: and(eq(products.tenantId, tenantId), inArray(products.id, [...wanted.keys()])),
+        columns: { id: true, name: true, price: true, salePrice: true, stockQuantity: true, visibility: true },
+    });
+    const byId = new Map(found.map((product) => [product.id, product]));
+
+    const problems: PricedCart["problems"] = [];
+    const lines: CheckoutLine[] = [];
+    for (const [productId, quantity] of wanted) {
+        const product = byId.get(productId);
+        if (!product) {
+            problems.push({ productId, message: "An item in your cart is no longer available" });
+            continue;
+        }
+        if (product.visibility !== "PUBLISHED") {
+            problems.push({ productId, message: `${product.name} is no longer available` });
+            continue;
+        }
+        const unitPrice = effectiveUnitPrice(product);
+        // Never sell at ₦0: unpriced items are "price on request".
+        if (isPriceOnRequest(unitPrice)) {
+            problems.push({
+                productId,
+                message: `${product.name} has no online price yet (contact the store for a quote)`,
+            });
+            continue;
+        }
+        // stockQuantity === -1 means untracked (see inventory.ts).
+        if (product.stockQuantity !== -1 && product.stockQuantity < quantity) {
+            problems.push({
+                productId,
+                message:
+                    product.stockQuantity <= 0
+                        ? `${product.name} is out of stock`
+                        : `${product.name}: only ${product.stockQuantity} left`,
+            });
+            continue;
+        }
+        lines.push({
+            productId,
+            name: product.name,
+            quantity,
+            unitPrice,
+            unlimitedStock: product.stockQuantity === -1,
+        });
+    }
+    return { lines, problems };
+}
+
+/**
+ * Re-price the cart and refuse it outright if anything is gone, unpublished,
+ * short or unpriced — the shopper must see which item, not pay for a silently
+ * smaller order.
+ */
+async function loadCheckoutLines(
+    database: typeof db,
+    tenantId: string,
+    items: { productId: string; quantity: number }[],
+): Promise<CheckoutLine[]> {
+    const { lines, problems } = await priceCart(database, tenantId, items);
+    if (problems.length > 0) {
+        throw new TRPCError({
+            code: "CONFLICT",
+            message: `${problems.map((problem) => problem.message).join("; ")}. Please update your cart.`,
+        });
+    }
+    return lines;
+}
+
+const publicLines = (lines: CheckoutLine[]) =>
+    lines.map(({ productId, name, quantity, unitPrice }) => ({ productId, name, quantity, unitPrice }));
+
 export const shopRouter = createTRPCRouter({
     getShopDetails: publicProcedure.query(async ({ ctx }) => {
         // For now, we'll just get the first tenant as the "main" store
@@ -138,7 +291,7 @@ export const shopRouter = createTRPCRouter({
         const { paystackSecretKey: _paystackSecretKey, ...tenantSafe } = tenant;
 
         return {
-            tenant: tenantSafe,
+            tenant: { ...tenantSafe, canPayOnline: tenantCanPayOnline(tenant) },
             needsSetup: !hasUsers,
         };
     }),
@@ -150,171 +303,25 @@ export const shopRouter = createTRPCRouter({
                 categoryId: z.number().optional(),
                 // Drives the `used.` surface, which pre-filters to non-new stock.
                 condition: z.array(z.enum(["NEW", "USED", "REFURBISHED"])).min(1).optional(),
-                limit: z.number().min(1).max(100).default(50),
-                cursor: z.string().optional(),
+                sort: z.enum(SHOP_SORT_OPTIONS).optional(),
+                minPrice: z.number().min(0).optional(),
+                maxPrice: z.number().min(0).optional(),
+                inStockOnly: z.boolean().optional(),
+                limit: z.number().min(1).max(100).default(SHOP_PAGE_SIZE),
+                // Offset of the page to load (useInfiniteQuery's page param).
+                cursor: z.number().int().min(0).nullish(),
             })
         )
         .query(async ({ ctx, input }) => {
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
-            if (!tenant) return [];
-
-            const searchTerm = input.search?.trim();
-            const conditions = input.condition;
-            // Applied to every branch below, including the raw pg_trgm CTE —
-            // missing one silently shows new stock on the used surface.
-            const conditionFilter = conditions
-                ? inArray(products.condition, conditions)
-                : undefined;
-
-            // If there's a search term, use fuzzy search with pg_trgm
-            if (searchTerm && searchTerm.length > 0) {
-                // Use raw SQL for fuzzy search with pg_trgm
-                // This searches product name, description, and associated category names
-                const results = await ctx.db.execute(sql`
-                    WITH product_search AS (
-                        SELECT DISTINCT ON (p.id)
-                            p.id,
-                            p."tenantId",
-                            p."categoryId",
-                            p."supplierId",
-                            p.name,
-                            p.description,
-                            p.image,
-                            p.images,
-                            p.barcode,
-                            p.sku,
-                            p.price,
-                            p."sale_price" as "salePrice",
-                            p."cost_price" as "costPrice",
-                            p."stockQuantity",
-                            p."lowStockThreshold",
-                            p."createdAt",
-                            p."updatedAt",
-                            GREATEST(
-                                COALESCE(similarity(p.name, ${searchTerm}), 0),
-                                COALESCE(similarity(COALESCE(p.description, ''), ${searchTerm}), 0),
-                                COALESCE((
-                                    SELECT MAX(similarity(c.name, ${searchTerm}))
-                                    FROM "alswap-inventory_product_category" pc
-                                    JOIN "alswap-inventory_category" c ON pc."categoryId" = c.id
-                                    WHERE pc."productId" = p.id
-                                ), 0)
-                            ) as relevance
-                        FROM "alswap-inventory_product" p
-                        LEFT JOIN "alswap-inventory_product_category" pc ON p.id = pc."productId"
-                        LEFT JOIN "alswap-inventory_category" c ON pc."categoryId" = c.id
-                        WHERE
-                            p."tenantId" = ${tenant.id}
-                            AND p.visibility = 'PUBLISHED'
-                            ${conditions
-                        ? sql`AND p.condition IN (${sql.join(
-                            conditions.map((value) => sql`${value}`),
-                            sql`, `,
-                        )})`
-                        : sql``}
-                            AND (
-                                -- Trigram similarity match (fuzzy)
-                                p.name % ${searchTerm}
-                                OR COALESCE(p.description, '') % ${searchTerm}
-                                OR c.name % ${searchTerm}
-                                -- ILIKE fallback for partial matches
-                                OR p.name ILIKE ${'%' + searchTerm + '%'}
-                                OR COALESCE(p.description, '') ILIKE ${'%' + searchTerm + '%'}
-                                OR c.name ILIKE ${'%' + searchTerm + '%'}
-                            )
-                    )
-                    SELECT * FROM product_search
-                    ORDER BY relevance DESC, "createdAt" DESC
-                    LIMIT ${input.limit}
-                `);
-
-                // The two supported drizzle transports return different shapes
-                // here, so normalise before reading rows.
-                const rows = toRows<{ id: string }>(results);
-                const productIds = rows.map((r) => r.id);
-                
-                if (productIds.length === 0) return [];
-
-                // Fetch products with relations using Drizzle for proper typing
-                const productsWithRelations = await ctx.db.query.products.findMany({
-                    where: inArray(products.id, productIds),
-                    with: {
-                        category: true,
-                        productCategories: {
-                            with: {
-                                category: true,
-                            },
-                        },
-                    },
-                });
-
-                // Sort by the original relevance order
-                const productMap = new Map(productsWithRelations.map(p => [p.id, p]));
-                return productIds
-                    .map((id: string) => productMap.get(id))
-                    .filter((p): p is NonNullable<typeof p> => p !== undefined);
-            }
-
-            // Non-search query with optional category filter
-            if (input.categoryId) {
-                // Filter by category using the junction table (many-to-many)
-                const productIdsInCategory = await ctx.db
-                    .selectDistinct({ productId: productCategories.productId })
-                    .from(productCategories)
-                    .where(eq(productCategories.categoryId, input.categoryId));
-
-                const pIds = productIdsInCategory.map(p => p.productId);
-                
-                if (pIds.length === 0) return [];
-
-                return ctx.db.query.products.findMany({
-                    where: and(
-                        eq(products.tenantId, tenant.id),
-                        eq(products.visibility, "PUBLISHED"),
-                        inArray(products.id, pIds),
-                        conditionFilter
-                    ),
-                    with: {
-                        category: true,
-                        productCategories: {
-                            with: {
-                                category: true,
-                            },
-                        },
-                    },
-                    orderBy: desc(products.createdAt),
-                    limit: input.limit,
-                });
-            }
-
-            // Default: return all products for tenant
-            return ctx.db.query.products.findMany({
-                where: and(
-                    eq(products.tenantId, tenant.id),
-                    eq(products.visibility, "PUBLISHED"),
-                    conditionFilter
-                ),
-                with: {
-                    category: true,
-                    productCategories: {
-                        with: {
-                            category: true,
-                        },
-                    },
-                },
-                orderBy: desc(products.createdAt),
-                limit: input.limit,
-            });
+            if (!tenant) return emptyBrowseResult();
+            return browseStorefrontProducts(ctx.db, tenant.id, input);
         }),
 
     getCategories: publicProcedure.query(async ({ ctx }) => {
         const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
         if (!tenant) return [];
-
-        return ctx.db.query.categories.findMany({
-            where: eq(categories.tenantId, tenant.id),
-            orderBy: desc(categories.id),
-        });
+        return listStorefrontCategories(ctx.db, tenant.id);
     }),
 
     getProduct: publicProcedure
@@ -328,14 +335,8 @@ export const shopRouter = createTRPCRouter({
                     eq(products.tenantId, tenant.id),
                     eq(products.visibility, "PUBLISHED"),
                 ),
-                with: {
-                    category: true,
-                    productCategories: {
-                        with: {
-                            category: true,
-                        },
-                    },
-                },
+                columns: publicProductColumns,
+                with: publicProductRelations,
             });
         }),
 
@@ -354,20 +355,34 @@ export const shopRouter = createTRPCRouter({
                     eq(products.visibility, "PUBLISHED"),
                     or(eq(products.slug, input.slug), eq(products.id, input.slug)),
                 ),
-                with: {
-                    category: true,
-                    productCategories: {
-                        with: {
-                            category: true,
-                        },
-                    },
-                },
+                columns: publicProductColumns,
+                with: publicProductRelations,
             });
         }),
 
-    estimateDeliveryFee: publicProcedure
-        .input(z.object({ deliveryAddress: z.string().min(5) }))
+    /**
+     * Current server prices for a cart, without placing anything. Checkout
+     * calls it on open so the total on the button matches what the order
+     * will charge, and sold-out or unpriced items show up front.
+     */
+    quoteCart: publicProcedure
+        .input(z.object({ items: checkoutItemsInput }))
         .query(async ({ ctx, input }) => {
+            const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
+            if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+            const { lines, problems } = await priceCart(ctx.db, tenant.id, input.items);
+            return {
+                lines: publicLines(lines),
+                problems,
+                subtotal: lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
+            };
+        }),
+
+    estimateDeliveryFee: publicProcedure
+        .input(z.object({ deliveryAddress: deliveryAddressInput.min(5) }))
+        .query(async ({ ctx, input }) => {
+            // Each quote can hit the geocoder, so throttle per client.
+            enforceRateLimit(shopRateLimits.deliveryEstimate, ctx.headers);
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
@@ -382,26 +397,19 @@ export const shopRouter = createTRPCRouter({
     initPaystackPayment: publicProcedure
         .input(
             z.object({
-                items: z.array(
-                    z.object({
-                        productId: z.string(),
-                        quantity: z.number().min(1),
-                    })
-                ),
-                customerDetails: z.object({
-                    name: z.string(),
-                    email: z.string().email(),
-                    phone: z.string().optional(),
-                }),
+                items: checkoutItemsInput,
+                customerDetails: customerDetailsInput,
                 deliveryMethod: z.enum(["PICKUP", "DELIVERY"]).optional(),
-                deliveryAddress: z.string().optional(),
+                deliveryAddress: deliveryAddressInput.optional(),
             })
         )
         .mutation(async ({ ctx, input }) => {
+            enforceRateLimit(shopRateLimits.paystackInit, ctx.headers);
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
-            if (!tenant.paystackSecretKey || !tenant.paystackPublicKey) {
+            const secretKey = tenantPaystackSecret(tenant);
+            if (!secretKey || !tenant.paystackPublicKey) {
                 throw new TRPCError({
                     code: "PRECONDITION_FAILED",
                     message: "Paystack is not configured for this store.",
@@ -409,231 +417,220 @@ export const shopRouter = createTRPCRouter({
             }
 
             const deliveryMethod = input.deliveryMethod ?? "PICKUP";
-
-            // Compute expected total (same logic as createOrder)
-            let totalAmount = 0;
-            for (const item of input.items) {
-                const product = await ctx.db.query.products.findFirst({
-                    where: and(eq(products.id, item.productId), eq(products.tenantId, tenant.id)),
-                });
-                if (!product) continue;
-                totalAmount += effectiveUnitPrice(product) * item.quantity;
+            // Same rule the product page and checkout show shoppers.
+            if (deliveryMethod === "DELIVERY" && !storefrontOptions({ ...tenant, canPayOnline: true }).offersDelivery) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "This store doesn't offer delivery. Choose pickup." });
             }
-            const deliveryFeeOut = await computeDeliveryFee({
-                tenant,
-                deliveryMethod,
-                deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress : undefined,
-            });
-            totalAmount += deliveryFeeOut.fee;
+            const deliveryAddress = deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : undefined;
+            if (deliveryMethod === "DELIVERY" && !deliveryAddress) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery address is required." });
+            }
 
-            const amountKobo = Math.round(totalAmount * 100);
+            const lines = await loadCheckoutLines(ctx.db, tenant.id, input.items);
+            const deliveryFeeOut = await computeDeliveryFee({ tenant, deliveryMethod, deliveryAddress });
+            const subtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+            const totalAmount = subtotal + deliveryFeeOut.fee;
+
+            const amountKobo = toKobo(totalAmount);
             if (!Number.isFinite(amountKobo) || amountKobo <= 0) {
                 throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid order total." });
             }
 
-            const secretKey = decryptString(tenant.paystackSecretKey);
-            const reference = `ps_${tenant.id}_${Date.now()}`;
+            const reference = newPaymentReference(crypto.randomUUID());
+            const email = paystackEmailFor(input.customerDetails.email, reference);
 
-            const resp = await fetch("https://api.paystack.co/transaction/initialize", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${secretKey}`,
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                },
-                body: JSON.stringify({
-                    email: input.customerDetails.email,
-                    amount: amountKobo,
-                    reference,
-                    metadata: {
-                        tenantId: tenant.id,
-                        deliveryMethod,
-                        deliveryFee: deliveryFeeOut.fee,
-                        distanceKm: deliveryFeeOut.distanceKm,
-                    },
-                }),
+            // The order exists (PENDING, server prices) before the shopper
+            // pays, so the webhook can always find it by reference — even if
+            // the browser closes right after payment.
+            const order = await ctx.db.transaction(async (tx) => {
+                const [created] = await tx.insert(orders).values({
+                    tenantId: tenant.id,
+                    // Store exactly what Paystack will charge so the
+                    // finalizer's kobo comparison can't drift on rounding.
+                    totalAmount: (amountKobo / 100).toFixed(2),
+                    status: "PENDING",
+                    paymentMethod: "PAYSTACK",
+                    paymentReference: reference,
+                    deliveryMethod,
+                    deliveryAddress: deliveryAddress ?? null,
+                    deliveryFee: deliveryMethod === "DELIVERY" ? deliveryFeeOut.fee.toString() : null,
+                    customerName: input.customerDetails.name,
+                    // The placeholder address is only for Paystack, never shown to staff.
+                    customerEmail: input.customerDetails.email ?? null,
+                    customerPhone: input.customerDetails.phone,
+                }).returning({ id: orders.id });
+                if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });
+
+                await tx.insert(orderItems).values(
+                    lines.map((line) => ({
+                        orderId: created.id,
+                        productId: line.productId,
+                        quantity: line.quantity,
+                        price: line.unitPrice.toString(),
+                    })),
+                );
+                return created;
             });
 
-            const payload = (await resp.json()) as {
-                status: boolean;
-                message?: string;
-                data?: { access_code: string; reference: string };
-            };
+            const init = await initializePaystackTransaction({
+                secretKey,
+                email,
+                amountKobo,
+                reference,
+                metadata: {
+                    orderId: order.id,
+                    deliveryMethod,
+                    deliveryFee: deliveryFeeOut.fee,
+                    distanceKm: deliveryFeeOut.distanceKm,
+                },
+            });
 
-            if (!resp.ok || !payload.status || !payload.data?.access_code || !payload.data?.reference) {
+            if (!init.ok) {
+                // No payment can arrive for a reference Paystack never accepted.
+                await ctx.db.update(orders)
+                    .set({ status: "CANCELLED" })
+                    .where(and(eq(orders.id, order.id), eq(orders.status, "PENDING")));
+                // Paystack's own wording is for us, not the shopper.
+                console.error(`[paystack] initialize failed order=${order.id} ref=${reference}: ${init.message}`);
                 throw new TRPCError({
                     code: "BAD_GATEWAY",
-                    message: payload.message ?? "Failed to initialize Paystack transaction.",
+                    message: "We couldn't start the online payment. Please try again, or choose pay on pickup.",
                 });
             }
 
             return {
-                reference: payload.data.reference,
-                accessCode: payload.data.access_code,
+                accessCode: init.accessCode,
+                reference,
+                orderId: order.id,
+                orderNumber: orderNumber(order.id),
+                email,
+                total: amountKobo / 100,
+                subtotal,
+                deliveryFee: deliveryFeeOut.fee,
+                lines: publicLines(lines),
             };
         }),
 
     createOrder: publicProcedure
         .input(
-            z.object({
-                items: z.array(
-                    z.object({
-                        productId: z.string(),
-                        quantity: z.number().min(1),
-                    })
-                ),
-                customerDetails: z.object({
-                    name: z.string(),
-                    email: z.string().email(),
-                    phone: z.string().optional(),
+            z.discriminatedUnion("paymentMethod", [
+                // Online payment: the PENDING order was created by
+                // initPaystackPayment; this only verifies and completes it.
+                z.object({
+                    paymentMethod: z.literal("PAYSTACK"),
+                    reference: z.string().min(1).max(100),
                 }),
-                reference: z.string(), // Paystack reference
-                deliveryMethod: z.enum(["PICKUP", "DELIVERY"]).optional(),
-                deliveryAddress: z.string().optional(),
-                paymentMethod: z.enum(["PAYSTACK", "PAY_ON_PICKUP"]).optional(),
-            })
+                z.object({
+                    paymentMethod: z.literal("PAY_ON_PICKUP"),
+                    items: checkoutItemsInput,
+                    customerDetails: customerDetailsInput,
+                }),
+            ])
         )
         .mutation(async ({ ctx, input }) => {
+            enforceRateLimit(
+                input.paymentMethod === "PAYSTACK" ? shopRateLimits.paystackVerify : shopRateLimits.payOnPickupOrder,
+                ctx.headers,
+            );
             const tenant = await resolvePublicTenant(ctx.db, ctx.headers);
             if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
 
-            const deliveryMethod = input.deliveryMethod ?? "PICKUP";
-            const paymentMethod = input.paymentMethod ?? "PAYSTACK";
-
-            if (deliveryMethod === "DELIVERY") {
-                if (!input.deliveryAddress?.trim()) {
-                    throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery address is required." });
-                }
-                if (paymentMethod !== "PAYSTACK") {
-                    throw new TRPCError({ code: "BAD_REQUEST", message: "Delivery orders must be paid online." });
+            if (input.paymentMethod === "PAYSTACK") {
+                try {
+                    const result = await finalizePaystackOrder({ db: ctx.db, tenant, reference: input.reference });
+                    return {
+                        success: true,
+                        orderId: result.orderId,
+                        orderNumber: orderNumber(result.orderId),
+                        total: Number(result.totalAmount),
+                        needsAttention: result.outcome === "needs_attention",
+                    };
+                } catch (error) {
+                    if (error instanceof PaymentNotFoundError) {
+                        throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+                    }
+                    if (error instanceof PaymentVerificationError) {
+                        // The reason can be Paystack's raw message; log it, show a generic one.
+                        console.error(`[paystack] verification failed ref=${input.reference}: ${error.message}`);
+                        throw new TRPCError({
+                            code: "PAYMENT_REQUIRED",
+                            message: `We couldn't confirm your payment. If you were charged, contact the store with reference ${input.reference}.`,
+                        });
+                    }
+                    throw error;
                 }
             }
 
-            // Calculate total
-            let totalAmount = 0;
-            const orderItemsData: { productId: string; quantity: number; price: string; unlimitedStock: boolean }[] = [];
+            // Pay on pickup: a direct PENDING order; stock is held now. It is
+            // unauthenticated and unpaid, so cap how much one order can hold.
+            const quantityError = pickupQuantityError(input.items);
+            if (quantityError) throw new TRPCError({ code: "BAD_REQUEST", message: quantityError });
 
-            for (const item of input.items) {
-                const product = await ctx.db.query.products.findFirst({
-                    where: and(eq(products.id, item.productId), eq(products.tenantId, tenant.id)),
-                });
-
-                if (!product) continue;
-
-                // stockQuantity === -1 means "unknown/unlimited" (see inventory.ts); anything
-                // else is a real count that must cover the requested quantity.
-                if (product.stockQuantity !== -1 && product.stockQuantity < item.quantity) {
-                    throw new TRPCError({
-                        code: "CONFLICT",
-                        message: `${product.name} doesn't have enough stock available.`,
-                    });
-                }
-
-                const unitPrice = effectiveUnitPrice(product);
-                totalAmount += unitPrice * item.quantity;
-                orderItemsData.push({
-                    productId: product.id,
-                    quantity: item.quantity,
-                    price: unitPrice.toString(),
-                    unlimitedStock: product.stockQuantity === -1,
-                });
-            }
-
-            // Delivery fee from store config (if configured)
-            const deliveryFeeOut = await computeDeliveryFee({
-                tenant,
-                deliveryMethod,
-                deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress : undefined,
-            });
-            totalAmount += deliveryFeeOut.fee;
-
-            // If PAYSTACK, verify transaction before creating a completed order
-            if (paymentMethod === "PAYSTACK") {
-                if (!tenant.paystackSecretKey) {
-                    throw new TRPCError({
-                        code: "PRECONDITION_FAILED",
-                        message: "Paystack secret key is not configured for this store.",
-                    });
-                }
-
-                const expectedAmountKobo = Math.round(totalAmount * 100);
-                const secretKey = decryptString(tenant.paystackSecretKey);
-
-                const verifyResp = await fetch(
-                    `https://api.paystack.co/transaction/verify/${encodeURIComponent(input.reference)}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${secretKey}`,
-                            Accept: "application/json",
-                        },
-                    },
-                );
-
-                const verifyPayload = (await verifyResp.json()) as {
-                    status: boolean;
-                    message?: string;
-                    data?: { status?: string; amount?: number; reference?: string };
-                };
-
-                const status = verifyPayload.data?.status;
-                const amount = verifyPayload.data?.amount;
-                const ref = verifyPayload.data?.reference;
-
-                if (!verifyResp.ok || !verifyPayload.status || status !== "success") {
-                    throw new TRPCError({
-                        code: "PAYMENT_REQUIRED",
-                        message: verifyPayload.message ?? "Payment verification failed.",
-                    });
-                }
-
-                if (ref && ref !== input.reference) {
-                    throw new TRPCError({ code: "PAYMENT_REQUIRED", message: "Payment reference mismatch." });
-                }
-
-                if (typeof amount !== "number" || amount !== expectedAmountKobo) {
-                    throw new TRPCError({ code: "PAYMENT_REQUIRED", message: "Payment amount mismatch." });
-                }
+            const lines = await loadCheckoutLines(ctx.db, tenant.id, input.items);
+            const totalAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+            const phoneKey = phoneMatchKey(input.customerDetails.phone);
+            if (phoneKey.length < 7) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Enter a valid phone number." });
             }
 
             const newOrder = await ctx.db.transaction(async (tx) => {
+                // Serialize pickup orders per phone so concurrent requests can't
+                // all pass the open-order cap below.
+                await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`pickup:${tenant.id}:${phoneKey}`}))`);
+                const [open] = await tx
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(orders)
+                    .where(and(
+                        eq(orders.tenantId, tenant.id),
+                        eq(orders.paymentMethod, "PAY_ON_PICKUP"),
+                        eq(orders.status, "PENDING"),
+                        gte(orders.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+                        // Same normalization as phoneMatchKey: digits only, last 10.
+                        sql`right(regexp_replace(coalesce(${orders.customerPhone}, ''), '[^0-9]', '', 'g'), 10) = ${phoneKey}`,
+                    ));
+                if ((open?.count ?? 0) >= PAY_ON_PICKUP_MAX_OPEN_PER_PHONE) {
+                    throw new TRPCError({
+                        code: "TOO_MANY_REQUESTS",
+                        message: "You already have several pickup orders waiting. Please collect them or contact the store before placing another.",
+                    });
+                }
+
                 const [order] = await tx.insert(orders).values({
                     tenantId: tenant.id,
                     totalAmount: totalAmount.toString(),
-                    status: paymentMethod === "PAYSTACK" ? "COMPLETED" : "PENDING",
-                    paymentMethod,
-                    deliveryMethod,
-                    deliveryAddress: deliveryMethod === "DELIVERY" ? input.deliveryAddress?.trim() : null,
-                    deliveryFee: deliveryMethod === "DELIVERY" ? deliveryFeeOut.fee.toString() : null,
+                    status: "PENDING",
+                    paymentMethod: "PAY_ON_PICKUP",
+                    deliveryMethod: "PICKUP",
                     customerName: input.customerDetails.name,
-                    customerEmail: input.customerDetails.email,
-                    customerPhone: input.customerDetails.phone ?? null,
+                    customerEmail: input.customerDetails.email ?? null,
+                    customerPhone: input.customerDetails.phone,
                 }).returning();
 
                 if (!order) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create order" });
 
-                for (const item of orderItemsData) {
+                for (const line of lines) {
                     await tx.insert(orderItems).values({
                         orderId: order.id,
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        price: item.price,
+                        productId: line.productId,
+                        quantity: line.quantity,
+                        price: line.unitPrice.toString(),
                     });
 
-                    if (item.unlimitedStock) continue;
+                    if (line.unlimitedStock) continue;
 
                     const [updated] = await tx.update(products)
-                        .set({ stockQuantity: sql`${products.stockQuantity} - ${item.quantity}` })
+                        .set({ stockQuantity: sql`${products.stockQuantity} - ${line.quantity}` })
                         .where(and(
-                            eq(products.id, item.productId),
+                            eq(products.id, line.productId),
                             eq(products.tenantId, tenant.id),
-                            gte(products.stockQuantity, item.quantity),
+                            gte(products.stockQuantity, line.quantity),
                         ))
                         .returning({ id: products.id });
 
                     if (!updated) {
                         throw new TRPCError({
                             code: "CONFLICT",
-                            message: "Stock changed while processing your order; please review your cart.",
+                            message: `${line.name} sold out while you were checking out; please review your cart.`,
                         });
                     }
                 }
@@ -641,50 +638,16 @@ export const shopRouter = createTRPCRouter({
                 return order;
             });
 
-            // Notify admins if this is a delivery order
-            if (deliveryMethod === "DELIVERY") {
-                // In-app notification
-                await ctx.db.insert(adminNotifications).values({
-                    tenantId: tenant.id,
-                    type: "DELIVERY_ORDER",
-                    title: "New delivery order",
-                    message: `Delivery order from ${input.customerDetails.name}`,
-                    data: {
-                        orderId: newOrder.id,
-                        customer: input.customerDetails,
-                        deliveryAddress: input.deliveryAddress?.trim(),
-                        paymentMethod,
-                        totalAmount: totalAmount.toString(),
-                        deliveryFee: deliveryFeeOut.fee,
-                        distanceKm: deliveryFeeOut.distanceKm,
-                    },
-                });
+            await notifyOrderPlaced({ db: ctx.db, tenant, orderId: newOrder.id });
 
-                // Email notification to tenant admins
-                const admins = await ctx.db.query.users.findMany({
-                    where: and(eq(users.tenantId, tenant.id), eq(users.role, "ADMIN")),
-                    columns: { email: true },
-                });
-                const emails = admins.map((a) => a.email).filter(Boolean);
-                if (emails.length > 0) {
-                    try {
-                        await sendDeliveryOrderEmail({
-                            to: emails,
-                            tenantName: tenant.name,
-                            orderId: newOrder.id,
-                            customerName: input.customerDetails.name,
-                            customerEmail: input.customerDetails.email,
-                            customerPhone: input.customerDetails.phone,
-                            totalAmount: totalAmount.toString(),
-                            deliveryAddress: input.deliveryAddress?.trim() ?? "",
-                        });
-                    } catch (e) {
-                        // Don't fail checkout if email fails
-                        console.error("Failed to send delivery order email:", e);
-                    }
-                }
-            }
-
-            return { success: true, orderId: newOrder.id };
+            return {
+                success: true,
+                orderId: newOrder.id,
+                orderNumber: orderNumber(newOrder.id),
+                total: totalAmount,
+                // Server prices: the receipt must show what the store will charge.
+                lines: publicLines(lines),
+                needsAttention: false,
+            };
         }),
 });

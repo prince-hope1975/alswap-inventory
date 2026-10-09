@@ -1,17 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { MultiImageUpload } from "~/app/_components/multi-image-upload";
 import { CreateCategoryDialog } from "~/app/_components/create-category-dialog";
 import { SimilarProductsPanel } from "./similar-products-panel";
+import { AdjustStockButton } from "../adjust-stock";
 import { toast } from "~/lib/toast";
-import { X, ChevronDown } from "lucide-react";
+import { cn } from "~/lib/utils";
+import { X, ChevronDown, AlertTriangle } from "lucide-react";
+import {
+    lowStockThresholdWarning,
+    optionalNumberInput,
+    parseOptionalPrice,
+    salePriceWarning,
+} from "~/lib/domain/product-form-data";
+import {
+    btnPrimary,
+    btnSecondary,
+    checkboxCls,
+    errorTextCls,
+    hintCls,
+    inputCls,
+    labelCls,
+} from "~/components/ui/styles";
 
 const productSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -21,29 +39,13 @@ const productSchema = z.object({
     categoryIds: z.array(z.number()).optional(),
     sku: z.string().optional(),
     barcode: z.string().optional(),
-    price: z.number().min(0, "Price must be positive"),
+    price: z.number({ invalid_type_error: "Enter a price" }).min(0, "Price must be positive"),
     salePrice: z.number().min(0, "Sale price must be positive").optional().nullable(),
-    costPrice: z.number().min(0, "Cost price is required and must be positive"),
-    stockQuantity: z.number().int().min(-1, "Stock must be -1 (unknown) or greater"),
-    lowStockThreshold: z.number().int().min(0),
-}).refine(
-    (data) => {
-        // Skip validation if quantity is unknown (-1)
-        if (data.stockQuantity === -1) {
-            return true;
-        }
-        // If stockQuantity is 0, allow any threshold >= 0
-        // Otherwise, threshold must be less than stockQuantity
-        if (data.stockQuantity === 0) {
-            return data.lowStockThreshold >= 0;
-        }
-        return data.lowStockThreshold < data.stockQuantity;
-    },
-    {
-        message: "Low stock threshold must be less than current stock quantity",
-        path: ["lowStockThreshold"],
-    }
-);
+    costPrice: z.number({ invalid_type_error: "Enter a cost price" }).min(0, "Cost price is required and must be positive"),
+    /** Only sent when creating; edits go through Adjust stock. */
+    stockQuantity: z.number({ invalid_type_error: "Enter a quantity" }).int().min(-1, "Stock must be -1 (unknown) or greater"),
+    lowStockThreshold: z.number({ invalid_type_error: "Enter a number" }).int().min(0),
+});
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
@@ -66,21 +68,41 @@ interface ProductFormProps {
     };
     isEditing?: boolean;
     categories?: { id: number; name: string }[];
+    /** Prefills the name for a new product (e.g. from a Demand "not found" term). */
+    defaultName?: string;
 }
 
-export function ProductForm({ initialData, isEditing = false, categories: _categories }: ProductFormProps) {
+function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+    return (
+        <section className="grid gap-6 md:grid-cols-3 md:gap-8">
+            <div className="md:col-span-1">
+                <h2 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">{title}</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm md:col-span-2 dark:border-gray-700 dark:bg-gray-800">
+                <div className="grid gap-6 md:grid-cols-2">{children}</div>
+            </div>
+        </section>
+    );
+}
+
+export function ProductForm({ initialData, isEditing = false, defaultName }: ProductFormProps) {
     const router = useRouter();
     const { currency } = useCurrency();
+    const uid = useId();
+    const fid = (name: string) => `${uid}-${name}`;
     const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+    const [isUploadingImages, setIsUploadingImages] = useState(false);
+    const categoryBoxRef = useRef<HTMLDivElement>(null);
+    const categoryButtonRef = useRef<HTMLButtonElement>(null);
 
     const utils = api.useUtils();
 
-    // Fetch categories on the fly
     const { data: categoryList = [], isLoading: categoriesLoading, error: categoriesError } = api.inventory.listCategories.useQuery();
 
     const createProduct = api.inventory.createProduct.useMutation({
         onSuccess: () => {
-            toast.success("Product created successfully!");
+            toast.success("Product created");
             router.push("/inventory/products");
             router.refresh();
         },
@@ -91,18 +113,17 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
 
     const updateProduct = api.inventory.updateProduct.useMutation({
         onSuccess: () => {
-            toast.success("Product updated successfully!");
+            toast.success("Product updated");
             router.push("/inventory/products");
             router.refresh();
-            utils.inventory.listProducts.invalidate();
+            void utils.inventory.listProducts.invalidate();
         },
         onError: (error) => {
             toast.error(`Failed to update product: ${error.message}`);
         },
     });
 
-    // Extract existing category IDs from productCategories relation
-    const existingCategoryIds = initialData?.productCategories?.map(pc => pc.category.id)
+    const existingCategoryIds = initialData?.productCategories?.map((pc) => pc.category.id)
         ?? (initialData?.categoryId ? [initialData.categoryId] : []);
 
     const {
@@ -110,7 +131,6 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
         handleSubmit,
         setValue,
         watch,
-        trigger,
         formState: { errors },
     } = useForm<ProductFormValues>({
         resolver: zodResolver(productSchema),
@@ -124,13 +144,13 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
                 sku: initialData.sku ?? "",
                 barcode: initialData.barcode ?? "",
                 price: parseFloat(initialData.price),
-                salePrice: initialData.salePrice ? parseFloat(initialData.salePrice) : null,
+                salePrice: parseOptionalPrice(initialData.salePrice),
                 costPrice: parseFloat(initialData.costPrice ?? "0"),
                 stockQuantity: initialData.stockQuantity,
                 lowStockThreshold: initialData.lowStockThreshold ?? 5,
             }
             : {
-                name: "",
+                name: isEditing ? "" : (defaultName ?? ""),
                 description: "",
                 price: 0,
                 salePrice: null,
@@ -143,440 +163,440 @@ export function ProductForm({ initialData, isEditing = false, categories: _categ
             },
     });
 
-    // Watch stockQuantity and lowStockThreshold to trigger validation
-    const stockQuantity = watch("stockQuantity");
+    // When editing, stock comes from the server (the prop refreshes after
+    // Adjust stock); the form never edits it.
+    const formStock = watch("stockQuantity");
+    const stockQuantity = isEditing && initialData ? initialData.stockQuantity : formStock;
     const lowStockThreshold = watch("lowStockThreshold");
-    const selectedCategoryIds = watch("categoryIds") || [];
+    const selectedCategoryIds = watch("categoryIds") ?? [];
+    const thresholdWarning = lowStockThresholdWarning(stockQuantity, lowStockThreshold);
+    const saleWarning = salePriceWarning(watch("price"), watch("salePrice"));
 
-    // Trigger validation when stockQuantity or lowStockThreshold changes
+    // Category dropdown: close on outside click or Esc.
     useEffect(() => {
-        if (stockQuantity !== undefined && lowStockThreshold !== undefined) {
-            trigger("lowStockThreshold");
-        }
-    }, [stockQuantity, lowStockThreshold, trigger]);
+        if (!isCategoryDropdownOpen) return;
+        const onPointer = (e: PointerEvent) => {
+            if (!categoryBoxRef.current?.contains(e.target as Node)) setIsCategoryDropdownOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setIsCategoryDropdownOpen(false);
+                categoryButtonRef.current?.focus();
+            }
+        };
+        document.addEventListener("pointerdown", onPointer);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("pointerdown", onPointer);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [isCategoryDropdownOpen]);
 
     const onSubmit = (data: ProductFormValues) => {
+        const { stockQuantity: initialStock, ...rest } = data;
         const formattedData = {
-            ...data,
-            categoryIds: data.categoryIds || [],
+            ...rest,
+            categoryIds: data.categoryIds ?? [],
             categoryId: data.categoryIds?.[0], // First category as primary for backward compat
             price: Number(data.price),
-            salePrice: data.salePrice ? Number(data.salePrice) : null,
+            salePrice: data.salePrice ?? null,
             costPrice: Number(data.costPrice),
-            image: data.image || undefined,
-            description: data.description || undefined,
+            image: data.image ?? undefined,
+            description: data.description ?? undefined,
         };
 
         if (isEditing && initialData) {
-            updateProduct.mutate({
-                id: initialData.id,
-                ...formattedData,
-            });
+            // Stock is deliberately omitted: it only changes via Adjust stock.
+            updateProduct.mutate({ id: initialData.id, ...formattedData });
         } else {
-            createProduct.mutate(formattedData);
+            createProduct.mutate({ ...formattedData, stockQuantity: initialStock });
         }
     };
 
     const handleCategoryCreated = async (newCategory: { id: number; name: string }) => {
-        // Refetch categories to get the latest list
         await utils.inventory.listCategories.refetch();
-        // Add the new category to selected categories
-        const currentIds = watch("categoryIds") || [];
+        const currentIds = watch("categoryIds") ?? [];
         setValue("categoryIds", [...currentIds, newCategory.id]);
     };
 
     const toggleCategory = (categoryId: number) => {
-        const currentIds = watch("categoryIds") || [];
-        if (currentIds.includes(categoryId)) {
-            setValue("categoryIds", currentIds.filter(id => id !== categoryId));
-        } else {
-            setValue("categoryIds", [...currentIds, categoryId]);
-        }
+        const currentIds = watch("categoryIds") ?? [];
+        setValue(
+            "categoryIds",
+            currentIds.includes(categoryId) ? currentIds.filter((id) => id !== categoryId) : [...currentIds, categoryId],
+        );
     };
 
     const removeCategory = (categoryId: number) => {
-        const currentIds = watch("categoryIds") || [];
-        setValue("categoryIds", currentIds.filter(id => id !== categoryId));
+        const currentIds = watch("categoryIds") ?? [];
+        setValue("categoryIds", currentIds.filter((id) => id !== categoryId));
     };
 
-    const getSelectedCategoryNames = () => {
-        return categoryList.filter(cat => selectedCategoryIds.includes(cat.id));
-    };
+    const selectedCategories = categoryList.filter((cat) => selectedCategoryIds.includes(cat.id));
 
     const isPending = createProduct.isPending || updateProduct.isPending;
+    const submitDisabled = isPending || isUploadingImages;
+    const describedBy = (name: string, hasError: boolean) =>
+        [hasError ? fid(`${name}-error`) : null, fid(`${name}-hint`)].filter(Boolean).join(" ");
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            {/* Basic Information Section */}
-            <div className="grid gap-8 md:grid-cols-3">
-                <div className="md:col-span-1">
-                    <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">Basic Information</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        General details about the product including its name, category, and visual representation.
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8" noValidate>
+            <Section
+                title="Basic information"
+                description="General details about the product including its name, category, and images."
+            >
+                <div className="col-span-2">
+                    <label htmlFor={fid("name")} className={labelCls}>
+                        Product name <span className="text-red-500" aria-hidden="true">*</span>
+                    </label>
+                    <input
+                        id={fid("name")}
+                        {...register("name")}
+                        placeholder="e.g. Wireless Headphones"
+                        aria-required="true"
+                        aria-invalid={!!errors.name}
+                        aria-describedby={describedBy("name", !!errors.name)}
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    {errors.name && <p id={fid("name-error")} className={errorTextCls}>{errors.name.message}</p>}
+                    <p id={fid("name-hint")} className={hintCls}>
+                        The primary name of the product as it will appear in the catalog.
+                    </p>
+
+                    {!isEditing && (
+                        <SimilarProductsPanel
+                            searchName={watch("name") ?? ""}
+                            onUseProduct={(product) => {
+                                // Copy catalog details only. Stock is never copied:
+                                // a new product starts with its own count.
+                                setValue("description", product.description ?? "");
+                                setValue("price", parseFloat(product.price));
+                                setValue("costPrice", parseFloat(product.costPrice ?? "0"));
+                                if (product.categoryId) setValue("categoryIds", [product.categoryId]);
+                                setValue("sku", product.sku ?? "");
+                                setValue("barcode", product.barcode ?? "");
+                                setValue("image", product.image ?? "");
+                                if (product.images) setValue("images", product.images);
+                            }}
+                        />
+                    )}
+                </div>
+
+                <div className="col-span-2">
+                    <label htmlFor={fid("description")} className={labelCls}>Description</label>
+                    <textarea
+                        id={fid("description")}
+                        {...register("description")}
+                        aria-describedby={fid("description-hint")}
+                        placeholder="e.g. High-quality wireless headphones with noise cancellation and 30-hour battery life"
+                        rows={4}
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    <p id={fid("description-hint")} className={hintCls}>
+                        A detailed description of the product features and specifications.
                     </p>
                 </div>
-                <div className="grid gap-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:col-span-2">
-                    <div className="grid gap-6 md:grid-cols-2">
-                        <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Product Name <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                {...register("name")}
-                                placeholder="e.g. Wireless Headphones"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            {errors.name && (
-                                <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                The primary name of the product as it will appear in the catalog.
-                            </p>
 
-                            {/* Similar Products Panel */}
-                            {!isEditing && (
-                                <SimilarProductsPanel
-                                    searchName={watch("name") || ""}
-                                    onUseProduct={(product) => {
-                                        // Pre-fill form with existing product data
-                                        setValue("description", product.description || "");
-                                        setValue("price", parseFloat(product.price));
-                                        setValue("costPrice", parseFloat(product.costPrice || "0"));
-                                        setValue("stockQuantity", product.stockQuantity);
-                                        // Handle categories
-                                        if (product.categoryId) {
-                                            setValue("categoryIds", [product.categoryId]);
-                                        }
-                                        setValue("sku", product.sku || "");
-                                        setValue("barcode", product.barcode || "");
-                                        setValue("image", product.image || "");
-                                        if (product.images) {
-                                            setValue("images", product.images);
-                                        }
-                                    }}
-                                />
-                            )}
-                        </div>
+                <div className="col-span-2">
+                    <span id={fid("categories-label")} className={labelCls}>Categories</span>
 
-                        <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Description
-                            </label>
-                            <textarea
-                                {...register("description")}
-                                placeholder="e.g. High-quality wireless headphones with noise cancellation and 30-hour battery life"
-                                rows={4}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            {errors.description && (
-                                <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                A detailed description of the product features and specifications.
-                            </p>
-                        </div>
-
-                        <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Categories
-                            </label>
-
-                            {/* Selected Categories Tags */}
-                            {selectedCategoryIds.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    {getSelectedCategoryNames().map((category) => (
-                                        <span
-                                            key={category.id}
-                                            className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-primary-100)] px-3 py-1 text-sm font-medium text-[var(--brand-primary-800)] dark:bg-[var(--brand-primary-900)] dark:text-[var(--brand-primary-200)]"
-                                        >
-                                            {category.name}
-                                            <button
-                                                type="button"
-                                                onClick={() => removeCategory(category.id)}
-                                                className="ml-1 rounded-full p-0.5 hover:bg-[var(--brand-primary-200)] dark:hover:bg-[var(--brand-primary-800)]"
-                                            >
-                                                <X className="h-3 w-3" />
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Category Dropdown */}
-                            <div className="relative mt-2">
-                                <div className="flex items-center gap-2">
+                    {selectedCategories.length > 0 && (
+                        <ul aria-label="Selected categories" className="mt-2 flex flex-wrap gap-2">
+                            {selectedCategories.map((category) => (
+                                <li
+                                    key={category.id}
+                                    className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-primary-100)] py-1 pr-1 pl-3 text-sm font-medium text-[var(--brand-primary-800)] dark:bg-[var(--brand-primary-900)] dark:text-[var(--brand-primary-200)]"
+                                >
+                                    {category.name}
                                     <button
                                         type="button"
-                                        onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                        disabled={categoriesLoading}
-                                        className="flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-left shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                        onClick={() => removeCategory(category.id)}
+                                        aria-label={`Remove category ${category.name}`}
+                                        className="rounded-full p-1 hover:bg-[var(--brand-primary-200)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none dark:hover:bg-[var(--brand-primary-800)]"
                                     >
-                                        <span className="text-gray-500 dark:text-gray-400">
-                                            {categoriesLoading
-                                                ? "Loading categories..."
-                                                : selectedCategoryIds.length === 0
-                                                    ? "Select categories"
-                                                    : `${selectedCategoryIds.length} selected`}
-                                        </span>
-                                        <ChevronDown className={`h-4 w-4 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                                        <X className="h-3 w-3" aria-hidden="true" />
                                     </button>
-                                    <CreateCategoryDialog onCategoryCreated={handleCategoryCreated} />
-                                </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
 
-                                {/* Dropdown Menu */}
-                                {isCategoryDropdownOpen && (
-                                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
-                                        {categoryList.length === 0 ? (
-                                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                                No categories found - create one first
-                                            </div>
-                                        ) : (
-                                            categoryList.map((category) => (
-                                                <label
-                                                    key={category.id}
-                                                    className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedCategoryIds.includes(category.id)}
-                                                        onChange={() => toggleCategory(category.id)}
-                                                        className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary-600)] focus:ring-[var(--brand-primary-focus)] dark:border-gray-500 dark:bg-gray-600"
-                                                    />
-                                                    <span className="text-sm text-gray-700 dark:text-gray-200">
-                                                        {category.name}
-                                                    </span>
-                                                </label>
-                                            ))
-                                        )}
-                                    </div>
+                    <div ref={categoryBoxRef} className="relative mt-2">
+                        <div className="flex items-center gap-2">
+                            <button
+                                ref={categoryButtonRef}
+                                type="button"
+                                onClick={() => setIsCategoryDropdownOpen((o) => !o)}
+                                disabled={categoriesLoading}
+                                aria-haspopup="true"
+                                aria-expanded={isCategoryDropdownOpen}
+                                aria-controls={fid("categories-menu")}
+                                aria-labelledby={`${fid("categories-label")} ${fid("categories-button-text")}`}
+                                className={cn(inputCls, "flex items-center justify-between text-left")}
+                            >
+                                <span id={fid("categories-button-text")} className="text-gray-500 dark:text-gray-400">
+                                    {categoriesLoading
+                                        ? "Loading categories…"
+                                        : selectedCategoryIds.length === 0
+                                            ? "Select categories"
+                                            : `${selectedCategoryIds.length} selected`}
+                                </span>
+                                <ChevronDown
+                                    aria-hidden="true"
+                                    className={`h-4 w-4 transition-transform ${isCategoryDropdownOpen ? "rotate-180" : ""}`}
+                                />
+                            </button>
+                            <CreateCategoryDialog onCategoryCreated={handleCategoryCreated} />
+                        </div>
+
+                        {isCategoryDropdownOpen && (
+                            <div
+                                id={fid("categories-menu")}
+                                role="group"
+                                aria-labelledby={fid("categories-label")}
+                                className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                            >
+                                {categoryList.length === 0 ? (
+                                    <p className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                        No categories yet. Use + to create one.
+                                    </p>
+                                ) : (
+                                    categoryList.map((category) => (
+                                        <label
+                                            key={category.id}
+                                            className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedCategoryIds.includes(category.id)}
+                                                onChange={() => toggleCategory(category.id)}
+                                                className={checkboxCls}
+                                            />
+                                            <span className="text-sm text-gray-700 dark:text-gray-200">{category.name}</span>
+                                        </label>
+                                    ))
                                 )}
                             </div>
-
-                            {categoriesError && (
-                                <p className="mt-1 text-sm text-red-600">
-                                    Error loading categories: {categoriesError.message}
-                                </p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Assign one or more categories for better organization and filtering.
-                            </p>
-                        </div>
-
-                        <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Product Images
-                            </label>
-                            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                                First image is displayed in listings. Click any image to set as primary.
-                            </p>
-                            <MultiImageUpload
-                                value={[
-                                    ...(watch("image") ? [watch("image")!] : []),
-                                    ...(watch("images") || []),
-                                ].filter(Boolean)}
-                                onChange={(urls) => {
-                                    const [primary, ...additional] = urls;
-                                    setValue("image", primary || "");
-                                    setValue("images", additional);
-                                }}
-                            />
-                            {errors.image && (
-                                <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
-                            )}
-                        </div>
+                        )}
                     </div>
+
+                    {categoriesError && (
+                        <p className={errorTextCls}>Error loading categories: {categoriesError.message}</p>
+                    )}
+                    <p className={hintCls}>Assign one or more categories for better organization and filtering.</p>
                 </div>
-            </div>
 
-            <div className="my-8 border-t border-gray-200 dark:border-gray-700" />
-
-            {/* Identifiers Section */}
-            <div className="grid gap-8 md:grid-cols-3">
-                <div className="md:col-span-1">
-                    <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">Identifiers</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Codes used to uniquely identify and track this specific product.
+                <div className="col-span-2">
+                    <span className={labelCls}>Product images</span>
+                    <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                        The first image (starred) is shown in listings. Use an image&apos;s star button to make it the
+                        main image.
                     </p>
+                    <MultiImageUpload
+                        value={[
+                            ...(watch("image") ? [watch("image")!] : []),
+                            ...(watch("images") ?? []),
+                        ].filter(Boolean)}
+                        onChange={(urls) => {
+                            const [primary, ...additional] = urls;
+                            setValue("image", primary ?? "");
+                            setValue("images", additional);
+                        }}
+                        onUploadingChange={setIsUploadingImages}
+                    />
+                    {errors.image && <p className={errorTextCls}>{errors.image.message}</p>}
                 </div>
-                <div className="grid gap-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:col-span-2">
-                    <div className="grid gap-6 md:grid-cols-2">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                SKU (Stock Keeping Unit)
-                            </label>
-                            <input
-                                {...register("sku")}
-                                placeholder="e.g. HEAD-001"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                A unique code for internal tracking and inventory management.
-                            </p>
-                        </div>
+            </Section>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Barcode / UPC
-                            </label>
-                            <div className="relative mt-1">
-                                <input
-                                    {...register("barcode")}
-                                    placeholder="Scan or enter barcode"
-                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            <Section title="Identifiers" description="Codes used to uniquely identify and track this product.">
+                <div>
+                    <label htmlFor={fid("sku")} className={labelCls}>SKU (stock keeping unit)</label>
+                    <input
+                        id={fid("sku")}
+                        {...register("sku")}
+                        aria-describedby={fid("sku-hint")}
+                        placeholder="e.g. HEAD-001"
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    <p id={fid("sku-hint")} className={hintCls}>A unique code for internal tracking.</p>
+                </div>
+
+                <div>
+                    <label htmlFor={fid("barcode")} className={labelCls}>Barcode / UPC</label>
+                    <input
+                        id={fid("barcode")}
+                        {...register("barcode")}
+                        aria-describedby={fid("barcode-hint")}
+                        placeholder="Scan or enter barcode"
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    <p id={fid("barcode-hint")} className={hintCls}>Scanned at the point of sale.</p>
+                </div>
+            </Section>
+
+            <Section title="Pricing & inventory" description="Set the selling price, track costs, and manage stock levels.">
+                <div>
+                    <label htmlFor={fid("price")} className={labelCls}>
+                        Selling price ({currency}) <span className="text-red-500" aria-hidden="true">*</span>
+                    </label>
+                    <input
+                        id={fid("price")}
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        inputMode="decimal"
+                        aria-required="true"
+                        aria-invalid={!!errors.price}
+                        aria-describedby={describedBy("price", !!errors.price)}
+                        {...register("price", { valueAsNumber: true })}
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    {errors.price && <p id={fid("price-error")} className={errorTextCls}>{errors.price.message}</p>}
+                    <p id={fid("price-hint")} className={hintCls}>The amount customers pay at checkout.</p>
+                </div>
+
+                <div>
+                    <label htmlFor={fid("salePrice")} className={labelCls}>Sale price ({currency})</label>
+                    <input
+                        id={fid("salePrice")}
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        inputMode="decimal"
+                        aria-invalid={!!errors.salePrice}
+                        aria-describedby={describedBy("salePrice", !!errors.salePrice)}
+                        {...register("salePrice", { setValueAs: optionalNumberInput })}
+                        placeholder="Leave empty for no sale"
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    {errors.salePrice && (
+                        <p id={fid("salePrice-error")} className={errorTextCls}>{errors.salePrice.message}</p>
+                    )}
+                    {saleWarning && !errors.salePrice && (
+                        <p role="status" className="mt-1 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                            {saleWarning}
+                        </p>
+                    )}
+                    <p id={fid("salePrice-hint")} className={hintCls}>Optional discounted price, lower than the selling price.</p>
+                </div>
+
+                <div>
+                    <label htmlFor={fid("costPrice")} className={labelCls}>
+                        Cost price ({currency}) <span className="text-red-500" aria-hidden="true">*</span>
+                    </label>
+                    <input
+                        id={fid("costPrice")}
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        inputMode="decimal"
+                        aria-required="true"
+                        aria-invalid={!!errors.costPrice}
+                        aria-describedby={describedBy("costPrice", !!errors.costPrice)}
+                        {...register("costPrice", { valueAsNumber: true })}
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    {errors.costPrice && (
+                        <p id={fid("costPrice-error")} className={errorTextCls}>{errors.costPrice.message}</p>
+                    )}
+                    <p id={fid("costPrice-hint")} className={hintCls}>Your cost to acquire the product. Used for profit.</p>
+                </div>
+
+                <div>
+                    {isEditing && initialData ? (
+                        <>
+                            <span className={labelCls}>Current stock</span>
+                            <div className="mt-1 flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 dark:border-gray-700 dark:bg-gray-900">
+                                <span className="text-sm font-semibold text-gray-900 tabular-nums dark:text-white">
+                                    {stockQuantity < 0 ? "Untracked" : stockQuantity}
+                                </span>
+                                <AdjustStockButton
+                                    productId={initialData.id}
+                                    productName={initialData.name}
+                                    stockQuantity={initialData.stockQuantity}
+                                    showLabel
                                 />
                             </div>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                The Universal Product Code or barcode number for scanning at POS.
+                            <p className={hintCls}>
+                                Stock changes are recorded with a reason. Use Adjust stock to receive, remove or recount.
                             </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="my-8 border-t border-gray-200 dark:border-gray-700" />
-
-            {/* Pricing & Inventory Section */}
-            <div className="grid gap-8 md:grid-cols-3">
-                <div className="md:col-span-1">
-                    <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">Pricing & Inventory</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Set the sales price, track costs, and manage stock levels.
-                    </p>
-                </div>
-                <div className="grid gap-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:col-span-2">
-                    <div className="grid gap-6 md:grid-cols-2">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Selling Price ({currency}) <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                {...register("price", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            {errors.price && (
-                                <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                The amount customers will be charged at checkout.
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Sale Price ({currency})
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                {...register("salePrice", { valueAsNumber: true })}
-                                placeholder="Leave empty for no sale"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            {errors.salePrice && (
-                                <p className="mt-1 text-sm text-red-600">{errors.salePrice.message}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Optional discounted price. Leave empty to use regular selling price.
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Cost Price ({currency}) <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                {...register("costPrice", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            {errors.costPrice && (
-                                <p className="mt-1 text-sm text-red-600">{errors.costPrice.message}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Your cost to acquire the product. Used for profit calculation.
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Current Stock
-                            </label>
+                        </>
+                    ) : (
+                        <>
+                            <label htmlFor={fid("stockQuantity")} className={labelCls}>Opening stock</label>
                             <div className="mt-1 space-y-2">
                                 <input
+                                    id={fid("stockQuantity")}
                                     type="number"
+                                    min={0}
+                                    inputMode="numeric"
+                                    aria-invalid={!!errors.stockQuantity}
+                                    aria-describedby={describedBy("stockQuantity", !!errors.stockQuantity)}
                                     {...register("stockQuantity", { valueAsNumber: true })}
-                                    disabled={watch("stockQuantity") === -1}
-                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:disabled:bg-gray-800"
+                                    disabled={formStock === -1}
+                                    className={inputCls}
                                 />
                                 <label className="flex items-center gap-2">
                                     <input
                                         type="checkbox"
-                                        checked={watch("stockQuantity") === -1}
-                                        onChange={(e) => {
-                                            if (e.target.checked) {
-                                                setValue("stockQuantity", -1);
-                                            } else {
-                                                setValue("stockQuantity", 0);
-                                            }
-                                        }}
-                                        className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary-600)] focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700"
+                                        checked={formStock === -1}
+                                        onChange={(e) => setValue("stockQuantity", e.target.checked ? -1 : 0)}
+                                        className={checkboxCls}
                                     />
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                        Quantity Unknown
-                                    </span>
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">Quantity unknown</span>
                                 </label>
                             </div>
                             {errors.stockQuantity && (
-                                <p className="mt-1 text-sm text-red-600">
-                                    {errors.stockQuantity.message}
-                                </p>
+                                <p id={fid("stockQuantity-error")} className={errorTextCls}>{errors.stockQuantity.message}</p>
                             )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                {watch("stockQuantity") === -1
-                                    ? "This product's quantity is currently unknown and will be excluded from stock calculations."
-                                    : "Quantity currently available on hand."}
+                            <p id={fid("stockQuantity-hint")} className={hintCls}>
+                                {formStock === -1
+                                    ? "Untracked products are excluded from stock calculations."
+                                    : "Quantity on hand right now."}
                             </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Low Stock Threshold
-                            </label>
-                            <input
-                                type="number"
-                                {...register("lowStockThreshold", { valueAsNumber: true })}
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[var(--brand-primary-500)] focus:outline-none focus:ring-[var(--brand-primary-focus)] dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            />
-                            {errors.lowStockThreshold && (
-                                <p className="mt-1 text-sm text-red-600">
-                                    {errors.lowStockThreshold.message}
-                                </p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Alert me when stock falls below this number. Must be less than current stock.
-                            </p>
-                        </div>
-                    </div>
+                        </>
+                    )}
                 </div>
-            </div>
 
-            <div className="flex justify-end gap-4 border-t border-gray-200 pt-6 dark:border-gray-700">
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    className="rounded-md border border-gray-300 px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
+                <div>
+                    <label htmlFor={fid("lowStockThreshold")} className={labelCls}>Low stock threshold</label>
+                    <input
+                        id={fid("lowStockThreshold")}
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-invalid={!!errors.lowStockThreshold}
+                        aria-describedby={describedBy("lowStockThreshold", !!errors.lowStockThreshold)}
+                        {...register("lowStockThreshold", { valueAsNumber: true })}
+                        className={`mt-1 ${inputCls}`}
+                    />
+                    {errors.lowStockThreshold && (
+                        <p id={fid("lowStockThreshold-error")} className={errorTextCls}>{errors.lowStockThreshold.message}</p>
+                    )}
+                    {thresholdWarning && !errors.lowStockThreshold && (
+                        <p role="status" className="mt-1 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                            {thresholdWarning}
+                        </p>
+                    )}
+                    <p id={fid("lowStockThreshold-hint")} className={hintCls}>
+                        The product shows as low stock once stock is at or below this number.
+                    </p>
+                </div>
+            </Section>
+
+            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-700">
+                {isUploadingImages && (
+                    <p role="status" className="mr-auto text-sm text-gray-500 dark:text-gray-400">
+                        Waiting for images to finish uploading…
+                    </p>
+                )}
+                <Link href="/inventory/products" className={btnSecondary}>
                     Cancel
-                </button>
-                <button
-                    type="submit"
-                    disabled={isPending}
-                    className="rounded-md bg-[var(--brand-primary-600)] px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-[var(--brand-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-focus)] focus:ring-offset-2 disabled:opacity-50 dark:focus:ring-offset-gray-900"
-                >
-                    {isPending ? "Saving Product..." : isEditing ? "Update Product" : "Create Product"}
+                </Link>
+                <button type="submit" disabled={submitDisabled} className={btnPrimary}>
+                    {isPending ? "Saving…" : isEditing ? "Save changes" : "Create product"}
                 </button>
             </div>
         </form>

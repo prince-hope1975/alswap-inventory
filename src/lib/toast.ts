@@ -19,16 +19,14 @@ class ToastManager {
         if (!this.container) {
             this.container = document.createElement("div");
             this.container.id = "toast-container";
-            this.container.style.cssText = `
-                position: fixed;
-                top: 1rem;
-                right: 1rem;
-                z-index: 9999;
-                display: flex;
-                flex-direction: column;
-                gap: 0.5rem;
-                pointer-events: none;
-            `;
+            // Announce toasts to screen readers without stealing focus.
+            this.container.setAttribute("role", "status");
+            this.container.setAttribute("aria-live", "polite");
+            this.container.setAttribute("aria-atomic", "false");
+            // Placement lives in the stylesheet below: bottom-centre, so a
+            // toast never covers the navbar cart button or a drawer header,
+            // and on phones it clears the storefront bottom bar.
+            this.container.className = "app-toast-container";
             document.body.appendChild(this.container);
         }
         return this.container;
@@ -40,12 +38,12 @@ class ToastManager {
 
         const toast = document.createElement("div");
         toast.style.cssText = `
-            padding: 1rem 1.5rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            max-width: 24rem;
+            padding: 0.875rem 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+            max-width: min(24rem, calc(100vw - 2rem));
             pointer-events: auto;
-            animation: slideIn 0.3s ease-out;
+            animation: toastIn 0.25s ease-out;
             font-size: 0.875rem;
             font-weight: 500;
             ${this.getTypeStyles(type)}
@@ -56,19 +54,19 @@ class ToastManager {
 
         const duration = options.duration ?? 4000;
         setTimeout(() => {
-            toast.style.animation = "slideOut 0.3s ease-in";
+            toast.style.animation = "toastOut 0.25s ease-in forwards";
             setTimeout(() => {
-                container.removeChild(toast);
+                toast.remove();
             }, 300);
         }, duration);
     }
 
     private getTypeStyles(type: ToastType): string {
         const styles = {
-            success: "background-color: #10b981; color: white;",
-            error: "background-color: #ef4444; color: white;",
-            warning: "background-color: #f59e0b; color: white;",
-            info: "background-color: #3b82f6; color: white;",
+            success: "background-color: #047857; color: white;",
+            error: "background-color: #b91c1c; color: white;",
+            warning: "background-color: #b45309; color: white;",
+            info: "background-color: #1d4ed8; color: white;",
         };
         return styles[type];
     }
@@ -90,29 +88,37 @@ class ToastManager {
     }
 }
 
-// Add CSS animations
+// Placement + animations
 if (typeof document !== "undefined") {
     const style = document.createElement("style");
     style.textContent = `
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+        .app-toast-container {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(5.5rem + env(safe-area-inset-bottom));
+            z-index: 9999;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            gap: 0.5rem;
+            pointer-events: none;
+            width: max-content;
+            max-width: calc(100vw - 2rem);
         }
-        @keyframes slideOut {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(100%);
-                opacity: 0;
-            }
+        @media (min-width: 1024px) {
+            .app-toast-container { bottom: 1.5rem; }
+        }
+        @keyframes toastIn {
+            from { transform: translateY(1rem); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes toastOut {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(1rem); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .app-toast-container > * { animation: none !important; }
         }
     `;
     document.head.appendChild(style);

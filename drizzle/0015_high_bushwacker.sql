@@ -1,0 +1,2 @@
+ALTER TABLE "alswap-inventory_order" ADD COLUMN "payment_reference" varchar(100);--> statement-breakpoint
+CREATE UNIQUE INDEX "order_tenant_payment_ref_idx" ON "alswap-inventory_order" USING btree ("tenantId","payment_reference");
