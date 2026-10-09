@@ -10,7 +10,7 @@ vi.mock("~/hooks/use-tenant-settings", () => ({
 
 describe("CheckoutModal server boundary", () => {
   it("can be imported without evaluating browser-only Leaflet code", async () => {
-    const module = await import("./checkout-modal");
-    expect(module.CheckoutModal).toBeTypeOf("function");
+    const checkout = await import("./checkout-modal");
+    expect(checkout.CheckoutModal).toBeTypeOf("function");
   });
 });

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
+import Link from "next/link";
+import { useDebouncedValue as useDebounce } from "~/hooks/use-debounced-value";
 import { api } from "~/trpc/react";
 import { CheckoutModal } from "./checkout-modal";
 import { CartDrawer } from "./cart-drawer";
@@ -68,23 +70,6 @@ function samePriceFilter(a: PriceFilter, b: PriceFilter) {
   return a.min === b.min && a.max === b.max;
 }
 
-// Debounce hook for search
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
 export function StoreLayout({
   initialShopDetails,
   initialProducts,
@@ -107,12 +92,13 @@ export function StoreLayout({
   const [sortChoice, setSortChoice] = useState<ShopSortOption | null>(initialSort ?? null);
   const [priceFilter, setPriceFilter] = useState<PriceFilter>(initialPrice);
   const [inStockOnly, setInStockOnly] = useState(initialInStock);
+  const [historyRevision, setHistoryRevision] = useState(0);
 
   // Debounce search for server-side query (300ms delay)
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 300, historyRevision);
   const queryTerm = debouncedSearch.trim();
   // Typing a min/max price should not fire one request per keystroke.
-  const debouncedPriceFilter = useDebounce(priceFilter, 400);
+  const debouncedPriceFilter = useDebounce(priceFilter, 400, historyRevision);
   const sortBy = resolveShopSort(sortChoice, queryTerm.length > 0);
 
   useEffect(() => {
@@ -221,6 +207,7 @@ export function StoreLayout({
       setSortChoice(state.sort);
       setPriceFilter(state.price);
       setInStockOnly(state.inStock);
+      setHistoryRevision((revision) => revision + 1);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -348,6 +335,26 @@ export function StoreLayout({
 
       {/* Articles Section */}
       {config.showArticles && <StorefrontArticles limit={6} />}
+
+      <footer className="border-t border-gray-200 px-5 py-6 dark:border-white/10">
+        <nav
+          aria-label="Store information"
+          className="mx-auto flex max-w-7xl flex-wrap gap-6 text-sm text-gray-600 dark:text-gray-300"
+        >
+          <Link
+            href="/find-us"
+            className="inline-flex min-h-11 items-center hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+          >
+            Contact and pickup
+          </Link>
+          <Link
+            href="/auth/signin"
+            className="inline-flex min-h-11 items-center hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+          >
+            Staff login
+          </Link>
+        </nav>
+      </footer>
 
       {/* Global Cart Drawer */}
       <CartDrawer onCheckout={() => setIsCheckoutOpen(true)} />

@@ -17,11 +17,16 @@ export function useTenantSettings() {
 }
 
 /**
- * Back-office currency (signed-in staff). Reads the admin settings query, so
- * on the public storefront use `useShopCurrency` instead.
+ * Back-office currency (signed-in staff). Reads only the staff-safe currency
+ * query; on the public storefront use `useShopCurrency` instead.
  */
 export function useCurrency() {
-    const { currency } = useTenantSettings();
+    const { data } = api.settings.getStaffCurrency.useQuery(undefined, {
+        staleTime: 1000 * 30,
+        retry: false,
+        refetchOnWindowFocus: true,
+    });
+    const currency = data?.currency ?? "₦";
 
     return {
         currency,
