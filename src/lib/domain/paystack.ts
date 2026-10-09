@@ -21,6 +21,7 @@ export type FinalizeDecision =
   | { action: "complete" }
   | { action: "already_completed" }
   | { action: "needs_attention"; reason: string }
+  | { action: "retry"; reason: string }
   | { action: "reject"; reason: string };
 
 /**
@@ -37,10 +38,16 @@ export function decideFinalization(input: {
   if (input.orderStatus === "COMPLETED") return { action: "already_completed" };
 
   const v = input.verification;
-  if (!v.ok || v.status !== "success") {
+  if (!v.ok) {
     return { action: "reject", reason: v.message ?? "Payment was not successful." };
   }
-  if (v.reference && v.reference !== input.reference) {
+  if (v.status !== "success") {
+    if (v.status === "failed" || v.status === "abandoned" || v.status === "reversed") {
+      return { action: "reject", reason: "Payment was not successful." };
+    }
+    return { action: "retry", reason: "Payment verification is not yet conclusive." };
+  }
+  if (v.reference !== input.reference) {
     return { action: "reject", reason: "Payment reference mismatch." };
   }
   if (typeof v.amount !== "number" || v.amount !== toKobo(input.orderTotal)) {

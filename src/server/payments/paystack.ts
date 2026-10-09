@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import { orderNumber } from "~/lib/domain/checkout";
 import { decideFinalization, type PaystackVerification } from "~/lib/domain/paystack";
@@ -16,6 +17,9 @@ const PAYSTACK_API = "https://api.paystack.co";
 
 /** Raised when Paystack says the payment didn't happen or doesn't match the order. */
 export class PaymentVerificationError extends Error {}
+
+/** Verification is unavailable or inconclusive; webhook delivery must retry. */
+export class PaymentVerificationUnavailableError extends Error {}
 
 /** Raised for unknown orders / unconfigured stores. */
 export class PaymentNotFoundError extends Error {}
@@ -66,17 +70,27 @@ export async function verifyPaystackTransaction(
     `${PAYSTACK_API}/transaction/verify/${encodeURIComponent(reference)}`,
     { headers: { Authorization: `Bearer ${secretKey}`, Accept: "application/json" } },
   );
-  const payload = (await resp.json().catch(() => ({ status: false }))) as {
-    status: boolean;
-    message?: string;
-    data?: { status?: string; amount?: number; reference?: string };
-  };
+  if (!resp.ok) {
+    throw new PaymentVerificationUnavailableError(`Paystack verification HTTP ${resp.status}`);
+  }
+  const payload = z.object({
+    status: z.literal(true),
+    message: z.string().optional(),
+    data: z.object({
+      status: z.string().min(1),
+      amount: z.number().int().nonnegative(),
+      reference: z.string().min(1),
+    }),
+  }).safeParse(await resp.json().catch(() => null));
+  if (!payload.success) {
+    throw new PaymentVerificationUnavailableError("Invalid Paystack verification response");
+  }
   return {
-    ok: resp.ok && payload.status,
-    status: payload.data?.status,
-    amount: payload.data?.amount,
-    reference: payload.data?.reference,
-    message: payload.message,
+    ok: true,
+    status: payload.data.data.status,
+    amount: payload.data.data.amount,
+    reference: payload.data.data.reference,
+    message: payload.data.message,
   };
 }
 
@@ -124,6 +138,16 @@ export async function finalizePaystackOrder(input: {
     reference,
     verification,
   });
+  const cancelledPaymentNotice = {
+    tenantId: tenant.id,
+    type: "ORDER_NEEDS_ATTENTION",
+    title: `Payment received for cancelled order #${orderNumber(order.id)}`,
+    message: `Paystack ref ${reference}. Contact ${order.customerName ?? "the customer"}${order.customerPhone ? ` (${order.customerPhone})` : ""} to fulfil or refund.`,
+    data: { orderId: order.id, reference },
+  };
+  if (decision.action === "retry") {
+    throw new PaymentVerificationUnavailableError(decision.reason);
+  }
 
   if (decision.action === "already_completed") {
     return { ...base, outcome: "already_completed" };
@@ -144,13 +168,7 @@ export async function finalizePaystackOrder(input: {
   }
   if (decision.action === "needs_attention") {
     console.error(`[paystack] ${decision.reason} order=${order.id} ref=${reference}`);
-    await db.insert(adminNotifications).values({
-      tenantId: tenant.id,
-      type: "ORDER_NEEDS_ATTENTION",
-      title: `Payment received for cancelled order #${orderNumber(order.id)}`,
-      message: `Paystack ref ${reference}. Contact ${order.customerName ?? "the customer"}${order.customerPhone ? ` (${order.customerPhone})` : ""} to fulfil or refund.`,
-      data: { orderId: order.id, reference },
-    });
+    await db.insert(adminNotifications).values(cancelledPaymentNotice);
     return { ...base, outcome: "needs_attention" };
   }
 
@@ -158,11 +176,25 @@ export async function finalizePaystackOrder(input: {
     const [claimed] = await tx
       .update(orders)
       .set({ status: "COMPLETED" })
-      .where(and(eq(orders.id, order.id), eq(orders.status, "PENDING")))
+      .where(and(eq(orders.id, order.id), eq(orders.tenantId, tenant.id), eq(orders.status, "PENDING")))
       .returning({ id: orders.id });
 
-    // Someone else (webhook vs client) got here first.
-    if (!claimed) return { claimed: false, shortfalls: [] as StockShortfall[] };
+    if (!claimed) {
+      // Cancellation/expiry can win while verification is in flight. Only
+      // another successful finalization may be reported as already completed.
+      const current = await tx.query.orders.findFirst({
+        where: and(eq(orders.id, order.id), eq(orders.tenantId, tenant.id)),
+        columns: { status: true },
+      });
+      if (current?.status === "CANCELLED") {
+        await tx.insert(adminNotifications).values(cancelledPaymentNotice);
+        return { outcome: "needs_attention" as const, shortfalls: [] as StockShortfall[] };
+      }
+      if (current?.status === "COMPLETED") {
+        return { outcome: "already_completed" as const, shortfalls: [] as StockShortfall[] };
+      }
+      throw new PaymentVerificationUnavailableError("Order changed during payment finalization");
+    }
 
     const shortfalls: StockShortfall[] = [];
     for (const item of order.items) {
@@ -189,12 +221,24 @@ export async function finalizePaystackOrder(input: {
         });
       }
     }
-    return { claimed: true, shortfalls };
+    // Cancellation reads this durable evidence to avoid restoring quantities
+    // that were never deducted. Commit it atomically with status and stock;
+    // post-commit email/notification failures must not change stock accounting.
+    if (shortfalls.length > 0) {
+      await tx.insert(adminNotifications).values({
+        tenantId: tenant.id,
+        type: "ORDER_NEEDS_ATTENTION",
+        title: `Order #${orderNumber(order.id)} paid but stock ran out`,
+        message: `Not enough stock for: ${shortfalls.map((s) => `${s.name} (×${s.wanted})`).join(", ")}. Contact the customer to arrange a refund or substitute.`,
+        data: { orderId: order.id, shortfalls },
+      });
+    }
+    return { outcome: "completed" as const, shortfalls };
   });
 
-  if (!result.claimed) return { ...base, outcome: "already_completed" };
+  if (result.outcome !== "completed") return { ...base, outcome: result.outcome };
 
-  await notifyOrderPlaced({ db, tenant, orderId: order.id, shortfalls: result.shortfalls });
+  await notifyOrderPlaced({ db, tenant, orderId: order.id });
   return {
     ...base,
     outcome: result.shortfalls.length > 0 ? "needs_attention" : "completed",

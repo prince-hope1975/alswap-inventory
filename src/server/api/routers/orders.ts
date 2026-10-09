@@ -12,8 +12,8 @@ type Transaction = Parameters<Parameters<typeof appDb.transaction>[0]>[0];
 
 /**
  * Products the Paystack finalizer could not decrement for this order (stock
- * ran out between checkout and payment). The finalizer records them only in
- * its ORDER_NEEDS_ATTENTION notification.
+ * ran out between checkout and payment). The finalizer persists this evidence
+ * in its ORDER_NEEDS_ATTENTION record inside the status/stock transaction.
  */
 async function paystackShortfallProductIds(tx: Transaction, tenantId: string, orderId: string) {
   const rows = await tx

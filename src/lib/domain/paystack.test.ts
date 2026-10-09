@@ -7,6 +7,20 @@ import { decideFinalization, verifyPaystackSignature } from "./paystack";
 const ok = { ok: true, status: "success", amount: 1_250_000, reference: "ps-1" };
 
 describe("decideFinalization", () => {
+  it("requires the verified reference rather than accepting a missing one", () => {
+    expect(decideFinalization({
+      orderStatus: "PENDING", orderTotal: "12500", reference: "ps-1",
+      verification: { ...ok, reference: undefined },
+    }).action).toBe("reject");
+  });
+
+  it.each(["pending", "ongoing", "processing", "queued", "unexpected"])("retries an inconclusive %s payment status", (status) => {
+    expect(decideFinalization({
+      orderStatus: "PENDING", orderTotal: "12500", reference: "ps-1",
+      verification: { ...ok, status },
+    }).action).toBe("retry");
+  });
+
   it("completes a pending order whose payment matches", () => {
     expect(
       decideFinalization({ orderStatus: "PENDING", orderTotal: "12500.00", reference: "ps-1", verification: ok }),

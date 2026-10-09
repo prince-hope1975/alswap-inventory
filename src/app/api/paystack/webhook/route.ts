@@ -69,7 +69,9 @@ export async function POST(request: Request) {
       error instanceof PaymentVerificationError ||
       error instanceof PaymentNotFoundError
     ) {
-      // Retrying won't change Paystack's answer; acknowledge and log.
+      // Only definitive verification rejections are acknowledged here.
+      // Unavailable HTTP/JSON verification responses throw a distinct error
+      // and fall through to 5xx so delivery can retry.
       console.error(`[paystack webhook] ref=${reference}: ${error.message}`);
       return Response.json({ received: true, outcome: "rejected" });
     }

@@ -25,7 +25,6 @@ export async function notifyOrderPlaced(input: {
   db: Database;
   tenant: Tenant;
   orderId: string;
-  shortfalls?: StockShortfall[];
 }) {
   const { db, tenant } = input;
   try {
@@ -38,7 +37,6 @@ export async function notifyOrderPlaced(input: {
     const money = (value: string | number | null | undefined) =>
       formatMoney(value, tenant.currency);
     const number = orderNumber(order.id);
-    const shortfalls = input.shortfalls ?? [];
     const customerEmail = isPlaceholderEmail(order.customerEmail)
       ? null
       : order.customerEmail;
@@ -86,16 +84,6 @@ export async function notifyOrderPlaced(input: {
         deliveryFee: order.deliveryFee,
       },
     });
-
-    if (shortfalls.length > 0) {
-      await db.insert(adminNotifications).values({
-        tenantId: tenant.id,
-        type: "ORDER_NEEDS_ATTENTION",
-        title: `Order #${number} paid but stock ran out`,
-        message: `Not enough stock for: ${shortfalls.map((s) => `${s.name} (×${s.wanted})`).join(", ")}. Contact the customer to arrange a refund or substitute.`,
-        data: { orderId: order.id, shortfalls },
-      });
-    }
 
     const staff = await db.query.users.findMany({
       where: and(
