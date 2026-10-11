@@ -9,7 +9,7 @@ import {
   varchar,
   decimal,
 } from "drizzle-orm/pg-core";
-import { type AdapterAccount } from "next-auth/adapters";
+import type { AdapterAccount } from "next-auth/adapters";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -681,11 +681,19 @@ export const orders = createTable(
     customerName: d.varchar("customer_name", { length: 255 }),
     customerEmail: d.varchar("customer_email", { length: 255 }),
     customerPhone: d.varchar("customer_phone", { length: 50 }),
+    // Paystack transaction reference for online storefront orders. The order
+    // is created PENDING with this reference before the shopper pays, and the
+    // verify/webhook finalizer looks it up to complete it exactly once.
+    paymentReference: d.varchar("payment_reference", { length: 100 }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [
     index("order_tenant_idx").on(t.tenantId),
     uniqueIndex("order_tenant_client_id_idx").on(t.tenantId, t.clientOrderId),
+    uniqueIndex("order_tenant_payment_ref_idx").on(
+      t.tenantId,
+      t.paymentReference,
+    ),
   ],
 );
 

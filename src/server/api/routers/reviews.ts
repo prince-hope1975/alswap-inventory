@@ -62,6 +62,8 @@ export const reviewsRouter = createTRPCRouter({
 
       const allReviews = await ctx.db.query.reviews.findMany({
         where: conditions,
+        // Public: never expose reviewers' email addresses.
+        columns: { id: true, productId: true, customerName: true, rating: true, title: true, body: true, createdAt: true },
         orderBy: desc(reviews.createdAt),
         limit: input.limit,
         offset: input.offset,

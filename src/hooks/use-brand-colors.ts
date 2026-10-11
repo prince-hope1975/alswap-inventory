@@ -1,21 +1,30 @@
+import { useMemo } from "react";
+
 import { api } from "~/trpc/react";
+import { generateColorVariants } from "~/lib/color-utils";
 
 /**
- * Hook to access brand colors and utilities
+ * Hook to access brand colors and utilities. Uses the public shop query so it
+ * works for anonymous shoppers and every staff role (the admin settings query
+ * 401s for them).
  */
 export function useBrandColors() {
-    const { data: settings } = api.settings.getTenantSettings.useQuery(undefined, {
-        staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    const { data } = api.shop.getShopDetails.useQuery(undefined, {
+        staleTime: 1000 * 60 * 5,
+        retry: false,
     });
 
-    const primaryLight = settings?.primaryColorLight ?? "#9333EA";
-    const primaryDark = settings?.primaryColorDark ?? "#A855F7";
+    const primaryLight = data?.tenant?.primaryColorLight ?? "#9333EA";
+    const primaryDark = data?.tenant?.primaryColorDark ?? "#A855F7";
+    const colorVariants = useMemo(
+        () => ({
+            light: generateColorVariants(primaryLight),
+            dark: generateColorVariants(primaryDark),
+        }),
+        [primaryLight, primaryDark],
+    );
 
-    return {
-        primaryLight,
-        primaryDark,
-        colorVariants: settings?.colorVariants,
-    };
+    return { primaryLight, primaryDark, colorVariants };
 }
 
 /**

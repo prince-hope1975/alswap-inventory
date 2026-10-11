@@ -10,11 +10,11 @@ import { StockBadge } from "../parts/stock-badge";
 import { useCart } from "../cart-context";
 import type { StoreConfig } from "~/types/store-config";
 import { Menu, ChevronRight } from "lucide-react";
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
-type Products = RouterOutputs["shop"]["getProducts"];
+type Products = RouterOutputs["shop"]["getProducts"]["items"];
 type Categories = RouterOutputs["shop"]["getCategories"];
 type Product = Products[number];
 
@@ -56,7 +56,7 @@ export function ClassicTemplate({
 }: ClassicTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { addItem } = useCart();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency } = useShopCurrency();
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     const selectedCategoryName = categories?.find(c => c.id === selectedCategory)?.name;

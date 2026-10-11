@@ -1,15 +1,16 @@
 import { z } from "zod";
-import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, managerProcedure } from "~/server/api/trpc";
 import { orders, orderItems, products, categories } from "~/server/db/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { countsAsSaleSql } from "~/server/orders/sales-filter";
 
 const genAI = process.env.GOOGLE_GEMINI_API_KEY
     ? new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
     : null;
 
 export const analyticsRouter = createTRPCRouter({
-    getKpiStats: tenantProcedure.query(async ({ ctx }) => {
+    getKpiStats: managerProcedure.query(async ({ ctx }) => {
         const tenantId = ctx.tenantId;
 
         // 1. Total Revenue (All Time)
@@ -18,7 +19,7 @@ export const analyticsRouter = createTRPCRouter({
                 total: sql<number>`sum(${orders.totalAmount})`
             })
             .from(orders)
-            .where(eq(orders.tenantId, tenantId));
+            .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql()));
 
         // 2. Total Orders (All Time)
         const [ordersResult] = await ctx.db
@@ -26,7 +27,7 @@ export const analyticsRouter = createTRPCRouter({
                 count: sql<number>`count(*)`
             })
             .from(orders)
-            .where(eq(orders.tenantId, tenantId));
+            .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql()));
 
         // 3. Calculate Average Order Value
         const totalRevenue = revenueResult?.total ?? 0;
@@ -42,7 +43,7 @@ export const analyticsRouter = createTRPCRouter({
             .from(orderItems)
             .innerJoin(products, eq(orderItems.productId, products.id))
             .innerJoin(orders, eq(orderItems.orderId, orders.id))
-            .where(eq(orders.tenantId, tenantId));
+            .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql()));
 
         const totalCost = profitResult?.cost ?? 0;
         const grossProfit = totalRevenue - totalCost;
@@ -55,7 +56,7 @@ export const analyticsRouter = createTRPCRouter({
         };
     }),
 
-    getSalesByDate: tenantProcedure
+    getSalesByDate: managerProcedure
         .input(z.object({ days: z.number().default(30) }))
         .query(async ({ ctx, input }) => {
             const tenantId = ctx.tenantId;
@@ -73,6 +74,7 @@ export const analyticsRouter = createTRPCRouter({
                 .where(
                     and(
                         eq(orders.tenantId, tenantId),
+                        countsAsSaleSql(),
                         gte(orders.createdAt, startDate)
                     )
                 )
@@ -82,7 +84,7 @@ export const analyticsRouter = createTRPCRouter({
             return sales;
         }),
 
-    getTopCategories: tenantProcedure.query(async ({ ctx }) => {
+    getTopCategories: managerProcedure.query(async ({ ctx }) => {
         const tenantId = ctx.tenantId;
 
         const categoriesData = await ctx.db
@@ -94,7 +96,7 @@ export const analyticsRouter = createTRPCRouter({
             .innerJoin(orders, eq(orderItems.orderId, orders.id))
             .innerJoin(products, eq(orderItems.productId, products.id))
             .leftJoin(categories, eq(products.categoryId, categories.id))
-            .where(eq(orders.tenantId, tenantId))
+            .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql()))
             .groupBy(categories.name)
             .orderBy(desc(sql`sum(${orderItems.price} * ${orderItems.quantity})`))
             .limit(5);
@@ -102,7 +104,7 @@ export const analyticsRouter = createTRPCRouter({
         return categoriesData;
     }),
 
-    getAiSummary: tenantProcedure.query(async ({ ctx }) => {
+    getAiSummary: managerProcedure.query(async ({ ctx }) => {
         if (!genAI) {
             return {
                 text: "AI summaries are not configured. Please set GOOGLE_GEMINI_API_KEY environment variable.",
@@ -119,7 +121,7 @@ export const analyticsRouter = createTRPCRouter({
                     totalOrders: sql<number>`count(*)`,
                 })
                 .from(orders)
-                .where(eq(orders.tenantId, tenantId)),
+                .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql())),
             ctx.db.query.tenants.findFirst({
                 where: (tenants, { eq }) => eq(tenants.id, tenantId),
             }),
@@ -154,6 +156,7 @@ export const analyticsRouter = createTRPCRouter({
                 .where(
                     and(
                         eq(orders.tenantId, tenantId),
+                        countsAsSaleSql(),
                         gte(orders.createdAt, thirtyDaysAgo)
                     )
                 ),

@@ -1,59 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import { api } from "~/trpc/react";
-import { AlertTriangle, X } from "lucide-react";
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 
-export function LowStockAlerts() {
-    const [isOpen, setIsOpen] = useState(true);
-    const { data: lowStockProducts } = api.inventory.getLowStockProducts.useQuery(undefined, {
-        refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes
+import { api } from "~/trpc/react";
+import { cn } from "~/lib/utils";
+
+const LOW_STOCK_HREF = "/inventory/products?stock=low";
+
+/** getLowStockProducts returns at most this many rows. */
+const LOW_STOCK_LIMIT = 20;
+
+function useLowStockCount(enabled: boolean) {
+    const { data } = api.inventory.getLowStockProducts.useQuery(undefined, {
+        refetchInterval: 1000 * 60 * 5,
+        enabled,
     });
+    const count = data?.length ?? 0;
+    return { count, label: count >= LOW_STOCK_LIMIT ? `${LOW_STOCK_LIMIT}+` : String(count) };
+}
 
-    if (!lowStockProducts || lowStockProducts.length === 0 || !isOpen) {
-        return null;
+/**
+ * Low-stock indicator that lives in the shell (sidebar / mobile header)
+ * instead of floating over page content. Renders nothing when stock is fine.
+ */
+export function LowStockAlert({
+    enabled,
+    compact = false,
+    onNavigate,
+}: {
+    /** Managers only: the query is manager-gated. */
+    enabled: boolean;
+    /** Icon + count only (mobile header). */
+    compact?: boolean;
+    onNavigate?: () => void;
+}) {
+    const { count, label } = useLowStockCount(enabled);
+    if (!enabled || count === 0) return null;
+    const text = `${label} product${count === 1 ? "" : "s"} low on stock`;
+
+    if (compact) {
+        return (
+            <Link
+                href={LOW_STOCK_HREF}
+                onClick={onNavigate}
+                aria-label={text}
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                <span className="absolute -top-0.5 -right-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] leading-5 font-bold text-white">
+                    {label}
+                </span>
+            </Link>
+        );
     }
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border border-red-200 bg-white p-4 shadow-lg dark:border-red-900/50 dark:bg-gray-900">
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                    <AlertTriangle className="h-5 w-5" />
-                    <h3 className="font-semibold">Low Stock Alert</h3>
-                </div>
-                <button
-                    onClick={() => setIsOpen(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                    <X className="h-4 w-4" />
-                </button>
-            </div>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                You have {lowStockProducts.length} items running low on stock.
-            </p>
-            <ul className="mt-2 max-h-32 overflow-y-auto text-sm text-gray-500 dark:text-gray-400">
-                {lowStockProducts.slice(0, 3).map((product) => (
-                    <li key={product.id} className="flex justify-between py-1">
-                        <span className="truncate">{product.name}</span>
-                        <span className="font-medium text-red-500">{product.stockQuantity} left</span>
-                    </li>
-                ))}
-                {lowStockProducts.length > 3 && (
-                    <li className="pt-1 text-xs italic">...and {lowStockProducts.length - 3} more</li>
-                )}
-            </ul>
-            <div className="mt-3">
-                <Link
-                    href="/inventory/products"
-                    className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                    onClick={() => setIsOpen(false)}
-                >
-                    View all products &rarr;
-                </Link>
-            </div>
-        </div>
+        <Link
+            href={LOW_STOCK_HREF}
+            onClick={onNavigate}
+            className={cn(
+                "flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100",
+                "focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none",
+                "dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30",
+            )}
+        >
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="flex-1">{text}</span>
+            <span aria-hidden="true">&rarr;</span>
+        </Link>
     );
 }
-
-

@@ -1,27 +1,44 @@
 "use client";
 
-import { Search, Filter } from "lucide-react";
+import { Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useScanDetection } from "~/hooks/use-scan-detection";
 
-export function ProductSearch() {
+import { inputCls } from "~/components/ui/styles";
+import { cn } from "~/lib/utils";
+
+const selectCls = cn(inputCls, "h-10 py-0 lg:w-auto");
+
+export function ProductSearch({ categories }: { categories: { id: number; name: string }[] }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
     const [value, setValue] = useState(searchParams.get("search") ?? "");
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const urlSearch = searchParams.get("search") ?? "";
 
-    const handleSearch = useCallback(
-        (term: string) => {
+    // Follow external URL changes (e.g. "Clear filters") without fighting the
+    // user while they type.
+    useEffect(() => {
+        if (document.activeElement !== inputRef.current) setValue(urlSearch);
+    }, [urlSearch]);
+
+    useEffect(() => () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    }, []);
+
+    /** Updates one URL param; any filter change returns to page 1. */
+    const setParam = useCallback(
+        (key: string, next: string | null) => {
             const params = new URLSearchParams(searchParams);
-            if (term) {
-                params.set("search", term);
-            } else {
-                params.delete("search");
-            }
+            if (next) params.set(key, next);
+            else params.delete(key);
+            params.delete("page");
+            const qs = params.toString();
             startTransition(() => {
-                router.replace(`/inventory/products?${params.toString()}`);
+                router.replace(`/inventory/products${qs ? `?${qs}` : ""}`);
             });
         },
         [router, searchParams]
@@ -30,61 +47,84 @@ export function ProductSearch() {
     const handleChange = (term: string) => {
         setValue(term);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            handleSearch(term);
-        }, 300);
+        timeoutRef.current = setTimeout(() => setParam("search", term.trim() || null), 300);
     };
 
     useScanDetection({
         onScan: (code) => {
             setValue(code);
-            handleSearch(code);
+            setParam("search", code);
         },
     });
 
     return (
-        <div className="flex items-center gap-4 rounded-lg border bg-white p-4 dark:bg-gray-800">
+        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 lg:flex-row lg:items-center dark:border-gray-700 dark:bg-gray-800">
             <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                 <input
-                    type="text"
+                    ref={inputRef}
+                    type="search"
                     value={value}
                     onChange={(e) => handleChange(e.target.value)}
-                    placeholder="Search products by name, SKU, or scan barcode..."
-                    className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    aria-label="Search products"
+                    placeholder="Search by name, SKU, or scan barcode..."
+                    className={`${inputCls} h-10 pr-10 pl-10`}
                 />
                 {isPending && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="absolute top-1/2 right-3 -translate-y-1/2" aria-hidden="true">
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--brand-primary-600)] border-t-transparent"></div>
                     </div>
                 )}
             </div>
-            <div className="relative">
-                <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:flex">
                 <select
-                    value={searchParams.get("hasImage") ?? "all"}
-                    onChange={(e) => {
-                        const params = new URLSearchParams(searchParams);
-                        if (e.target.value === "all") {
-                            params.delete("hasImage");
-                        } else {
-                            params.set("hasImage", e.target.value);
-                        }
-                        router.replace(`/inventory/products?${params.toString()}`);
-                    }}
-                    className="h-10 appearance-none rounded-md border border-gray-300 bg-white pl-9 pr-8 text-sm focus:border-[var(--brand-primary-500)] focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    aria-label="Stock level"
+                    value={searchParams.get("stock") ?? ""}
+                    onChange={(e) => setParam("stock", e.target.value || null)}
+                    className={selectCls}
                 >
-                    <option value="all">All Products</option>
-                    <option value="true">With Images</option>
-                    <option value="false">Without Images</option>
+                    <option value="">All stock</option>
+                    <option value="low">Low stock</option>
+                    <option value="out">Out of stock</option>
+                    <option value="untracked">Untracked</option>
                 </select>
-                <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </div>
+                <select
+                    aria-label="Category"
+                    value={searchParams.get("category") ?? ""}
+                    onChange={(e) => setParam("category", e.target.value || null)}
+                    className={selectCls}
+                >
+                    <option value="">All categories</option>
+                    {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                            {c.name}
+                        </option>
+                    ))}
+                </select>
+                <select
+                    aria-label="Images"
+                    value={searchParams.get("hasImage") ?? ""}
+                    onChange={(e) => setParam("hasImage", e.target.value || null)}
+                    className={selectCls}
+                >
+                    <option value="">Any image</option>
+                    <option value="true">With images</option>
+                    <option value="false">Without images</option>
+                </select>
+                <select
+                    aria-label="Sort"
+                    value={searchParams.get("sort") ?? "newest"}
+                    onChange={(e) => setParam("sort", e.target.value === "newest" ? null : e.target.value)}
+                    className={selectCls}
+                >
+                    <option value="newest">Newest first</option>
+                    <option value="name">Name A–Z</option>
+                    <option value="stock-asc">Stock: low to high</option>
+                    <option value="stock-desc">Stock: high to low</option>
+                    <option value="price-asc">Price: low to high</option>
+                    <option value="price-desc">Price: high to low</option>
+                </select>
             </div>
         </div>
     );
 }
-

@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, managerProcedure, tenantProcedure } from "~/server/api/trpc";
 import { customers } from "~/server/db/schema";
 import { eq, and, desc, or, ilike } from "drizzle-orm";
 
 export const crmRouter = createTRPCRouter({
-    createCustomer: tenantProcedure
+    createCustomer: managerProcedure
         .input(z.object({
             name: z.string().min(1),
             email: z.string().email().optional().or(z.literal("")),
@@ -19,7 +19,7 @@ export const crmRouter = createTRPCRouter({
             });
         }),
 
-    listCustomers: tenantProcedure
+    listCustomers: managerProcedure
         .input(z.object({ search: z.string().optional() }).optional())
         .query(async ({ ctx, input }) => {
             const search = input?.search;
@@ -42,7 +42,7 @@ export const crmRouter = createTRPCRouter({
             });
         }),
 
-    updateCustomer: tenantProcedure
+    updateCustomer: managerProcedure
         .input(z.object({
             id: z.string(),
             name: z.string().min(1),
@@ -66,7 +66,7 @@ export const crmRouter = createTRPCRouter({
                 .where(and(eq(customers.id, input.id), eq(customers.tenantId, ctx.tenantId)));
         }),
         
-    getCustomer: tenantProcedure
+    getCustomer: managerProcedure
         .input(z.object({ id: z.string() }))
         .query(async ({ ctx, input }) => {
             return ctx.db.query.customers.findFirst({
@@ -90,7 +90,7 @@ export const crmRouter = createTRPCRouter({
             });
         }),
 
-    redeemLoyaltyPoints: tenantProcedure
+    redeemLoyaltyPoints: managerProcedure
         .input(
             z.object({
                 customerId: z.string(),
@@ -121,7 +121,7 @@ export const crmRouter = createTRPCRouter({
             return { success: true, remainingPoints: currentPoints - input.points };
         }),
 
-    adjustLoyaltyPoints: tenantProcedure
+    adjustLoyaltyPoints: managerProcedure
         .input(
             z.object({
                 customerId: z.string(),

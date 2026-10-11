@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import { useState, useEffect } from "react";
 import { api } from "~/trpc/react";
 import { Search, ShoppingCart, X, Plus, Minus, User, UserX, LayoutGrid, List, Smartphone, Monitor, Trash2 } from "lucide-react";
@@ -21,6 +22,7 @@ type CartItem = {
 };
 
 export default function POSTerminal() {
+    const confirm = useConfirm();
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState("");
     const [customerSearchQuery, setCustomerSearchQuery] = useState("");
@@ -147,10 +149,9 @@ export default function POSTerminal() {
         setCart(cart.filter((item) => item.productId !== productId));
     };
 
-    const clearCart = () => {
-        if (confirm("Are you sure you want to clear the cart?")) {
-            setCart([]);
-        }
+    const clearCart = async () => {
+        const ok = await confirm({ title: "Clear the cart?", message: "All items are removed from this sale.", confirmLabel: "Clear cart", destructive: true });
+        if (ok) setCart([]);
     };
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -361,7 +362,7 @@ export default function POSTerminal() {
                         <div className="space-y-3">
                             <div className="mb-2 flex justify-end">
                                 <button
-                                    onClick={clearCart}
+                                    onClick={() => void clearCart()}
                                     className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
                                 >
                                     <Trash2 className="h-3 w-3" /> Clear All

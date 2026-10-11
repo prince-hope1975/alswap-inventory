@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Plus, Pencil, Trash2, Search, X, Shield, UserCheck, UserCog } from "lucide-react";
@@ -25,6 +26,7 @@ const roleIcons = {
 };
 
 export default function UserManagementPage() {
+    const confirm = useConfirm();
     const router = useRouter();
     const [search, setSearch] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -116,10 +118,14 @@ export default function UserManagementPage() {
         }
     };
 
-    const handleDelete = (id: string) => {
-        if (confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
-            deleteMutation.mutate({ id });
-        }
+    const handleDelete = async (id: string) => {
+        const ok = await confirm({
+            title: "Delete this user?",
+            message: "They lose access to the dashboard immediately. This cannot be undone.",
+            confirmLabel: "Delete user",
+            destructive: true,
+        });
+        if (ok) deleteMutation.mutate({ id });
     };
 
     return (
@@ -209,7 +215,7 @@ export default function UserManagementPage() {
                                                     <Pencil className="h-4 w-4" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(user.id)}
+                                                    onClick={() => void handleDelete(user.id)}
                                                     className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                                                 >
                                                     <Trash2 className="h-4 w-4" />

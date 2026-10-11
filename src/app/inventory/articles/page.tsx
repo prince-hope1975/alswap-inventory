@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirm } from "~/components/ui/confirm-dialog";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Plus, Edit2, Trash2, Eye, EyeOff } from "lucide-react";
@@ -25,6 +26,7 @@ const emptyForm: ArticleFormData = {
 };
 
 export default function ArticlesPage() {
+    const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ArticleFormData>(emptyForm);
@@ -320,13 +322,11 @@ export default function ArticlesPage() {
                     <Edit2 className="h-5 w-5" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (
-                        confirm("Are you sure you want to delete this article?")
-                      ) {
-                        deleteArticle.mutate({ id: article.id });
-                      }
+                    onClick={async () => {
+                      const ok = await confirm({ title: `Delete "${article.title}"?`, message: "The article is removed from your site. This cannot be undone.", confirmLabel: "Delete article", destructive: true });
+                      if (ok) deleteArticle.mutate({ id: article.id });
                     }}
+                    aria-label={`Delete ${article.title}`}
                     disabled={deleteArticle.isPending}
                     className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     title="Delete"

@@ -1,9 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
+import type { ShopSortOption } from "~/lib/domain/shop-filters";
 
-export type SortOption = "name-asc" | "name-desc" | "price-asc" | "price-desc" | "newest";
+export type SortOption = ShopSortOption;
+
+export const SORT_LABELS: Record<ShopSortOption, string> = {
+  relevance: "Best match",
+  newest: "Newest first",
+  "price-asc": "Price: low to high",
+  "price-desc": "Price: high to low",
+  "name-asc": "Name: A to Z",
+  "name-desc": "Name: Z to A",
+};
 
 interface ShopFiltersProps {
   priceRange: [number, number];
@@ -13,9 +24,21 @@ interface ShopFiltersProps {
   inStockOnly: boolean;
   setInStockOnly: (value: boolean) => void;
   onClearFilters: () => void;
+  /** Highest price in the current result set; the slider's upper bound. */
   maxPrice?: number;
+  /** Shows "Best match" while a search is active. */
+  hasSearch?: boolean;
+  /** True once the shopper changed the price range. */
+  isPriceFiltered?: boolean;
+  /** Hide the built-in title when the container already has one (drawer). */
+  hideHeader?: boolean;
+  /** Hide the sort select when the page shows it in a results toolbar. */
+  hideSort?: boolean;
   className?: string;
 }
+
+const inputClass =
+  "w-full rounded-lg border border-[#14212b]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#14212b] placeholder:text-[#6b767d] transition-colors focus:border-[#0b6e99] focus:ring-2 focus:ring-[#0b6e99]/60 focus:outline-none dark:border-white/15 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-500";
 
 export function ShopFilters({
   priceRange,
@@ -25,153 +48,176 @@ export function ShopFilters({
   inStockOnly,
   setInStockOnly,
   onClearFilters,
-  maxPrice = 1000000,
+  maxPrice = 0,
+  hasSearch = false,
+  isPriceFiltered,
+  hideHeader = false,
+  hideSort = false,
   className = "",
 }: ShopFiltersProps) {
-  const [localMinPrice, setLocalMinPrice] = useState(priceRange[0].toString());
-  const [localMaxPrice, setLocalMaxPrice] = useState(priceRange[1].toString());
+  const id = useId();
+  const { formatCurrency } = useShopCurrency();
+  const priceActive = isPriceFiltered ?? (priceRange[0] > 0 || priceRange[1] < maxPrice);
 
-  const handleMinPriceChange = (value: string) => {
-    setLocalMinPrice(value);
-    const numValue = parseFloat(value) || 0;
-    if (numValue >= 0 && numValue <= priceRange[1]) {
-      setPriceRange([numValue, priceRange[1]]);
+  // Inputs are blank until the shopper types, and follow outside resets
+  // (Clear all, chip removal).
+  const [localMin, setLocalMin] = useState(priceActive && priceRange[0] > 0 ? String(priceRange[0]) : "");
+  const [localMax, setLocalMax] = useState(priceActive ? String(priceRange[1]) : "");
+  useEffect(() => {
+    if (!priceActive) {
+      setLocalMin("");
+      setLocalMax("");
     }
+  }, [priceActive]);
+  // Follow outside changes (Back/Forward) unless the shopper is typing here.
+  useEffect(() => {
+    if (!priceActive) return;
+    const active = typeof document !== "undefined" ? document.activeElement?.id : undefined;
+    if (active === `${id}-min` || active === `${id}-max`) return;
+    setLocalMin(priceRange[0] > 0 ? String(priceRange[0]) : "");
+    setLocalMax(priceRange[1] < maxPrice ? String(priceRange[1]) : "");
+  }, [priceActive, priceRange, maxPrice, id]);
+
+  const commitMin = (value: string) => {
+    setLocalMin(value);
+    const num = Number(value);
+    setPriceRange([value && Number.isFinite(num) ? Math.max(0, num) : 0, priceRange[1]]);
+  };
+  const commitMax = (value: string) => {
+    setLocalMax(value);
+    const num = Number(value);
+    setPriceRange([priceRange[0], value && Number.isFinite(num) ? num : maxPrice]);
   };
 
-  const handleMaxPriceChange = (value: string) => {
-    setLocalMaxPrice(value);
-    const numValue = parseFloat(value) || maxPrice;
-    if (numValue >= priceRange[0] && numValue <= maxPrice) {
-      setPriceRange([priceRange[0], numValue]);
-    }
-  };
-
-  const hasActiveFilters = 
-    priceRange[0] > 0 || 
-    priceRange[1] < maxPrice || 
-    inStockOnly || 
-    sortBy !== "newest";
+  const defaultSort: SortOption = hasSearch ? "relevance" : "newest";
+  const hasActiveFilters = priceActive || inStockOnly || sortBy !== defaultSort;
+  const sortOptions = (Object.keys(SORT_LABELS) as SortOption[]).filter(
+    (option) => option !== "relevance" || hasSearch,
+  );
 
   return (
-    <div className={`space-y-5 p-2 ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-[#dcecf2] dark:bg-[#0b6e99]/20">
-            <SlidersHorizontal className="h-4 w-4 text-[#0b6e99] dark:text-[#8dc5dc]" />
-          </div>
-          <h3 className="font-bold text-base text-gray-900 dark:text-white">Filters</h3>
+    <div className={`space-y-5 ${className}`}>
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-[#14212b]/10 pb-3 dark:border-white/10">
+          <h3 className="flex items-center gap-2 text-base font-bold text-[#14212b] dark:text-white">
+            <SlidersHorizontal className="h-4 w-4 text-[#0b6e99] dark:text-[#8dc5dc]" aria-hidden />
+            Filters
+          </h3>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              title="Reset price, stock and sort (keeps your search and category)"
+              className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[#0b6e99] hover:bg-[#dcecf2] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:outline-none dark:text-[#8dc5dc] dark:hover:bg-white/10"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+              Reset filters
+            </button>
+          )}
         </div>
-        {hasActiveFilters && (
-          <button
-            onClick={onClearFilters}
-            className="text-xs text-[#0b6e99] dark:text-[#8dc5dc] hover:text-[#07597d] font-semibold flex items-center gap-1 hover:gap-1.5 transition-all"
-          >
-            <X className="h-3.5 w-3.5" />
-            Clear All
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Sort By */}
-      <div className="space-y-2.5">
-        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-          Sort By
+      {/* Sort */}
+      {!hideSort && (
+      <div className="space-y-2">
+        <label
+          htmlFor={`${id}-sort`}
+          className="block text-xs font-semibold tracking-wide text-[#41515c] uppercase dark:text-gray-300"
+        >
+          Sort by
         </label>
         <select
+          id={`${id}-sort`}
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortOption)}
-          className="w-full px-3.5 py-2.5 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-[#0b6e99] focus:ring-2 focus:ring-[#dcecf2] transition-all cursor-pointer hover:border-gray-300 dark:hover:border-gray-600"
+          className={`${inputClass} cursor-pointer`}
         >
-          <option value="newest">⭐ Newest First</option>
-          <option value="name-asc">🔤 Name: A to Z</option>
-          <option value="name-desc">🔤 Name: Z to A</option>
-          <option value="price-asc">💰 Price: Low to High</option>
-          <option value="price-desc">💰 Price: High to Low</option>
+          {sortOptions.map((option) => (
+            <option key={option} value={option}>
+              {SORT_LABELS[option]}
+            </option>
+          ))}
         </select>
       </div>
+      )}
 
-      {/* Price Range */}
-      <div className="space-y-3 pt-2">
-        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-          Price Range
-        </label>
+      {/* Price */}
+      <fieldset className="space-y-3">
+        <legend className="mb-2 block text-xs font-semibold tracking-wide text-[#41515c] uppercase dark:text-gray-300">
+          Price
+        </legend>
         <div className="grid grid-cols-2 gap-2.5">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+          <div className="space-y-1">
+            <label htmlFor={`${id}-min`} className="block text-xs font-medium text-[#5c6870] dark:text-gray-400">
               Min
             </label>
             <input
+              id={`${id}-min`}
               type="number"
-              value={localMinPrice}
-              onChange={(e) => handleMinPriceChange(e.target.value)}
-              onBlur={() => setLocalMinPrice(priceRange[0].toString())}
-              min="0"
-              max={priceRange[1]}
-              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-[#0b6e99] focus:ring-2 focus:ring-[#dcecf2] transition-all"
+              inputMode="numeric"
+              min={0}
+              value={localMin}
+              onChange={(e) => commitMin(e.target.value)}
+              className={inputClass}
               placeholder="0"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+          <div className="space-y-1">
+            <label htmlFor={`${id}-max`} className="block text-xs font-medium text-[#5c6870] dark:text-gray-400">
               Max
             </label>
             <input
+              id={`${id}-max`}
               type="number"
-              value={localMaxPrice}
-              onChange={(e) => handleMaxPriceChange(e.target.value)}
-              onBlur={() => setLocalMaxPrice(priceRange[1].toString())}
-              min={priceRange[0]}
-              max={maxPrice}
-              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:border-[#0b6e99] focus:ring-2 focus:ring-[#dcecf2] transition-all"
-              placeholder={maxPrice.toString()}
+              inputMode="numeric"
+              min={0}
+              value={localMax}
+              onChange={(e) => commitMax(e.target.value)}
+              className={inputClass}
+              placeholder={maxPrice > 0 ? String(maxPrice) : "Any"}
             />
           </div>
         </div>
-        
-        {/* Price Range Slider */}
-        <div className="pt-3 px-1">
-          <input
-            type="range"
-            min="0"
-            max={maxPrice}
-            value={priceRange[1]}
-            onChange={(e) => {
-              const value = parseFloat(e.target.value);
-              if (value >= priceRange[0]) {
-                setPriceRange([priceRange[0], value]);
-                setLocalMaxPrice(value.toString());
-              }
-            }}
-            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-[#0b6e99] [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0b6e99] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg hover:[&::-webkit-slider-thumb]:bg-[#07597d] transition-all"
-          />
-          <div className="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
-            <span>₦{priceRange[0].toLocaleString()}</span>
-            <span>₦{priceRange[1].toLocaleString()}</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Stock Availability */}
-      <div className="pt-2 pb-1">
-        <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-          <input
-            type="checkbox"
-            checked={inStockOnly}
-            onChange={(e) => setInStockOnly(e.target.checked)}
-            className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-[#0b6e99] focus:ring-2 focus:ring-[#0b6e99] focus:ring-offset-0 cursor-pointer transition-all"
-          />
-          <div className="flex-1">
-            <span className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-[#0b6e99] dark:group-hover:text-[#8dc5dc] transition-colors">
-              In Stock Only
-            </span>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Show available items
-            </p>
+        {maxPrice > 0 && (
+          <div className="px-1 pt-1">
+            <input
+              type="range"
+              aria-label="Maximum price"
+              min={0}
+              max={maxPrice}
+              step={Math.max(1, Math.round(maxPrice / 200))}
+              value={Math.min(priceRange[1], maxPrice)}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                if (value >= priceRange[0]) {
+                  setPriceRange([priceRange[0], value]);
+                  setLocalMax(value >= maxPrice ? "" : String(value));
+                }
+              }}
+              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[#14212b]/10 accent-[#0b6e99] dark:bg-white/10"
+            />
+            <div className="mt-2 flex justify-between text-xs font-medium text-[#5c6870] dark:text-gray-400">
+              <span>{formatCurrency(priceRange[0])}</span>
+              <span>{formatCurrency(Math.min(priceRange[1], maxPrice))}</span>
+            </div>
           </div>
-        </label>
-      </div>
+        )}
+      </fieldset>
+
+      {/* Stock */}
+      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-[#14212b]/10 p-3 transition-colors hover:bg-[#dcecf2]/40 dark:border-white/10 dark:hover:bg-white/5">
+        <input
+          type="checkbox"
+          checked={inStockOnly}
+          onChange={(e) => setInStockOnly(e.target.checked)}
+          className="h-5 w-5 cursor-pointer rounded border-[#14212b]/30 accent-[#0b6e99]"
+        />
+        <span className="flex-1">
+          <span className="block text-sm font-semibold text-[#14212b] dark:text-white">In stock only</span>
+          <span className="block text-xs text-[#5c6870] dark:text-gray-400">Hide sold-out items</span>
+        </span>
+      </label>
     </div>
   );
 }

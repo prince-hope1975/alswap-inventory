@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { approveDocumentDraft, detectDocumentDuplicate } from "~/lib/domain/document-import";
@@ -36,12 +36,21 @@ export const documentsRouter = createTRPCRouter({
     }),
   ),
 
+  /** Variants with their product name, for the line-matching combobox. */
   listVariants: managerProcedure.query(({ ctx }) =>
-    ctx.db.query.productVariants.findMany({
-      where: eq(productVariants.tenantId, ctx.tenantId),
-      orderBy: desc(productVariants.createdAt),
-      limit: 500,
-    }),
+    ctx.db
+      .select({
+        id: productVariants.id,
+        name: productVariants.name,
+        sku: productVariants.sku,
+        barcode: productVariants.barcode,
+        productName: products.name,
+      })
+      .from(productVariants)
+      .innerJoin(products, and(eq(products.id, productVariants.productId), eq(products.tenantId, ctx.tenantId)))
+      .where(eq(productVariants.tenantId, ctx.tenantId))
+      .orderBy(asc(products.name), asc(productVariants.name))
+      .limit(2000),
   ),
 
   uploadAndExtract: managerProcedure

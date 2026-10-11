@@ -5,13 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CartProvider } from "./cart-context";
 import { ProductCard } from "./product-card";
 
-vi.mock("~/hooks/use-tenant-settings", () => ({
-  useCurrency: () => ({
+vi.mock("~/hooks/use-tenant-settings", () => {
+  const currency = () => ({
     currency: "₦",
     formatCurrency: (amount: number | string) =>
       `₦${Number(amount).toLocaleString()}`,
-  }),
-}));
+  });
+  return { useCurrency: currency, useShopCurrency: currency };
+});
 
 afterEach(cleanup);
 

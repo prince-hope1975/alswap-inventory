@@ -2,39 +2,68 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "~/trpc/react";
 import { Pencil, Trash2 } from "lucide-react";
 
-export function ProductActions({ id }: { id: string }) {
-    const router = useRouter();
-    const deleteProduct = api.inventory.deleteProduct.useMutation({
-        onSuccess: () => {
-            router.refresh();
-        },
+import { api } from "~/trpc/react";
+import { toast } from "~/lib/toast";
+import { useConfirm } from "~/components/ui/confirm-dialog";
+import { iconBtn } from "~/components/ui/styles";
+import { AdjustStockButton } from "./adjust-stock";
+
+export function ProductActions({
+  id,
+  name,
+  stockQuantity,
+  canDelete,
+}: {
+  id: string;
+  name: string;
+  stockQuantity: number;
+  canDelete: boolean;
+}) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const utils = api.useUtils();
+  const deleteProduct = api.inventory.deleteProduct.useMutation({
+    onSuccess: () => {
+      toast.success(`Deleted ${name}`);
+      void utils.inventory.getLowStockProducts.invalidate();
+      router.refresh();
+    },
+    onError: (e) => toast.error(`Could not delete product: ${e.message}`),
+  });
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete ${name}?`,
+      message: "This removes the product from your catalog and shop. It cannot be undone.",
+      confirmLabel: "Delete product",
+      destructive: true,
     });
+    if (ok) deleteProduct.mutate({ id });
+  };
 
-    const handleDelete = () => {
-        if (confirm("Are you sure you want to delete this product?")) {
-            deleteProduct.mutate({ id });
-        }
-    };
-
-    return (
-        <div className="flex justify-end gap-2">
-            <Link
-                href={`/inventory/products/${id}`}
-                className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-900)] dark:text-[var(--brand-primary-400)] dark:hover:text-[var(--brand-primary-300)]"
-            >
-                <Pencil className="h-4 w-4" />
-            </Link>
-            <button
-                onClick={handleDelete}
-                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                disabled={deleteProduct.isPending}
-            >
-                <Trash2 className="h-4 w-4" />
-            </button>
-        </div>
-    );
+  return (
+    <div className="relative z-10 flex justify-end gap-1">
+      <AdjustStockButton productId={id} productName={name} stockQuantity={stockQuantity} />
+      <Link
+        href={`/inventory/products/${id}`}
+        aria-label={`Edit ${name}`}
+        className={`${iconBtn} text-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-50)] dark:text-[var(--brand-primary-400)] dark:hover:bg-gray-700`}
+      >
+        <Pencil className="h-4 w-4" aria-hidden="true" />
+      </Link>
+      {canDelete && (
+        <button
+          type="button"
+          onClick={() => void handleDelete()}
+          aria-label={`Delete ${name}`}
+          className={`${iconBtn} text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20`}
+          disabled={deleteProduct.isPending}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
 }
-

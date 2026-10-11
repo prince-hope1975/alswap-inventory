@@ -40,7 +40,7 @@ export function StorefrontImage({
       <div
         role="img"
         aria-label={`${alt} unavailable`}
-        className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#e7e4dc] px-4 text-center text-xs font-medium text-[#5c6870] dark:bg-gray-800 dark:text-gray-400"
+        className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#e7e4dc] px-4 text-center text-xs font-medium text-[#5c6870] dark:bg-[#0f1a22] dark:text-gray-400"
       >
         <ImageOff aria-hidden="true" className="h-6 w-6" />
         <span>Image unavailable</span>

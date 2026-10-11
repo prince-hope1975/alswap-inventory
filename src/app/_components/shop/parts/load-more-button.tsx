@@ -15,17 +15,19 @@ export function LoadMoreButton({ onClick, isLoading, hasMore, className = "" }: 
   return (
     <div className={`flex justify-center ${className}`}>
       <button
+        type="button"
         onClick={onClick}
         disabled={isLoading}
-        className="px-8 py-3 rounded-xl bg-[#0b6e99] hover:bg-[#07597d] text-white font-semibold shadow-lg shadow-[#167da8]/25 hover:shadow-[#167da8]/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:scale-[1.02]"
+        aria-busy={isLoading}
+        className="flex min-h-12 items-center gap-2 rounded-xl border-2 border-[#0b6e99] bg-white px-8 font-semibold text-[#07597d] transition-colors hover:bg-[#dcecf2] focus-visible:ring-2 focus-visible:ring-[#0b6e99] focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#8dc5dc] dark:bg-transparent dark:text-[#8dc5dc] dark:hover:bg-white/5 dark:focus-visible:ring-offset-[#0a1117]"
       >
         {isLoading ? (
           <>
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading...
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            Loading more…
           </>
         ) : (
-          "Load More Products"
+          "Load more products"
         )}
       </button>
     </div>

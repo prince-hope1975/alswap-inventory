@@ -20,14 +20,14 @@ import {
     Clock,
     AlertCircle
 } from "lucide-react";
-import { useCurrency } from "~/hooks/use-tenant-settings";
+import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { ProductDetailModal } from "../parts/product-detail-modal";
 import { type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StorefrontImage } from "../storefront-image";
 
 type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
-type Products = RouterOutputs["shop"]["getProducts"];
+type Products = RouterOutputs["shop"]["getProducts"]["items"];
 type Categories = RouterOutputs["shop"]["getCategories"];
 type Product = Products[number];
 
@@ -116,7 +116,7 @@ function ConversionProductCard({
     priority?: boolean;
 }) {
     const { addItem } = useCart();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency } = useShopCurrency();
     const price = Number(product.price);
     const salePrice = product.salePrice ? Number(product.salePrice) : null;
     const displayPrice = salePrice ?? price;
@@ -231,7 +231,7 @@ export function ConversionTemplate({
 }: ConversionTemplateProps) {
     const tenant = shopDetails?.tenant;
     const { totalItems, totalAmount, setIsCartOpen } = useCart();
-    const { formatCurrency } = useCurrency();
+    const { formatCurrency } = useShopCurrency();
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 

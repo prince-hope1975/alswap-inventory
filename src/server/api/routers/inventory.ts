@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createSlug } from "~/lib/domain/slug";
 
-import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, managerProcedure, tenantProcedure } from "~/server/api/trpc";
 import {
   products,
   categories,
@@ -9,20 +9,40 @@ import {
   orderItems,
   productCategories,
   productVariants,
+  inventoryMovements,
+  purchaseOrderItems,
 } from "~/server/db/schema";
 import {
   eq,
   and,
+  asc,
   desc,
   ne,
   or,
   ilike,
-  lte,
   sql,
   gte,
   inArray,
 } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import {
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  PRODUCT_LIST_PAGE_SIZE,
+  PRODUCT_LIST_SORTS,
+  PRODUCT_LIST_STOCK,
+} from "~/lib/domain/product-list-params";
+import { computeStockAdjustment, nextVariantStock } from "~/lib/domain/stock-adjust";
+import { countsAsSaleSql } from "~/server/orders/sales-filter";
+import { bulkDeleteInput, bulkSetCategoryInput } from "~/lib/domain/bulk-products";
+
+/**
+ * Tracked (>= 0) and at or below the threshold (default 5). Shared by the
+ * low-stock alert, the dashboard count and `listProducts?stock=low` so they
+ * always agree. Mirrors `stockStatus` in product-list-params.
+ */
+function lowStockPredicate() {
+  return sql`${products.stockQuantity} >= 0 and ${products.stockQuantity} <= coalesce(${products.lowStockThreshold}, ${DEFAULT_LOW_STOCK_THRESHOLD})`;
+}
 
 const productConditionInput = z.enum(["NEW", "USED", "REFURBISHED"]);
 const productVisibilityInput = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
@@ -30,7 +50,7 @@ const productVisibilityInput = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
 export const inventoryRouter = createTRPCRouter({
   // --- Categories ---
 
-  createCategory: tenantProcedure
+  createCategory: managerProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -51,14 +71,14 @@ export const inventoryRouter = createTRPCRouter({
         .returning();
     }),
 
-  listCategories: tenantProcedure.query(async ({ ctx }) => {
+  listCategories: managerProcedure.query(async ({ ctx }) => {
     return ctx.db.query.categories.findMany({
       where: eq(categories.tenantId, ctx.tenantId),
       orderBy: desc(categories.id),
     });
   }),
 
-  updateCategory: tenantProcedure
+  updateCategory: managerProcedure
     .input(
       z.object({
         id: z.number(),
@@ -98,7 +118,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // --- Products ---
 
-  validateImageUrl: tenantProcedure
+  validateImageUrl: managerProcedure
     .input(z.object({ url: z.string().url() }))
     .mutation(async ({ input }) => {
       try {
@@ -119,7 +139,7 @@ export const inventoryRouter = createTRPCRouter({
       }
     }),
 
-  createProduct: tenantProcedure
+  createProduct: managerProcedure
     .input(
       z
         .object({
@@ -147,25 +167,6 @@ export const inventoryRouter = createTRPCRouter({
           serialNumber: z.string().optional(),
           warrantyMonths: z.number().int().min(0).optional(),
         })
-        .refine(
-          (data) => {
-            // Skip validation if quantity is unknown (-1)
-            if (data.stockQuantity === -1) {
-              return true;
-            }
-            // If stockQuantity is 0, allow any threshold >= 0
-            // Otherwise, threshold must be less than stockQuantity
-            if (data.stockQuantity === 0) {
-              return data.lowStockThreshold >= 0;
-            }
-            return data.lowStockThreshold < data.stockQuantity;
-          },
-          {
-            message:
-              "Low stock threshold must be less than current stock quantity",
-            path: ["lowStockThreshold"],
-          },
-        ),
     )
     .mutation(async ({ ctx, input }) => {
       // Insert product
@@ -239,18 +240,25 @@ export const inventoryRouter = createTRPCRouter({
       return newProduct;
     }),
 
-  listProducts: tenantProcedure
+  listProducts: managerProcedure
     .input(
       z
         .object({
           search: z.string().optional(),
           hasImage: z.boolean().optional(),
+          stock: z.enum(PRODUCT_LIST_STOCK).optional(),
+          sort: z.enum(PRODUCT_LIST_SORTS).default("newest"),
+          categoryId: z.number().int().positive().optional(),
+          page: z.number().int().min(1).default(1),
+          pageSize: z.number().int().min(1).max(200).default(PRODUCT_LIST_PAGE_SIZE),
         })
         .optional(),
     )
     .query(async ({ ctx, input }) => {
       const search = input?.search;
       const hasImage = input?.hasImage;
+      const page = input?.page ?? 1;
+      const pageSize = input?.pageSize ?? PRODUCT_LIST_PAGE_SIZE;
       const whereConditions = [eq(products.tenantId, ctx.tenantId)];
 
       if (search) {
@@ -278,21 +286,60 @@ export const inventoryRouter = createTRPCRouter({
         }
       }
 
-      return ctx.db.query.products.findMany({
-        where: and(...whereConditions),
-        with: {
-          category: true,
-          productCategories: {
-            with: {
-              category: true,
+      if (input?.stock === "low") whereConditions.push(lowStockPredicate());
+      if (input?.stock === "out") whereConditions.push(eq(products.stockQuantity, 0));
+      if (input?.stock === "untracked") whereConditions.push(eq(products.stockQuantity, -1));
+
+      if (input?.categoryId) {
+        whereConditions.push(
+          or(
+            eq(products.categoryId, input.categoryId),
+            // A subquery builder (not raw sql) so the relational query's
+            // root-table aliasing doesn't rewrite productCategories columns.
+            inArray(
+              products.id,
+              ctx.db
+                .select({ id: productCategories.productId })
+                .from(productCategories)
+                .where(eq(productCategories.categoryId, input.categoryId)),
+            ),
+          )!,
+        );
+      }
+
+      const where = and(...whereConditions);
+      const orderBy = {
+        newest: [desc(products.createdAt)],
+        name: [asc(products.name)],
+        // Untracked (-1) last: "unknown" is not "less than zero". Mirrors compareStockAsc.
+        "stock-asc": [asc(sql`(${products.stockQuantity} < 0)`), asc(products.stockQuantity), asc(products.name)],
+        "stock-desc": [desc(products.stockQuantity), asc(products.name)],
+        "price-asc": [asc(products.price), asc(products.name)],
+        "price-desc": [desc(products.price), asc(products.name)],
+      }[input?.sort ?? "newest"];
+
+      const [items, [totalRow]] = await Promise.all([
+        ctx.db.query.products.findMany({
+          where,
+          with: {
+            category: true,
+            productCategories: {
+              with: {
+                category: true,
+              },
             },
           },
-        },
-        orderBy: desc(products.createdAt),
-      });
+          orderBy,
+          limit: pageSize,
+          offset: (page - 1) * pageSize,
+        }),
+        ctx.db.select({ count: sql<number>`count(*)::int` }).from(products).where(where),
+      ]);
+
+      return { items, total: Number(totalRow?.count ?? 0), page, pageSize };
     }),
 
-  getProduct: tenantProcedure
+  getProduct: managerProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return ctx.db.query.products.findFirst({
@@ -311,7 +358,7 @@ export const inventoryRouter = createTRPCRouter({
       });
     }),
 
-  updateProduct: tenantProcedure
+  updateProduct: managerProcedure
     .input(
       z
         .object({
@@ -332,7 +379,9 @@ export const inventoryRouter = createTRPCRouter({
           price: z.number().min(0).optional(),
           salePrice: z.number().min(0).optional().nullable(),
           costPrice: z.number().min(0).optional(),
-          stockQuantity: z.number().int().min(-1).optional(), // -1 = unknown quantity
+          // No stockQuantity: stock only changes through updateStock (which
+          // writes an inventory movement), sales, and order status changes.
+          // zod strips the key if an old client still sends it.
           lowStockThreshold: z.number().int().optional(),
           condition: productConditionInput.optional(),
           conditionNotes: z.string().optional(),
@@ -345,34 +394,16 @@ export const inventoryRouter = createTRPCRouter({
           serialNumber: z.string().optional(),
           warrantyMonths: z.number().int().min(0).optional(),
         })
-        .refine(
-          (data) => {
-            // Only validate if both fields are provided
-            if (
-              data.stockQuantity !== undefined &&
-              data.lowStockThreshold !== undefined
-            ) {
-              // Skip validation if quantity is unknown (-1)
-              if (data.stockQuantity === -1) {
-                return true;
-              }
-              // If stockQuantity is 0, allow any threshold >= 0
-              // Otherwise, threshold must be less than stockQuantity
-              if (data.stockQuantity === 0) {
-                return data.lowStockThreshold >= 0;
-              }
-              return data.lowStockThreshold < data.stockQuantity;
-            }
-            return true;
-          },
-          {
-            message:
-              "Low stock threshold must be less than current stock quantity",
-            path: ["lowStockThreshold"],
-          },
-        ),
     )
     .mutation(async ({ ctx, input }) => {
+      // Ownership first: the category-link rewrite and the final read below
+      // are keyed by product id alone.
+      const owned = await ctx.db.query.products.findFirst({
+        where: and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)),
+        columns: { id: true },
+      });
+      if (!owned) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+
       const updateData: Record<string, unknown> = {};
 
       if (input.name !== undefined) updateData.name = input.name;
@@ -413,8 +444,6 @@ export const inventoryRouter = createTRPCRouter({
         updateData.salePrice = input.salePrice?.toString() ?? null;
       if (input.costPrice !== undefined)
         updateData.costPrice = input.costPrice.toString();
-      if (input.stockQuantity !== undefined)
-        updateData.stockQuantity = input.stockQuantity;
       if (input.lowStockThreshold !== undefined)
         updateData.lowStockThreshold = input.lowStockThreshold;
       if (input.condition !== undefined) updateData.condition = input.condition;
@@ -473,7 +502,7 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       return ctx.db.query.products.findFirst({
-        where: eq(products.id, input.id),
+        where: and(eq(products.id, input.id), eq(products.tenantId, ctx.tenantId)),
         with: {
           category: true,
           productCategories: {
@@ -496,13 +525,69 @@ export const inventoryRouter = createTRPCRouter({
         );
     }),
 
-  getLowStockProducts: tenantProcedure.query(async ({ ctx }) => {
+  /**
+   * Sets one category on many products: it becomes their primary category
+   * and their only category link. Tenant-scoped on both the products and the
+   * category; ids not owned by the tenant are ignored.
+   */
+  bulkSetCategory: managerProcedure.input(bulkSetCategoryInput).mutation(async ({ ctx, input }) => {
+    return ctx.db.transaction(async (tx) => {
+      const category = await tx.query.categories.findFirst({
+        where: and(eq(categories.id, input.categoryId), eq(categories.tenantId, ctx.tenantId)),
+        columns: { id: true, name: true },
+      });
+      if (!category) throw new TRPCError({ code: "NOT_FOUND", message: "Category not found" });
+
+      const owned = await tx
+        .select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, input.ids)));
+      const ids = owned.map((p) => p.id);
+      if (ids.length === 0) return { updated: 0, categoryName: category.name };
+
+      await tx.update(products).set({ categoryId: category.id }).where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, ids)));
+      // productCategories has no tenantId: scope it through the owned ids.
+      await tx.delete(productCategories).where(inArray(productCategories.productId, ids));
+      await tx.insert(productCategories).values(ids.map((productId) => ({ productId, categoryId: category.id })));
+      return { updated: ids.length, categoryName: category.name };
+    });
+  }),
+
+  /**
+   * ADMIN-only bulk delete. Products with sales, purchase-order or stock
+   * movement history are kept (those rows reference them) and reported as
+   * skipped instead of failing the whole batch.
+   */
+  bulkDeleteProducts: tenantProcedure.input(bulkDeleteInput).mutation(async ({ ctx, input }) => {
+    return ctx.db.transaction(async (tx) => {
+      const owned = await tx
+        .select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, input.ids)));
+      const ids = owned.map((p) => p.id);
+      if (ids.length === 0) return { deleted: 0, skipped: 0 };
+
+      const [sold, purchased, moved] = await Promise.all([
+        tx.selectDistinct({ id: orderItems.productId }).from(orderItems).where(inArray(orderItems.productId, ids)),
+        tx.selectDistinct({ id: purchaseOrderItems.productId }).from(purchaseOrderItems).where(inArray(purchaseOrderItems.productId, ids)),
+        tx
+          .selectDistinct({ id: productVariants.productId })
+          .from(inventoryMovements)
+          .innerJoin(productVariants, eq(productVariants.id, inventoryMovements.productVariantId))
+          .where(and(eq(inventoryMovements.tenantId, ctx.tenantId), inArray(productVariants.productId, ids))),
+      ]);
+      const blocked = new Set([...sold, ...purchased, ...moved].map((r) => r.id));
+      const deletable = ids.filter((id) => !blocked.has(id));
+      if (deletable.length > 0) {
+        await tx.delete(products).where(and(eq(products.tenantId, ctx.tenantId), inArray(products.id, deletable)));
+      }
+      return { deleted: deletable.length, skipped: ids.length - deletable.length };
+    });
+  }),
+
+  getLowStockProducts: managerProcedure.query(async ({ ctx }) => {
     return ctx.db.query.products.findMany({
-      where: and(
-        eq(products.tenantId, ctx.tenantId),
-        lte(products.stockQuantity, products.lowStockThreshold ?? 5), // Handle null threshold
-        sql`${products.stockQuantity} >= 0`, // Exclude unknown quantities (-1)
-      ),
+      where: and(eq(products.tenantId, ctx.tenantId), lowStockPredicate()),
       with: {
         category: true,
         productCategories: {
@@ -512,41 +597,124 @@ export const inventoryRouter = createTRPCRouter({
         },
       },
       limit: 20,
-      orderBy: desc(products.createdAt),
+      orderBy: [asc(products.stockQuantity), asc(products.name)],
     });
   }),
 
-  updateStock: tenantProcedure
+  /**
+   * Quick stock adjustment from the products list. Writes an inventory
+   * movement alongside the new count (same ledger documents.approve uses), so
+   * every change is attributable to a user and a reason.
+   */
+  updateStock: managerProcedure
     .input(
       z.object({
         id: z.string(),
-        quantity: z.number().int(), // Can be negative for deduction
+        mode: z.enum(["receive", "remove", "set"]),
+        amount: z.number().int().min(0).max(1_000_000),
+        reason: z.string().trim().max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // In a real app, we should use a transaction and check for sufficient stock if deducting
-      const product = await ctx.db.query.products.findFirst({
-        where: and(
-          eq(products.id, input.id),
-          eq(products.tenantId, ctx.tenantId),
-        ),
+      return ctx.db.transaction(async (tx) => {
+        const product = await tx.query.products.findFirst({
+          where: and(
+            eq(products.id, input.id),
+            eq(products.tenantId, ctx.tenantId),
+          ),
+          columns: { id: true, name: true, sku: true, barcode: true, price: true, costPrice: true, stockQuantity: true },
+        });
+        if (!product) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+        }
+
+        const result = computeStockAdjustment({
+          current: product.stockQuantity,
+          mode: input.mode,
+          amount: input.amount,
+        });
+        if (!result.ok) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: result.error });
+        }
+        if (result.noop) {
+          return { success: true, newQuantity: result.newQuantity, changed: false };
+        }
+
+        const variants = await tx.query.productVariants.findMany({
+          where: and(
+            eq(productVariants.productId, product.id),
+            eq(productVariants.tenantId, ctx.tenantId),
+          ),
+          columns: { id: true, stockQuantity: true },
+          limit: 2,
+        });
+        if (variants.length > 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "This product has several variants. Adjust stock per variant instead.",
+          });
+        }
+
+        let variant = variants[0];
+        if (!variant) {
+          // Products created before variants existed: give them the Default
+          // variant now. Skip sku/barcode when another variant already holds
+          // them (unique per tenant).
+          const [skuClash, barcodeClash] = await Promise.all([
+            product.sku
+              ? tx.query.productVariants.findFirst({
+                  where: and(eq(productVariants.tenantId, ctx.tenantId), eq(productVariants.sku, product.sku)),
+                  columns: { id: true },
+                })
+              : undefined,
+            product.barcode
+              ? tx.query.productVariants.findFirst({
+                  where: and(eq(productVariants.tenantId, ctx.tenantId), eq(productVariants.barcode, product.barcode)),
+                  columns: { id: true },
+                })
+              : undefined,
+          ]);
+          const [created] = await tx
+            .insert(productVariants)
+            .values({
+              tenantId: ctx.tenantId,
+              productId: product.id,
+              name: "Default",
+              sku: skuClash ? null : product.sku,
+              barcode: barcodeClash ? null : product.barcode,
+              retailPrice: product.price,
+              averageUnitCost: product.costPrice ?? "0",
+              stockQuantity: Math.max(0, product.stockQuantity).toString(),
+            })
+            .returning({ id: productVariants.id, stockQuantity: productVariants.stockQuantity });
+          if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+          variant = created;
+        }
+
+        await tx
+          .update(products)
+          .set({ stockQuantity: result.newQuantity })
+          .where(and(eq(products.id, product.id), eq(products.tenantId, ctx.tenantId)));
+        await tx
+          .update(productVariants)
+          .set({ stockQuantity: nextVariantStock(variant.stockQuantity, result.delta) })
+          .where(and(eq(productVariants.id, variant.id), eq(productVariants.tenantId, ctx.tenantId)));
+        await tx.insert(inventoryMovements).values({
+          tenantId: ctx.tenantId,
+          productVariantId: variant.id,
+          type: result.movementType,
+          quantityDelta: result.delta.toString(),
+          referenceType: "STOCK_ADJUSTMENT",
+          referenceId: product.id,
+          reason: input.reason?.length ? input.reason : null,
+          createdByUserId: ctx.session.user.id,
+        });
+
+        return { success: true, newQuantity: result.newQuantity, changed: true };
       });
-
-      if (!product) {
-        throw new Error("Product not found");
-      }
-
-      const newQuantity = product.stockQuantity + input.quantity;
-
-      await ctx.db
-        .update(products)
-        .set({ stockQuantity: newQuantity })
-        .where(eq(products.id, input.id));
-
-      return { success: true, newQuantity };
     }),
 
-  bulkCreateProducts: tenantProcedure
+  bulkCreateProducts: managerProcedure
     .input(
       z.object({
         products: z.array(
@@ -648,7 +816,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // --- Product Categories Management ---
 
-  addProductCategories: tenantProcedure
+  addProductCategories: managerProcedure
     .input(
       z.object({
         productId: z.string(),
@@ -682,7 +850,7 @@ export const inventoryRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  removeProductCategory: tenantProcedure
+  removeProductCategory: managerProcedure
     .input(
       z.object({
         productId: z.string(),
@@ -714,7 +882,7 @@ export const inventoryRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  getProductsByCategory: tenantProcedure
+  getProductsByCategory: managerProcedure
     .input(z.object({ categoryId: z.number() }))
     .query(async ({ ctx, input }) => {
       // Get product IDs in this category
@@ -744,7 +912,7 @@ export const inventoryRouter = createTRPCRouter({
       });
     }),
 
-  getDashboardStats: tenantProcedure.query(async ({ ctx }) => {
+  getDashboardStats: managerProcedure.query(async ({ ctx }) => {
     const tenantId = ctx.tenantId;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -768,11 +936,7 @@ export const inventoryRouter = createTRPCRouter({
       .select({ count: sql<number>`count(*)` })
       .from(products)
       .where(
-        and(
-          eq(products.tenantId, tenantId),
-          lte(products.stockQuantity, products.lowStockThreshold ?? 5),
-          sql`${products.stockQuantity} >= 0`, // Exclude unknown quantities
-        ),
+        and(eq(products.tenantId, tenantId), lowStockPredicate()),
       );
 
     // 3a. Confirmed Total Value (only products with known quantities >= 0)
@@ -803,11 +967,11 @@ export const inventoryRouter = createTRPCRouter({
         amount: sql<number>`sum(${orders.totalAmount})`,
       })
       .from(orders)
-      .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, today)));
+      .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql(), gte(orders.createdAt, today)));
 
     // 5. Recent Activity (Orders)
     const recentActivity = await ctx.db.query.orders.findMany({
-      where: eq(orders.tenantId, tenantId),
+      where: and(eq(orders.tenantId, tenantId), countsAsSaleSql()),
       orderBy: desc(orders.createdAt),
       limit: 5,
       with: {
@@ -829,7 +993,7 @@ export const inventoryRouter = createTRPCRouter({
       .innerJoin(products, eq(orderItems.productId, products.id))
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .where(eq(orders.tenantId, tenantId))
+      .where(and(eq(orders.tenantId, tenantId), countsAsSaleSql()))
       .groupBy(orderItems.productId, products.name, categories.name)
       .orderBy(desc(sql`sum(${orderItems.quantity})`))
       .limit(5);
@@ -848,7 +1012,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // --- Duplicate Detection ---
 
-  findSimilarProducts: tenantProcedure
+  findSimilarProducts: managerProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -881,7 +1045,7 @@ export const inventoryRouter = createTRPCRouter({
       return similarProducts;
     }),
 
-  checkDuplicates: tenantProcedure
+  checkDuplicates: managerProcedure
     .input(
       z.object({
         names: z.array(z.string()),
@@ -923,7 +1087,7 @@ export const inventoryRouter = createTRPCRouter({
 
       return duplicates;
     }),
-  checkDuplicatesMutation: tenantProcedure
+  checkDuplicatesMutation: managerProcedure
     .input(
       z.object({
         names: z.array(z.string()),
@@ -965,7 +1129,7 @@ export const inventoryRouter = createTRPCRouter({
 
       return duplicates;
     }),
-  mergeProduct: tenantProcedure
+  mergeProduct: managerProcedure
     .input(
       z.object({
         existingId: z.string(),

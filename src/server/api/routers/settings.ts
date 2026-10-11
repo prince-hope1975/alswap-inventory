@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, tenantProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, staffProcedure, tenantProcedure } from "~/server/api/trpc";
 import { tenants } from "~/server/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { generateColorVariants } from "~/lib/color-utils";
@@ -8,6 +8,15 @@ import { normalizeConfiguredDomain } from "~/lib/domain/tenant-resolution";
 import { encryptString } from "~/server/utils/encryption";
 
 export const settingsRouter = createTRPCRouter({
+  getStaffCurrency: staffProcedure.query(async ({ ctx }) => {
+    const tenant = await ctx.db.query.tenants.findFirst({
+      where: eq(tenants.id, ctx.tenantId),
+      columns: { currency: true },
+    });
+    if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Tenant not found" });
+    return { currency: tenant.currency };
+  }),
+
   getTenantSettings: tenantProcedure.query(async ({ ctx }) => {
     const tenant = await ctx.db.query.tenants.findFirst({
       where: eq(tenants.id, ctx.tenantId),

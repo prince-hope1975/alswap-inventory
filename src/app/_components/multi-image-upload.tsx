@@ -6,15 +6,15 @@ import Cropper from "react-easy-crop";
 import { type Point, type Area } from "react-easy-crop";
 import { uploadImage } from "~/lib/storage";
 import { compressImage } from "~/lib/compress-image";
+import { Dialog } from "~/components/ui/dialog";
+import { btnPrimary, btnSecondary } from "~/components/ui/styles";
 import {
-    Image as ImageIcon,
     Loader2,
     Check,
     X,
     Crop as CropIcon,
     Plus,
     Star,
-    GripVertical,
 } from "lucide-react";
 
 const MAX_IMAGES = 10;
@@ -38,6 +38,8 @@ interface MultiImageUploadProps {
     onBlur?: () => void;
     /** Maximum number of images allowed */
     maxImages?: number;
+    /** Reports whether any image is still uploading (disable form submit meanwhile). */
+    onUploadingChange?: (uploading: boolean) => void;
 }
 
 export function MultiImageUpload({
@@ -45,6 +47,7 @@ export function MultiImageUpload({
     onChange,
     onBlur,
     maxImages = MAX_IMAGES,
+    onUploadingChange,
 }: MultiImageUploadProps) {
     const [images, setImages] = useState<ImageItem[]>([]);
     const [cropState, setCropState] = useState<{
@@ -56,6 +59,14 @@ export function MultiImageUpload({
     } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const anyUploading = images.some((img) => img.isUploading);
+    const onUploadingChangeRef = useRef(onUploadingChange);
+    onUploadingChangeRef.current = onUploadingChange;
+    useEffect(() => {
+        onUploadingChangeRef.current?.(anyUploading);
+    }, [anyUploading]);
+    useEffect(() => () => onUploadingChangeRef.current?.(false), []);
 
     // Initialize images from value prop
     useEffect(() => {
@@ -94,7 +105,7 @@ export function MultiImageUpload({
         new Promise((resolve, reject) => {
             const image = new Image();
             image.addEventListener("load", () => resolve(image));
-            image.addEventListener("error", (error) => reject(error));
+            image.addEventListener("error", () => reject(new Error("Could not load image")));
             image.setAttribute("crossOrigin", "anonymous");
             image.src = url;
         });
@@ -216,7 +227,7 @@ export function MultiImageUpload({
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
-            handleFiles(acceptedFiles);
+            void handleFiles(acceptedFiles);
         },
         [handleFiles]
     );
@@ -262,7 +273,7 @@ export function MultiImageUpload({
     };
 
     const handleCropSave = async () => {
-        if (!cropState || !cropState.croppedAreaPixels) return;
+        if (!cropState?.croppedAreaPixels) return;
 
         const { imageId, imageSrc, croppedAreaPixels } = cropState;
 
@@ -309,22 +320,18 @@ export function MultiImageUpload({
         <div className="w-full" {...getRootProps()}>
             <input {...getInputProps()} ref={fileInputRef} onBlur={onBlur} />
 
-            {/* Crop Modal */}
-            {cropState && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="relative h-[500px] w-full max-w-2xl rounded-lg bg-white shadow-xl dark:bg-gray-800">
-                        <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between rounded-t-lg bg-white p-4 px-6 shadow-sm dark:bg-gray-800">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Crop Image
-                            </h3>
-                            <button
-                                onClick={() => setCropState(null)}
-                                className="rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                                <X className="h-5 w-5 text-gray-500" />
-                            </button>
-                        </div>
-                        <div className="relative h-[380px] w-full bg-black">
+            {/* Crop dialog (portalled, so it sits outside the dropzone and form DOM) */}
+            <Dialog
+                open={!!cropState}
+                onClose={() => setCropState(null)}
+                title="Crop image"
+                closeLabel="Close crop dialog"
+                className="max-w-2xl"
+                bodyClassName="p-0"
+            >
+                {cropState && (
+                    <>
+                        <div className="relative h-[min(380px,55dvh)] w-full bg-black">
                             <Cropper
                                 image={cropState.imageSrc}
                                 crop={cropState.crop}
@@ -343,45 +350,36 @@ export function MultiImageUpload({
                                 }
                             />
                         </div>
-                        <div className="flex items-center justify-between p-4">
-                            <div className="flex w-1/2 items-center gap-2">
-                                <span className="text-sm text-gray-500">Zoom</span>
+                        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                            <label className="flex min-w-40 flex-1 items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                Zoom
                                 <input
                                     type="range"
                                     value={cropState.zoom}
                                     min={1}
                                     max={3}
                                     step={0.1}
-                                    aria-label="Zoom"
                                     onChange={(e) =>
                                         setCropState((prev) =>
                                             prev ? { ...prev, zoom: Number(e.target.value) } : null
                                         )
                                     }
-                                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
+                                    className="h-2 w-full cursor-pointer accent-[var(--brand-primary-600)]"
                                 />
-                            </div>
-                            <div className="flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setCropState(null)}
-                                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                                >
+                            </label>
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => setCropState(null)} className={btnSecondary}>
                                     Cancel
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={handleCropSave}
-                                    className="inline-flex items-center gap-2 rounded-md bg-[var(--brand-primary-600)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--brand-primary-hover)]"
-                                >
-                                    <Check className="h-4 w-4" />
+                                <button type="button" onClick={() => void handleCropSave()} className={btnPrimary}>
+                                    <Check className="h-4 w-4" aria-hidden="true" />
                                     Save
                                 </button>
                             </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    </>
+                )}
+            </Dialog>
 
             {/* Thumbnail Grid */}
             <div
@@ -437,18 +435,18 @@ export function MultiImageUpload({
                                 </div>
                             )}
 
-                            {/* Hover Actions */}
+                            {/* Actions: shown on hover, on keyboard focus, and always on touch screens */}
                             {!image.isUploading && !image.error && (
-                                <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                                <div className="absolute inset-0 flex items-end justify-center gap-1 bg-gradient-to-t from-black/70 to-transparent pb-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
                                     {/* Set Primary */}
                                     {index !== 0 && (
                                         <button
                                             type="button"
                                             onClick={() => handleSetPrimary(image.id)}
-                                            title="Set as primary"
-                                            className="rounded-full bg-white/90 p-1.5 text-gray-700 transition-colors hover:bg-white"
+                                            aria-label={`Make image ${index + 1} the main image`}
+                                            className="rounded-full bg-white/90 p-1.5 text-gray-700 transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
                                         >
-                                            <Star className="h-3.5 w-3.5" />
+                                            <Star className="h-3.5 w-3.5" aria-hidden="true" />
                                         </button>
                                     )}
 
@@ -456,20 +454,20 @@ export function MultiImageUpload({
                                     <button
                                         type="button"
                                         onClick={() => handleStartCrop(image.id, image.url)}
-                                        title="Crop image"
-                                        className="rounded-full bg-white/90 p-1.5 text-gray-700 transition-colors hover:bg-white"
+                                        aria-label={`Crop image ${index + 1}`}
+                                        className="rounded-full bg-white/90 p-1.5 text-gray-700 transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
                                     >
-                                        <CropIcon className="h-3.5 w-3.5" />
+                                        <CropIcon className="h-3.5 w-3.5" aria-hidden="true" />
                                     </button>
 
                                     {/* Remove */}
                                     <button
                                         type="button"
                                         onClick={() => handleRemove(image.id)}
-                                        title="Remove"
-                                        className="rounded-full bg-white/90 p-1.5 text-red-600 transition-colors hover:bg-white"
+                                        aria-label={`Remove image ${index + 1}`}
+                                        className="rounded-full bg-white/90 p-1.5 text-red-600 transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
                                     >
-                                        <X className="h-3.5 w-3.5" />
+                                        <X className="h-3.5 w-3.5" aria-hidden="true" />
                                     </button>
                                 </div>
                             )}
@@ -479,9 +477,10 @@ export function MultiImageUpload({
                                 <button
                                     type="button"
                                     onClick={() => handleRemove(image.id)}
-                                    className="absolute right-1 top-1 rounded-full bg-white p-0.5 shadow-sm"
+                                    aria-label={`Remove failed image ${index + 1}`}
+                                    className="absolute right-1 top-1 rounded-full bg-white p-1 shadow-sm focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none"
                                 >
-                                    <X className="h-3 w-3 text-red-600" />
+                                    <X className="h-3 w-3 text-red-600" aria-hidden="true" />
                                 </button>
                             )}
                         </div>
@@ -492,7 +491,8 @@ export function MultiImageUpload({
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="flex h-20 w-20 flex-shrink-0 flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-[var(--brand-primary-400)] hover:text-[var(--brand-primary-500)] dark:border-gray-600 dark:hover:border-[var(--brand-primary-500)]"
+                            aria-label="Add images"
+                            className="flex h-20 w-20 flex-shrink-0 flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-[var(--brand-primary-400)] hover:text-[var(--brand-primary-500)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none dark:border-gray-600 dark:hover:border-[var(--brand-primary-500)]"
                         >
                             <Plus className="h-6 w-6" />
                             <span className="mt-0.5 text-xs">Add</span>
@@ -504,7 +504,7 @@ export function MultiImageUpload({
                 <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>
                         {images.length === 0
-                            ? "Drag & drop or click to add images"
+                            ? "Drag images here or use Add"
                             : `${images.filter((i) => !i.error).length}/${maxImages} images`}
                         {images.length > 0 &&
                             images.length < RECOMMENDED_IMAGES &&
@@ -512,8 +512,8 @@ export function MultiImageUpload({
                     </span>
                     {images.length > 0 && (
                         <span className="flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-[var(--brand-primary-500)] text-[var(--brand-primary-500)]" />
-                            = Primary
+                            <Star className="h-3 w-3 fill-[var(--brand-primary-500)] text-[var(--brand-primary-500)]" aria-hidden="true" />
+                            Main image
                         </span>
                     )}
                 </div>
