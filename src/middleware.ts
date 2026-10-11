@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import NextAuth from "next-auth";
 import { authConfig } from "~/server/auth/auth.config";
-import { resolveSurfaceRoute, type SurfaceLabel } from "~/lib/seo/host";
+import {
+  resolveSurfaceRoute,
+  shopEntryHref,
+  surfaceLabelFromHost,
+  type SurfaceLabel,
+} from "~/lib/seo/host";
 
 const { auth } = NextAuth(authConfig);
 
@@ -75,6 +80,20 @@ export default auth((req) => {
   const rawHost =
     req.headers.get("x-forwarded-host") ?? req.headers.get("host");
 
+  const shopHref = shopEntryHref(
+    rawHost,
+    process.env.NODE_ENV === "production",
+  );
+  if (
+    req.nextUrl.pathname === "/shop" &&
+    shopHref !== "/shop" &&
+    surfaceLabelFromHost(rawHost) !== "shop"
+  ) {
+    const target = new URL(shopHref);
+    target.search = req.nextUrl.search;
+    return NextResponse.redirect(target, 307);
+  }
+
   // 1. Resolve the surface and *compute* — but do not yet apply — the route it
   //    maps to. Returning a rewrite here would skip the auth check below and
   //    make /inventory anonymously reachable on app.<root>. The role gates
@@ -128,7 +147,11 @@ export default auth((req) => {
   }
 
   // Allow public routes
-  if (publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
+  if (
+    publicRoutes.some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`),
+    )
+  ) {
     return proceed();
   }
 
@@ -151,10 +174,16 @@ export default auth((req) => {
   const cashierRoutes = ["/pos", "/sales", "/inventory/customers"];
   const managerBlockedRoutes = ["/inventory/settings", "/inventory/users"];
 
-  if (role === "CASHIER" && !cashierRoutes.some((route) => pathname.startsWith(route))) {
+  if (
+    role === "CASHIER" &&
+    !cashierRoutes.some((route) => pathname.startsWith(route))
+  ) {
     return rejectTo("/pos");
   }
-  if (role === "MANAGER" && managerBlockedRoutes.some((route) => pathname.startsWith(route))) {
+  if (
+    role === "MANAGER" &&
+    managerBlockedRoutes.some((route) => pathname.startsWith(route))
+  ) {
     return rejectTo("/inventory");
   }
   // A signed-in USER has no back-office access; on app. send them to the

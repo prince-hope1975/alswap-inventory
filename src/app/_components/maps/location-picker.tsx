@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { ensureLeafletMarkerIcons } from "./leaflet-setup";
 
@@ -17,7 +23,11 @@ type NominatimResult = {
   lon: string;
 };
 
-function ClickToSetMarker({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+function ClickToSetMarker({
+  onPick,
+}: {
+  onPick: (lat: number, lng: number) => void;
+}) {
   useMapEvents({
     click(e) {
       onPick(e.latlng.lat, e.latlng.lng);
@@ -61,7 +71,10 @@ export function LocationPicker({
     return [defaultCenter.lat, defaultCenter.lng];
   }, [defaultCenter.lat, defaultCenter.lng, value?.lat, value?.lng]);
 
-  async function reverseGeocode(lat: number, lng: number): Promise<string | undefined> {
+  async function reverseGeocode(
+    lat: number,
+    lng: number,
+  ): Promise<string | undefined> {
     try {
       const url = new URL("https://nominatim.openstreetmap.org/reverse");
       url.searchParams.set("format", "jsonv2");
@@ -106,9 +119,13 @@ export function LocationPicker({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">{label}</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            {label}
+          </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            {readOnly ? "This is the store location." : "Search for a place or click on the map to set the pickup point."}
+            {readOnly
+              ? "This is the store location."
+              : "Search for a place or click on the map to set the pickup point."}
           </p>
         </div>
       </div>
@@ -164,17 +181,21 @@ export function LocationPicker({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {!readOnly && <ClickToSetMarker onPick={(lat, lng) => void pick(lat, lng)} />}
+          {!readOnly && (
+            <ClickToSetMarker onPick={(lat, lng) => void pick(lat, lng)} />
+          )}
           {value?.lat != null && value?.lng != null && (
             <Marker position={[value.lat, value.lng]} />
           )}
         </MapContainer>
       </div>
 
-      {value?.address && (
+      {!readOnly && value?.address && (
         <div className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
           <div className="font-medium">Selected address</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{value.address}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {value.address}
+          </div>
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             Lat/Lng: {value.lat.toFixed(6)}, {value.lng.toFixed(6)}
           </div>

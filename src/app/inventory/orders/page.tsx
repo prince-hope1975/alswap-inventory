@@ -1,7 +1,15 @@
 "use client";
 
+import { reservationDeadline } from "~/lib/domain/pickup-reservation";
 import { cn } from "~/lib/utils";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   isAwaitingOnlinePayment,
@@ -9,7 +17,12 @@ import {
   orderStatusLabel,
   stockEffectOfStatusChange,
 } from "~/lib/domain/order-status";
-import { DELIVERY_LABEL, ORDER_STATUS_LABEL, PAYMENT_LABEL, enumLabel as label } from "~/lib/domain/order-labels";
+import {
+  DELIVERY_LABEL,
+  ORDER_STATUS_LABEL,
+  PAYMENT_LABEL,
+  enumLabel as label,
+} from "~/lib/domain/order-labels";
 import { api } from "~/trpc/react";
 import { useCurrency } from "~/hooks/use-tenant-settings";
 import { CheckCircle, Search } from "lucide-react";
@@ -18,21 +31,41 @@ import { Dialog } from "~/components/ui/dialog";
 import { useConfirm } from "~/components/ui/confirm-dialog";
 import { LoadError } from "~/components/ui/load-error";
 import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
-import { btnDanger, btnSecondary, inputCls, labelCls, rowFocus } from "~/components/ui/styles";
+import {
+  btnDanger,
+  btnSecondary,
+  inputCls,
+  labelCls,
+  rowFocus,
+} from "~/components/ui/styles";
 
 type OrderStatus = "PENDING" | "COMPLETED" | "CANCELLED";
 type StatusFilter = OrderStatus | "AWAITING_PAYMENT";
 type DeliveryMethod = "PICKUP" | "DELIVERY";
 
-const STATUS_FILTERS: readonly StatusFilter[] = ["PENDING", "COMPLETED", "CANCELLED", "AWAITING_PAYMENT"];
+const STATUS_FILTERS: readonly StatusFilter[] = [
+  "PENDING",
+  "COMPLETED",
+  "CANCELLED",
+  "AWAITING_PAYMENT",
+];
 const DELIVERY_FILTERS: readonly DeliveryMethod[] = ["PICKUP", "DELIVERY"];
 const STATUS_LABEL = ORDER_STATUS_LABEL;
 
-function pick<T extends string>(value: string | null, allowed: readonly T[]): T | undefined {
+function pick<T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+): T | undefined {
   return allowed.includes(value as T) ? (value as T) : undefined;
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: "gray" | "green" | "yellow" | "red" | "blue" }) {
+function Badge({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone: "gray" | "green" | "yellow" | "red" | "blue";
+}) {
   const toneCls =
     tone === "green"
       ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
@@ -45,7 +78,9 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "gray" | "
             : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200";
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${toneCls}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${toneCls}`}
+    >
       {children}
     </span>
   );
@@ -63,7 +98,8 @@ export default function OrdersPage() {
   // Filters, search and the open order all live in the URL so they survive
   // reloads and can be shared (e.g. ?order=<id> from a notification).
   const status = pick(searchParams.get("status"), STATUS_FILTERS) ?? "ALL";
-  const deliveryMethod = pick(searchParams.get("delivery"), DELIVERY_FILTERS) ?? "ALL";
+  const deliveryMethod =
+    pick(searchParams.get("delivery"), DELIVERY_FILTERS) ?? "ALL";
   const urlSearch = searchParams.get("q") ?? "";
   const selectedId = searchParams.get("order");
 
@@ -80,7 +116,9 @@ export default function OrdersPage() {
         else params.delete(key);
       }
       const qs = params.toString();
-      startTransition(() => router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false }));
+      startTransition(() =>
+        router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false }),
+      );
     },
     [pathname, router],
   );
@@ -88,14 +126,20 @@ export default function OrdersPage() {
   useEffect(() => {
     if (document.activeElement !== searchRef.current) setSearchText(urlSearch);
   }, [urlSearch]);
-  useEffect(() => () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    },
+    [],
+  );
 
   const onSearchChange = (value: string) => {
     setSearchText(value);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setParams({ q: value.trim() || null }), 300);
+    timeoutRef.current = setTimeout(
+      () => setParams({ q: value.trim() || null }),
+      300,
+    );
   };
 
   const setSelectedId = (id: string | null) => setParams({ order: id });
@@ -117,7 +161,9 @@ export default function OrdersPage() {
 
   const updateStatus = api.orders.updateStatus.useMutation({
     onSuccess: async (_r, vars) => {
-      toast.success(`Order marked ${label(STATUS_LABEL, vars.status).toLowerCase()}`);
+      toast.success(
+        `Order marked ${label(STATUS_LABEL, vars.status).toLowerCase()}`,
+      );
       await utils.orders.list.invalidate();
       if (selectedId) await utils.orders.get.invalidate({ id: selectedId });
     },
@@ -125,9 +171,12 @@ export default function OrdersPage() {
   });
   const filtered = status !== "ALL" || deliveryMethod !== "ALL" || !!urlSearch;
 
-  async function cancelOrder(order: Parameters<typeof stockEffectOfStatusChange>[0] & { id: string }) {
+  async function cancelOrder(
+    order: Parameters<typeof stockEffectOfStatusChange>[0] & { id: string },
+  ) {
     const id = order.id;
-    const restocks = stockEffectOfStatusChange(order, "CANCELLED") === "restore";
+    const restocks =
+      stockEffectOfStatusChange(order, "CANCELLED") === "restore";
     const ok = await confirm({
       title: `Cancel order #${id.slice(0, 8)}?`,
       message: `${restocks ? "Its items go back into stock. " : ""}The customer is not notified automatically.`,
@@ -138,9 +187,15 @@ export default function OrdersPage() {
     if (ok) updateStatus.mutate({ id, status: "CANCELLED" });
   }
 
-  const orders = useMemo(() => list.data?.pages.flatMap((p) => p.items) ?? [], [list.data]);
+  const orders = useMemo(
+    () => list.data?.pages.flatMap((p) => p.items) ?? [],
+    [list.data],
+  );
 
-  function isPaid(o: { status: string; paymentMethod: string | null | undefined }) {
+  function isPaid(o: {
+    status: string;
+    paymentMethod: string | null | undefined;
+  }) {
     if (o.paymentMethod === "PAYSTACK") return o.status === "COMPLETED";
     return o.status === "COMPLETED";
   }
@@ -156,21 +211,29 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Orders</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+            Orders
+          </h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">
-            View storefront and POS orders, payment status, delivery/pickup, and customer details.
+            View storefront and POS orders, payment status, delivery/pickup, and
+            customer details.
           </p>
         </div>
-
       </div>
 
       <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-[1fr_auto_auto] dark:border-gray-700 dark:bg-gray-800">
         <div>
-          <label htmlFor="orders-search" className={cn(labelCls, "mb-1 text-xs")}>
+          <label
+            htmlFor="orders-search"
+            className={cn(labelCls, "mb-1 text-xs")}
+          >
             Search
           </label>
           <div className="relative">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+            <Search
+              className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+              aria-hidden="true"
+            />
             <input
               ref={searchRef}
               id="orders-search"
@@ -184,13 +247,21 @@ export default function OrdersPage() {
           </div>
         </div>
         <div>
-          <label htmlFor="orders-status" className={cn(labelCls, "mb-1 text-xs")}>
+          <label
+            htmlFor="orders-status"
+            className={cn(labelCls, "mb-1 text-xs")}
+          >
             Status
           </label>
           <select
             id="orders-status"
             value={status}
-            onChange={(e) => setParams({ status: e.target.value === "ALL" ? null : e.target.value, order: null })}
+            onChange={(e) =>
+              setParams({
+                status: e.target.value === "ALL" ? null : e.target.value,
+                order: null,
+              })
+            }
             className={inputCls}
           >
             <option value="ALL">All</option>
@@ -201,13 +272,21 @@ export default function OrdersPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="orders-delivery" className={cn(labelCls, "mb-1 text-xs")}>
+          <label
+            htmlFor="orders-delivery"
+            className={cn(labelCls, "mb-1 text-xs")}
+          >
             Delivery
           </label>
           <select
             id="orders-delivery"
             value={deliveryMethod}
-            onChange={(e) => setParams({ delivery: e.target.value === "ALL" ? null : e.target.value, order: null })}
+            onChange={(e) =>
+              setParams({
+                delivery: e.target.value === "ALL" ? null : e.target.value,
+                order: null,
+              })
+            }
             className={inputCls}
           >
             <option value="ALL">All</option>
@@ -232,7 +311,9 @@ export default function OrdersPage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-800">
           {filtered ? (
             <>
-              <p className="font-semibold text-gray-900 dark:text-white">No orders match</p>
+              <p className="font-semibold text-gray-900 dark:text-white">
+                No orders match
+              </p>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Try a different search, status or delivery filter.
               </p>
@@ -249,7 +330,9 @@ export default function OrdersPage() {
             </>
           ) : (
             <>
-              <p className="font-semibold text-gray-900 dark:text-white">No orders yet</p>
+              <p className="font-semibold text-gray-900 dark:text-white">
+                No orders yet
+              </p>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Orders will appear here after checkout or POS sales.
               </p>
@@ -262,19 +345,34 @@ export default function OrdersPage() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900/30">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Order</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Delivery</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Payment</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Order
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Customer
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Delivery
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Payment
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Total
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Date
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {orders.map((o) => {
                   const custName = o.customer?.name ?? o.customerName ?? "—";
                   const custEmail = o.customer?.email ?? o.customerEmail ?? "";
-                  const paid = isPaid({ status: o.status, paymentMethod: o.paymentMethod });
+                  const paid = isPaid({
+                    status: o.status,
+                    paymentMethod: o.paymentMethod,
+                  });
 
                   return (
                     <tr
@@ -295,20 +393,38 @@ export default function OrdersPage() {
                           <div className="text-sm font-semibold text-gray-900 dark:text-white">
                             #{o.id.slice(0, 8)}
                           </div>
-                          <Badge tone={statusTone(o)}>{orderStatusLabel(o)}</Badge>
+                          <Badge tone={statusTone(o)}>
+                            {orderStatusLabel(o)}
+                          </Badge>
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white">{custName}</div>
-                        {custEmail && <div className="text-xs text-gray-500 dark:text-gray-400">{custEmail}</div>}
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {custName}
+                        </div>
+                        {custEmail && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {custEmail}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-4">
-                        <Badge tone={o.deliveryMethod === "DELIVERY" ? "blue" : "gray"}>{label(DELIVERY_LABEL, o.deliveryMethod)}</Badge>
+                        <Badge
+                          tone={
+                            o.deliveryMethod === "DELIVERY" ? "blue" : "gray"
+                          }
+                        >
+                          {label(DELIVERY_LABEL, o.deliveryMethod)}
+                        </Badge>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col gap-2">
-                          <Badge tone={paid ? "green" : "yellow"}>{paid ? "Paid" : "Unpaid"}</Badge>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{label(PAYMENT_LABEL, o.paymentMethod)}</div>
+                          <Badge tone={paid ? "green" : "yellow"}>
+                            {paid ? "Paid" : "Unpaid"}
+                          </Badge>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {label(PAYMENT_LABEL, o.paymentMethod)}
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-sm font-semibold text-gray-900 dark:text-white">
@@ -343,14 +459,22 @@ export default function OrdersPage() {
         onClose={() => setSelectedId(null)}
         variant="right"
         title={selectedId ? `Order #${selectedId.slice(0, 8)}` : "Order"}
-        description={selected.data ? new Date(selected.data.createdAt).toLocaleString() : undefined}
+        description={
+          selected.data
+            ? new Date(selected.data.createdAt).toLocaleString()
+            : undefined
+        }
         closeLabel="Close order details"
         bodyClassName="p-0"
       >
         {selectedId && (
           <>
             {selected.isLoading ? (
-              <div role="status" aria-label="Loading order" className="space-y-4 p-6">
+              <div
+                role="status"
+                aria-label="Loading order"
+                className="space-y-4 p-6"
+              >
                 <Skeleton className="h-6 w-1/3" />
                 <Skeleton className="h-24 w-full rounded-xl" />
                 <Skeleton className="h-24 w-full rounded-xl" />
@@ -365,52 +489,107 @@ export default function OrdersPage() {
                 />
               </div>
             ) : !selected.data ? (
-              <div className="p-6 text-sm text-gray-600 dark:text-gray-300">Order not found.</div>
+              <div className="p-6 text-sm text-gray-600 dark:text-gray-300">
+                Order not found.
+              </div>
             ) : (
               <div className="space-y-6 p-6">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">Status</div>
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                      Status
+                    </div>
                     <div className="mt-1">
                       <Badge tone={statusTone(selected.data)}>
-                        {orderStatusLabel(selected.data)}
+                        {selected.data.cancellationReason ===
+                        "RESERVATION_EXPIRED"
+                          ? "Expired"
+                          : orderStatusLabel(selected.data)}
                       </Badge>
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">Paid</div>
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                      Paid
+                    </div>
                     <div className="mt-1">
                       <Badge
-                        tone={isPaid({ status: selected.data.status, paymentMethod: selected.data.paymentMethod }) ? "green" : "yellow"}
+                        tone={
+                          isPaid({
+                            status: selected.data.status,
+                            paymentMethod: selected.data.paymentMethod,
+                          })
+                            ? "green"
+                            : "yellow"
+                        }
                       >
-                        {isPaid({ status: selected.data.status, paymentMethod: selected.data.paymentMethod }) ? "Paid" : "Unpaid"}
+                        {isPaid({
+                          status: selected.data.status,
+                          paymentMethod: selected.data.paymentMethod,
+                        })
+                          ? "Paid"
+                          : "Unpaid"}
                       </Badge>
                     </div>
                   </div>
                 </div>
 
+                {selected.data.expiresAt &&
+                  selected.data.paymentMethod === "PAY_ON_PICKUP" && (
+                    <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                      {selected.data.cancellationReason ===
+                      "RESERVATION_EXPIRED"
+                        ? "Reservation expired; stock released. Deadline: "
+                        : selected.data.status === "PENDING"
+                          ? "Collect by "
+                          : "Reservation deadline: "}
+                      {reservationDeadline(selected.data.expiresAt)}
+                    </p>
+                  )}
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/30">
-                  <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Customer</div>
+                  <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Customer
+                  </div>
                   <div className="text-sm text-gray-700 dark:text-gray-200">
-                    {selected.data.customer?.name ?? selected.data.customerName ?? "—"}
+                    {selected.data.customer?.name ??
+                      selected.data.customerName ??
+                      "—"}
                   </div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {selected.data.customer?.email ?? selected.data.customerEmail ?? ""}
+                    {selected.data.customer?.email ??
+                      selected.data.customerEmail ??
+                      ""}
                   </div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {selected.data.customer?.phone ?? selected.data.customerPhone ?? ""}
+                    {selected.data.customer?.phone ??
+                      selected.data.customerPhone ??
+                      ""}
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/30">
-                  <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Delivery</div>
+                  <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    Delivery
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={selected.data.deliveryMethod === "DELIVERY" ? "blue" : "gray"}>
-                      {label(DELIVERY_LABEL, selected.data.deliveryMethod as string)}
+                    <Badge
+                      tone={
+                        selected.data.deliveryMethod === "DELIVERY"
+                          ? "blue"
+                          : "gray"
+                      }
+                    >
+                      {label(
+                        DELIVERY_LABEL,
+                        selected.data.deliveryMethod as string,
+                      )}
                     </Badge>
-                    {selected.data.deliveryMethod === "DELIVERY" && selected.data.deliveryFee && (
-                      <Badge tone="gray">Fee: {formatCurrency(selected.data.deliveryFee)}</Badge>
-                    )}
+                    {selected.data.deliveryMethod === "DELIVERY" &&
+                      selected.data.deliveryFee && (
+                        <Badge tone="gray">
+                          Fee: {formatCurrency(selected.data.deliveryFee)}
+                        </Badge>
+                      )}
                   </div>
                   {selected.data.deliveryAddress && (
                     <div className="mt-2 text-sm text-gray-700 dark:text-gray-200">
@@ -421,14 +600,19 @@ export default function OrdersPage() {
 
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/30">
                   <div className="mb-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-white">Items</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Items
+                    </div>
                     <div className="text-sm font-bold text-gray-900 dark:text-white">
                       {formatCurrency(selected.data.totalAmount)}
                     </div>
                   </div>
                   <div className="space-y-2">
                     {selected.data.items.map((it) => (
-                      <div key={it.id} className="flex items-center justify-between text-sm">
+                      <div
+                        key={it.id}
+                        className="flex items-center justify-between text-sm"
+                      >
                         <div className="text-gray-800 dark:text-gray-200">
                           {it.product?.name ?? it.productId} × {it.quantity}
                         </div>
@@ -441,28 +625,56 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                  <div className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Actions</div>
+                  <div className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+                    Actions
+                  </div>
                   {isAwaitingOnlinePayment(selected.data) && (
                     <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
-                      The customer started a Paystack checkout but no payment has been confirmed. It completes
-                      automatically when Paystack confirms. Cancel it if the checkout was abandoned.
+                      The customer started a Paystack checkout but no payment
+                      has been confirmed. It completes automatically when
+                      Paystack confirms. Cancel it if the checkout was
+                      abandoned.
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => updateStatus.mutate({ id: selected.data!.id, status: "PENDING" })}
-                      disabled={updateStatus.isPending || selected.data.status === "PENDING" || !!manualStatusChangeError(selected.data, "PENDING")}
-                      title={manualStatusChangeError(selected.data, "PENDING") ?? undefined}
+                      onClick={() =>
+                        updateStatus.mutate({
+                          id: selected.data!.id,
+                          status: "PENDING",
+                        })
+                      }
+                      disabled={
+                        updateStatus.isPending ||
+                        selected.data.status === "PENDING" ||
+                        !!manualStatusChangeError(selected.data, "PENDING")
+                      }
+                      title={
+                        manualStatusChangeError(selected.data, "PENDING") ??
+                        undefined
+                      }
                       className={btnSecondary}
                     >
                       Set pending
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateStatus.mutate({ id: selected.data!.id, status: "COMPLETED" })}
-                      disabled={updateStatus.isPending || selected.data.status === "COMPLETED" || !!manualStatusChangeError(selected.data, "COMPLETED")}
-                      title={manualStatusChangeError(selected.data, "COMPLETED") ?? undefined}
+                      onClick={() =>
+                        updateStatus.mutate({
+                          id: selected.data!.id,
+                          status: "COMPLETED",
+                        })
+                      }
+                      disabled={
+                        updateStatus.isPending ||
+                        selected.data.status === "COMPLETED" ||
+                        !!manualStatusChangeError(selected.data, "COMPLETED")
+                      }
+                      title={
+                        manualStatusChangeError(selected.data, "COMPLETED") ??
+                        undefined
+                      }
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-500 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-focus)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <CheckCircle className="h-4 w-4" aria-hidden="true" />
@@ -471,7 +683,10 @@ export default function OrdersPage() {
                     <button
                       type="button"
                       onClick={() => void cancelOrder(selected.data!)}
-                      disabled={updateStatus.isPending || selected.data.status === "CANCELLED"}
+                      disabled={
+                        updateStatus.isPending ||
+                        selected.data.status === "CANCELLED"
+                      }
                       className={btnDanger}
                     >
                       Cancel order
@@ -486,6 +701,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-
-

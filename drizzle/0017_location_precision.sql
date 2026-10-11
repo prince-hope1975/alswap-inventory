@@ -1,0 +1,2 @@
+ALTER TABLE "alswap-inventory_tenant" ALTER COLUMN "latitude" SET DATA TYPE numeric(10, 7);--> statement-breakpoint
+ALTER TABLE "alswap-inventory_tenant" ALTER COLUMN "longitude" SET DATA TYPE numeric(10, 7);

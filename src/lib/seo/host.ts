@@ -62,7 +62,10 @@ export function surfaceLabelFromHost(
  * Where a surface sends its bare root path. `null` means "leave the route tree
  * alone" — every surface serves the same routes, only `/` differs.
  */
-const SURFACE_ROOT_ROUTE: Record<SurfaceLabel, { pathname: string; params?: Record<string, string> }> = {
+const SURFACE_ROOT_ROUTE: Record<
+  SurfaceLabel,
+  { pathname: string; params?: Record<string, string> }
+> = {
   shop: { pathname: "/shop" },
   solar: { pathname: "/solar" },
   used: { pathname: "/shop", params: { condition: "USED,REFURBISHED" } },
@@ -120,7 +123,12 @@ export function resolveSurfaceRoute(
  * Port from a raw Host header value, preserved only for local development.
  */
 export function portFromRawHost(rawHost: string | null | undefined) {
-  return rawHost?.split(",")[0]?.trim().match(/:(\d+)$/)?.[1] ?? null;
+  return (
+    rawHost
+      ?.split(",")[0]
+      ?.trim()
+      .match(/:(\d+)$/)?.[1] ?? null
+  );
 }
 
 /**
@@ -179,4 +187,16 @@ export function homeBaseUrlFromHost(
   const root = registrableRootFromHost(rawHost);
   if (!root) return "http://localhost:3000";
   return baseUrlFromHost(isLocalHost(root) ? root : `www.${root}`, port);
+}
+
+/** Public shop entry; preview and local hosts keep their relative route. */
+export function shopEntryHref(
+  rawHost: string | null | undefined,
+  production: boolean,
+  subdomain = "shop",
+) {
+  const root = registrableRootFromHost(rawHost);
+  if (!production || !root || isLocalHost(root) || root.endsWith(".vercel.app"))
+    return "/shop";
+  return `${commerceBaseUrlFromHost(rawHost, subdomain)}/`;
 }

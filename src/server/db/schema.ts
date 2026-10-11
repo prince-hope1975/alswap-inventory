@@ -107,8 +107,8 @@ export const tenants = createTable(
     currency: d.varchar("currency", { length: 10 }).default("₦"),
     location: d.varchar("location", { length: 255 }),
     address: d.text(),
-    latitude: decimal("latitude", { precision: 10, scale: 6 }),
-    longitude: decimal("longitude", { precision: 10, scale: 6 }),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
     phone: d.varchar({ length: 50 }),
     paystackPublicKey: d.text("paystack_public_key"),
     // Encrypted-at-rest (application-layer encryption)
@@ -685,10 +685,13 @@ export const orders = createTable(
     // is created PENDING with this reference before the shopper pays, and the
     // verify/webhook finalizer looks it up to complete it exactly once.
     paymentReference: d.varchar("payment_reference", { length: 100 }),
+    expiresAt: d.timestamp("expires_at", { withTimezone: true }),
+    cancellationReason: d.varchar("cancellation_reason", { length: 50 }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [
     index("order_tenant_idx").on(t.tenantId),
+    index("order_expiry_idx").on(t.paymentMethod, t.status, t.expiresAt),
     uniqueIndex("order_tenant_client_id_idx").on(t.tenantId, t.clientOrderId),
     uniqueIndex("order_tenant_payment_ref_idx").on(
       t.tenantId,
@@ -989,7 +992,11 @@ export const searchQueryDaily = createTable(
     updatedAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [
-    uniqueIndex("search_query_daily_tenant_term_day_idx").on(t.tenantId, t.term, t.day),
+    uniqueIndex("search_query_daily_tenant_term_day_idx").on(
+      t.tenantId,
+      t.term,
+      t.day,
+    ),
     index("search_query_daily_tenant_day_idx").on(t.tenantId, t.day),
   ],
 );
@@ -1012,7 +1019,12 @@ export const trendTerms = createTable(
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (t) => [
-    uniqueIndex("trend_term_tenant_term_geo_kind_idx").on(t.tenantId, t.term, t.geo, t.kind),
+    uniqueIndex("trend_term_tenant_term_geo_kind_idx").on(
+      t.tenantId,
+      t.term,
+      t.geo,
+      t.kind,
+    ),
   ],
 );
 
@@ -1038,7 +1050,10 @@ export const trendSnapshots = createTable(
       top: { query: string; value: number }[];
       rising: { query: string; value: string }[];
     }>(),
-    fetchedAt: d.timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+    fetchedAt: d
+      .timestamp("fetched_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   }),
   (t) => [index("trend_snapshot_term_fetched_idx").on(t.termId, t.fetchedAt)],
 );
@@ -1058,7 +1073,10 @@ export const trendRuns = createTable(
     termsUpdated: d.integer("terms_updated").notNull().default(0),
     error: d.text(),
     startedAt: d.timestamp("started_at", { withTimezone: true }).notNull(),
-    finishedAt: d.timestamp("finished_at", { withTimezone: true }).defaultNow().notNull(),
+    finishedAt: d
+      .timestamp("finished_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   }),
   (t) => [index("trend_run_tenant_started_idx").on(t.tenantId, t.startedAt)],
 );

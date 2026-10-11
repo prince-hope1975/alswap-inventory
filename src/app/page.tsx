@@ -1,3 +1,4 @@
+import { shopEntryHref } from "~/lib/seo/host";
 import type { Metadata } from "next";
 
 import { ElectricalHome } from "./_components/home/electrical-home";
@@ -51,6 +52,7 @@ export default async function Home() {
       <JsonLd data={organizationJsonLd} />
       <JsonLd data={websiteJsonLd} />
       <ElectricalHome
+        shopHref={shopEntryHref(rawHost, process.env.NODE_ENV === "production")}
         tenant={{
           name: tenant.name,
           phone: tenant.phone,

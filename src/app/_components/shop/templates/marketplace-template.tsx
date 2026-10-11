@@ -1,44 +1,26 @@
 "use client";
 
+import type { StoreTemplateProps } from "./modern-template";
+import { TemplateBrowseControls } from "../parts/template-browse-controls";
+
 import { useState } from "react";
-import { type RouterOutputs } from "~/trpc/react";
+import type { RouterOutputs } from "~/trpc/react";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
-import type { StoreConfig } from "~/types/store-config";
-import { ShoppingBag, Star, Zap, Flame } from "lucide-react";
+import { ShoppingBag, Star, Zap } from "lucide-react";
 import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { ProductDetailModal } from "../parts/product-detail-modal";
-import { ShopFilters, type SortOption } from "../parts/shop-filters";
+import { ShopFilters } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StockBadge } from "../parts/stock-badge";
 import { MarketplaceHeroCarousel } from "../parts/marketplace-hero-carousel";
 import { StorefrontImage } from "../storefront-image";
 
-type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"]["items"];
-type Categories = RouterOutputs["shop"]["getCategories"];
 type Product = Products[number];
 
-interface MarketplaceTemplateProps {
-    shopDetails: ShopDetails | undefined;
-    products: Products | undefined;
-    categories: Categories | undefined;
-    isLoading: boolean;
-    search: string;
-    setSearch: (value: string) => void;
-    selectedCategory: number | undefined;
-    setSelectedCategory: (id: number | undefined) => void;
-    sortBy: SortOption;
-    setSortBy: (value: SortOption) => void;
-    priceRange: [number, number];
-    setPriceRange: (value: [number, number]) => void;
-    inStockOnly: boolean;
-    setInStockOnly: (value: boolean) => void;
-    onClearFilters: () => void;
-    config: StoreConfig;
-}
-
-export function MarketplaceTemplate({
+export function MarketplaceTemplate(props: StoreTemplateProps) {
+  const {
     shopDetails,
     products,
     categories,
@@ -55,191 +37,238 @@ export function MarketplaceTemplate({
     setInStockOnly,
     onClearFilters,
     config,
-}: MarketplaceTemplateProps) {
-    const tenant = shopDetails?.tenant;
-    const { addItem } = useCart();
-    const { formatCurrency } = useShopCurrency();
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-    return (
-        <div className="min-h-screen bg-[#f1f1f2] dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans">
-            {/* Marketplace Navbar - Bright Brand Color */}
-            <ShopNavbar
-                tenant={tenant}
-                search={search}
-                setSearch={setSearch}
-                className="!bg-[var(--brand-primary-600)] !backdrop-blur-none !border-none !text-white shadow-md mb-4"
-            />
+    maxPrice,
+    isPriceFiltered,
+    hasSearch,
+  } = props;
+  const tenant = shopDetails?.tenant;
+  const { addItem } = useCart();
+  const { formatCurrency } = useShopCurrency();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-            <main className="container mx-auto px-4 pt-24 pb-12">
-                {/* Marketplace Hero Layout: Left Menu | Slider | Right Promo */}
-                {config.showHero && (
-                    <div className="flex gap-4 mb-6 h-[380px]">
-                        {/* Left Menu - Categories and Filters */}
-                        <div className="hidden lg:block w-52 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-y-auto">
-                            <div className="p-3 border-b dark:border-gray-700 flex items-center gap-2 font-medium">
-                                <ShoppingBag size={18} /> Categories
-                            </div>
-                            <div className="py-2">
-                                <button
-                                    onClick={() => setSelectedCategory(undefined)}
-                                    className={`text-left w-full px-4 py-2 text-xs hover:text-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-50)] dark:hover:bg-gray-700 ${selectedCategory === undefined ? 'text-[var(--brand-primary-600)] font-bold' : ''}`}
-                                >
-                                    All Categories
-                                </button>
-                                {categories?.map(c => (
-                                    <button
-                                        key={c.id}
-                                        onClick={() => setSelectedCategory(c.id)}
-                                        className={`text-left w-full px-4 py-2 text-xs hover:text-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-50)] dark:hover:bg-gray-700 truncate ${selectedCategory === c.id ? 'text-[var(--brand-primary-600)] font-bold' : ''}`}
-                                    >
-                                        {c.name}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="border-t dark:border-gray-700 mt-2">
-                                <ShopFilters
-                                    sortBy={sortBy}
-                                    setSortBy={setSortBy}
-                                    priceRange={priceRange}
-                                    setPriceRange={setPriceRange}
-                                    inStockOnly={inStockOnly}
-                                    setInStockOnly={setInStockOnly}
-                                    onClearFilters={onClearFilters}
-                                />
-                            </div>
-                        </div>
+  return (
+    <div className="min-h-screen bg-[#f1f1f2] font-sans text-gray-800 dark:bg-gray-900 dark:text-gray-100">
+      {/* Marketplace Navbar - Bright Brand Color */}
+      <ShopNavbar
+        tenant={tenant}
+        search={search}
+        setSearch={setSearch}
+        className="mb-4 !border-none !bg-[var(--brand-primary-600)] !text-white shadow-md !backdrop-blur-none"
+      />
 
-                        {/* Middle - Hero Carousel */}
-                        <div className="flex-1 rounded-lg overflow-hidden">
-                            <MarketplaceHeroCarousel
-                                slides={[
-                                    {
-                                        title: config.heroTitle || "Official Store",
-                                        description: config.heroDescription || "Get the best deals on electronics, fashion, and more. Fast delivery nationwide.",
-                                        image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2070",
-                                        ctaText: "Shop Now",
-                                        ctaAction: () => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' }),
-                                    },
-                                    {
-                                        title: "New Arrivals",
-                                        description: "Check out the latest products added to our store.",
-                                        image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=2070",
-                                        ctaText: "Browse New",
-                                        ctaAction: () => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' }),
-                                    },
-                                    {
-                                        title: "Quality Guaranteed",
-                                        description: "All products are carefully selected and quality checked.",
-                                        image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80&w=2070",
-                                        ctaText: "Learn More",
-                                        ctaAction: () => document.getElementById('marketplace-products')?.scrollIntoView({ behavior: 'smooth' }),
-                                    },
-                                ]}
-                            />
-                        </div>
-
-                        {/* Right - Promo Boxes */}
-                        <div className="hidden xl:flex w-52 flex-col gap-4">
-                            <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col items-center justify-center text-center">
-                                <div className="w-10 h-10 rounded-full bg-[var(--brand-primary-50)] text-[var(--brand-primary-600)] flex items-center justify-center mb-2">
-                                    <Zap size={20} />
-                                </div>
-                                <h4 className="font-bold text-sm uppercase">Flash Sales</h4>
-                                <p className="text-xs text-gray-500 mt-1">Every Friday</p>
-                            </div>
-                            <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col items-center justify-center text-center">
-                                <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center mb-2">
-                                    <Star size={20} />
-                                </div>
-                                <h4 className="font-bold text-sm uppercase">Best Sellers</h4>
-                                <p className="text-xs text-gray-500 mt-1">Top rated items</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Main Product Section */}
-                <div id="marketplace-products" className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between mb-4 border-b pb-2 dark:border-gray-700">
-                        <h3 className="text-xl font-bold text-[var(--brand-primary-600)]">Top Picks For You</h3>
-                        <button 
-                            onClick={() => {
-                                setSelectedCategory(undefined);
-                                onClearFilters();
-                            }}
-                            className="text-sm text-[var(--brand-primary-600)] font-medium hover:underline"
-                        >
-                            See All
-                        </button>
-                    </div>
-
-                    {isLoading ? (
-                        <ProductSkeletonGrid count={10} columns={5} />
-                    ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                            {products?.map((product, index) => (
-                                <div 
-                                    key={product.id} 
-                                    className="group hover:shadow-lg transition-shadow border border-transparent hover:border-gray-200 dark:hover:border-gray-700 rounded p-2 cursor-pointer"
-                                    onClick={() => setSelectedProduct(product)}
-                                >
-                                    <div className="relative aspect-square mb-2 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
-                                        {product.image && (
-                                            <StorefrontImage
-                                                src={product.image}
-                                                alt={product.name}
-                                                fill
-                                                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                                                priority={index < 5}
-                                                className="object-cover transition-transform group-hover:scale-105"
-                                            />
-                                        )}
-                                        <StockBadge stockQuantity={product.stockQuantity} className="absolute top-2 left-2" />
-                                    </div>
-                                    <h4 className="text-xs sm:text-sm font-medium line-clamp-2 mb-1 group-hover:text-[var(--brand-primary-600)]">{product.name}</h4>
-                                    {product.salePrice ? (
-                                        <>
-                                            <div className="font-bold text-sm sm:text-base text-red-600 dark:text-red-400">
-                                                {formatCurrency(Number(product.salePrice))}
-                                            </div>
-                                            <div className="text-xs text-gray-400 line-through">
-                                                {formatCurrency(Number(product.price))}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="font-bold text-sm sm:text-base">
-                                            {formatCurrency(product.price)}
-                                        </div>
-                                    )}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            addItem({
-                                                productId: product.id,
-                                                name: product.name,
-                                                price: Number(product.price),
-                                                image: product.image
-                                            });
-                                        }}
-                                        disabled={product.stockQuantity === 0}
-                                        className="w-full mt-2 bg-[var(--brand-primary-600)] hover:bg-[var(--brand-primary-700)] text-white text-xs py-2 uppercase tracking-wide rounded-sm font-extrabold opacity-0 group-hover:opacity-100 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        ADD TO CART
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </main>
-
-            {selectedProduct && (
-                <ProductDetailModal
-                    product={selectedProduct}
-                    onClose={() => setSelectedProduct(null)}
+      <main className="container mx-auto px-4 pt-24 pb-12">
+        {/* Marketplace Hero Layout: Left Menu | Slider | Right Promo */}
+        {config.showHero && (
+          <div className="mb-6 flex h-[380px] gap-4">
+            {/* Left Menu - Categories and Filters */}
+            <div className="hidden w-52 overflow-y-auto rounded-lg bg-white shadow-sm lg:block dark:bg-gray-800">
+              <div className="flex items-center gap-2 border-b p-3 font-medium dark:border-gray-700">
+                <ShoppingBag size={18} /> Categories
+              </div>
+              <div className="py-2">
+                <button
+                  onClick={() => setSelectedCategory(undefined)}
+                  className={`w-full px-4 py-2 text-left text-xs hover:bg-[var(--brand-primary-50)] hover:text-[var(--brand-primary-600)] dark:hover:bg-gray-700 ${selectedCategory === undefined ? "font-bold text-[var(--brand-primary-600)]" : ""}`}
+                >
+                  All Categories
+                </button>
+                {categories?.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCategory(c.id)}
+                    className={`w-full truncate px-4 py-2 text-left text-xs hover:bg-[var(--brand-primary-50)] hover:text-[var(--brand-primary-600)] dark:hover:bg-gray-700 ${selectedCategory === c.id ? "font-bold text-[var(--brand-primary-600)]" : ""}`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 border-t dark:border-gray-700">
+                <ShopFilters
+                  hideSort
+                  maxPrice={maxPrice}
+                  isPriceFiltered={isPriceFiltered}
+                  hasSearch={hasSearch}
+                  sortBy={sortBy}
+                  setSortBy={setSortBy}
+                  priceRange={priceRange}
+                  setPriceRange={setPriceRange}
+                  inStockOnly={inStockOnly}
+                  setInStockOnly={setInStockOnly}
+                  onClearFilters={onClearFilters}
                 />
+              </div>
+            </div>
+
+            {/* Middle - Hero Carousel */}
+            <div className="flex-1 overflow-hidden rounded-lg">
+              <MarketplaceHeroCarousel
+                slides={[
+                  {
+                    title:
+                      (config.heroTitle === ""
+                        ? undefined
+                        : config.heroTitle) ?? "Official Store",
+                    description:
+                      (config.heroDescription === ""
+                        ? undefined
+                        : config.heroDescription) ??
+                      "Get the best deals on electronics, fashion, and more. Fast delivery nationwide.",
+                    image:
+                      "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=2070",
+                    ctaText: "Shop Now",
+                    ctaAction: () =>
+                      document
+                        .getElementById("marketplace-products")
+                        ?.scrollIntoView({ behavior: "smooth" }),
+                  },
+                  {
+                    title: "New Arrivals",
+                    description:
+                      "Check out the latest products added to our store.",
+                    image:
+                      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=2070",
+                    ctaText: "Browse New",
+                    ctaAction: () =>
+                      document
+                        .getElementById("marketplace-products")
+                        ?.scrollIntoView({ behavior: "smooth" }),
+                  },
+                  {
+                    title: "Quality Guaranteed",
+                    description:
+                      "All products are carefully selected and quality checked.",
+                    image:
+                      "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80&w=2070",
+                    ctaText: "Learn More",
+                    ctaAction: () =>
+                      document
+                        .getElementById("marketplace-products")
+                        ?.scrollIntoView({ behavior: "smooth" }),
+                  },
+                ]}
+              />
+            </div>
+
+            {/* Right - Promo Boxes */}
+            <div className="hidden w-52 flex-col gap-4 xl:flex">
+              <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-white p-4 text-center shadow-sm dark:bg-gray-800">
+                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-primary-50)] text-[var(--brand-primary-600)]">
+                  <Zap size={20} />
+                </div>
+                <h4 className="text-sm font-bold uppercase">Flash Sales</h4>
+                <p className="mt-1 text-xs text-gray-500">Every Friday</p>
+              </div>
+              <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-white p-4 text-center shadow-sm dark:bg-gray-800">
+                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
+                  <Star size={20} />
+                </div>
+                <h4 className="text-sm font-bold uppercase">Best Sellers</h4>
+                <p className="mt-1 text-xs text-gray-500">Top rated items</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Product Section */}
+        <div
+          id="marketplace-products"
+          className="rounded-lg bg-white p-4 shadow-sm dark:bg-gray-800"
+        >
+          <div className="mb-4 flex items-center justify-between border-b pb-2 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-[var(--brand-primary-600)]">
+              Top Picks For You
+            </h3>
+            <button
+              onClick={() => {
+                setSelectedCategory(undefined);
+                onClearFilters();
+              }}
+              className="text-sm font-medium text-[var(--brand-primary-600)] hover:underline"
+            >
+              See All
+            </button>
+          </div>
+
+          <TemplateBrowseControls {...props}>
+            {isLoading ? (
+              <ProductSkeletonGrid count={10} columns={5} />
+            ) : (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {products?.map((product, index) => (
+                  <div
+                    key={product.id}
+                    className="group cursor-pointer rounded border border-transparent p-2 transition-shadow hover:border-gray-200 hover:shadow-lg dark:hover:border-gray-700"
+                  >
+                    <div className="relative mb-2 aspect-square overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
+                      {product.image && (
+                        <StorefrontImage
+                          src={product.image}
+                          alt={product.name}
+                          fill
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                          priority={index < 5}
+                          className="object-cover transition-transform group-hover:scale-105"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Quick view ${product.name}`}
+                        onClick={() => setSelectedProduct(product)}
+                        className="absolute inset-0 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-600)] focus-visible:ring-inset"
+                      />
+                      <StockBadge
+                        stockQuantity={product.stockQuantity}
+                        className="pointer-events-none absolute top-2 left-2"
+                      />
+                    </div>
+                    <h4 className="mb-1 line-clamp-2 text-xs font-medium group-hover:text-[var(--brand-primary-600)] sm:text-sm">
+                      {product.name}
+                    </h4>
+                    {product.salePrice ? (
+                      <>
+                        <div className="text-sm font-bold text-red-600 sm:text-base dark:text-red-400">
+                          {formatCurrency(Number(product.salePrice))}
+                        </div>
+                        <div className="text-xs text-gray-400 line-through">
+                          {formatCurrency(Number(product.price))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm font-bold sm:text-base">
+                        {formatCurrency(product.price)}
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addItem({
+                          productId: product.id,
+                          name: product.name,
+                          price: Number(product.price),
+                          image: product.image,
+                          stockQuantity: product.stockQuantity,
+                        });
+                      }}
+                      disabled={product.stockQuantity === 0}
+                      className="mt-2 w-full rounded-sm bg-[var(--brand-primary-600)] py-2 text-xs font-extrabold tracking-wide text-white uppercase opacity-100 shadow-sm transition-all hover:bg-[var(--brand-primary-700)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ADD TO CART
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
+          </TemplateBrowseControls>
         </div>
-    );
+      </main>
+
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
+    </div>
+  );
 }

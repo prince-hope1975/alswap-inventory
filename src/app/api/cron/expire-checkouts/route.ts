@@ -4,6 +4,8 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 import { orders } from "~/server/db/schema";
 
+import { expirePickupReservations } from "~/server/orders/expire-pickup";
+
 export const dynamic = "force-dynamic";
 
 /** Abandoned online checkouts older than this are cancelled. */
@@ -17,20 +19,30 @@ const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
  */
 export async function GET(request: Request) {
   // Same guard as the trends cron: closed when no secret is configured.
-  if (!env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`) {
+  if (
+    !env.CRON_SECRET ||
+    request.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  const pickupCandidates = await expirePickupReservations(db);
   const cutoff = new Date(Date.now() - STALE_AFTER_MS);
   const cancelled = await db
     .update(orders)
-    .set({ status: "CANCELLED" })
-    .where(and(
-      eq(orders.paymentMethod, "PAYSTACK"),
-      eq(orders.status, "PENDING"),
-      lt(orders.createdAt, cutoff),
-    ))
+    .set({ status: "CANCELLED", cancellationReason: "CHECKOUT_EXPIRED" })
+    .where(
+      and(
+        eq(orders.paymentMethod, "PAYSTACK"),
+        eq(orders.status, "PENDING"),
+        lt(orders.createdAt, cutoff),
+      ),
+    )
     .returning({ id: orders.id });
 
-  return Response.json({ cancelled: cancelled.length, cutoff: cutoff.toISOString() });
+  return Response.json({
+    cancelled: cancelled.length,
+    pickupCandidates,
+    cutoff: cutoff.toISOString(),
+  });
 }

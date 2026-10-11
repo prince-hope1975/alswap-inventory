@@ -1,43 +1,24 @@
 "use client";
 
+import type { StoreTemplateProps } from "./modern-template";
+import { TemplateBrowseControls } from "../parts/template-browse-controls";
+
 import { useState } from "react";
-import { type RouterOutputs } from "~/trpc/react";
+import type { RouterOutputs } from "~/trpc/react";
 import { ShopNavbar } from "../parts/shop-navbar";
 import { useCart } from "../cart-context";
-import type { StoreConfig } from "~/types/store-config";
-import { ArrowRight, Filter } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import { ProductDetailModal } from "../parts/product-detail-modal";
-import { ShopFilters, type SortOption } from "../parts/shop-filters";
 import { ProductSkeletonGrid } from "../parts/product-skeleton";
 import { StockBadge } from "../parts/stock-badge";
 import { StorefrontImage } from "../storefront-image";
 
-type ShopDetails = RouterOutputs["shop"]["getShopDetails"];
 type Products = RouterOutputs["shop"]["getProducts"]["items"];
-type Categories = RouterOutputs["shop"]["getCategories"];
 type Product = Products[number];
 
-interface MinimalTemplateProps {
-    shopDetails: ShopDetails | undefined;
-    products: Products | undefined;
-    categories: Categories | undefined;
-    isLoading: boolean;
-    search: string;
-    setSearch: (value: string) => void;
-    selectedCategory: number | undefined;
-    setSelectedCategory: (id: number | undefined) => void;
-    sortBy: SortOption;
-    setSortBy: (value: SortOption) => void;
-    priceRange: [number, number];
-    setPriceRange: (value: [number, number]) => void;
-    inStockOnly: boolean;
-    setInStockOnly: (value: boolean) => void;
-    onClearFilters: () => void;
-    config: StoreConfig;
-}
-
-export function MinimalTemplate({
+export function MinimalTemplate(props: StoreTemplateProps) {
+  const {
     shopDetails,
     products,
     categories,
@@ -46,171 +27,172 @@ export function MinimalTemplate({
     setSearch,
     selectedCategory,
     setSelectedCategory,
-    sortBy,
-    setSortBy,
-    priceRange,
-    setPriceRange,
-    inStockOnly,
-    setInStockOnly,
-    onClearFilters,
     config,
-}: MinimalTemplateProps) {
-    const tenant = shopDetails?.tenant;
-    const { addItem } = useCart();
-    const { formatCurrency } = useShopCurrency();
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [showFilters, setShowFilters] = useState(false);
+  } = props;
+  const tenant = shopDetails?.tenant;
+  const { addItem } = useCart();
+  const { formatCurrency } = useShopCurrency();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-    return (
-        <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[var(--brand-primary-200)] selection:text-[var(--brand-primary-900)]">
-            <ShopNavbar
-                tenant={tenant}
-                search={search}
-                setSearch={setSearch}
-                className="!bg-white/80 dark:!bg-zinc-950/80 !border-b !border-zinc-100 dark:!border-zinc-900"
-            />
+  return (
+    <div className="min-h-screen bg-white font-sans text-zinc-900 selection:bg-[var(--brand-primary-200)] selection:text-[var(--brand-primary-900)] dark:bg-zinc-950 dark:text-zinc-100">
+      <ShopNavbar
+        tenant={tenant}
+        search={search}
+        setSearch={setSearch}
+        className="!border-b !border-zinc-100 !bg-white/80 dark:!border-zinc-900 dark:!bg-zinc-950/80"
+      />
 
-            <main className="container mx-auto px-6 pt-32 pb-24 max-w-7xl">
+      <main className="container mx-auto max-w-7xl px-6 pt-32 pb-24">
+        {config.showHero && (
+          <div className="animate-in fade-in slide-in-from-bottom-8 mx-auto mb-32 max-w-4xl text-center duration-700">
+            <span className="mb-8 block text-xs font-bold tracking-[0.3em] text-[var(--brand-primary-600)] uppercase">
+              Electrical essentials
+            </span>
+            <h1 className="mb-10 text-6xl leading-[1.1] font-light tracking-tight md:text-8xl">
+              {(config.heroTitle === "" ? undefined : config.heroTitle) ?? (
+                <>
+                  Reliable equipment for{" "}
+                  <span className="font-serif text-[var(--brand-primary-600)] italic">
+                    real
+                  </span>{" "}
+                  work.
+                </>
+              )}
+            </h1>
+            <p className="mx-auto mb-12 max-w-2xl text-xl leading-relaxed font-light text-zinc-500">
+              {(config.heroDescription === ""
+                ? undefined
+                : config.heroDescription) ??
+                "Cables, lighting, tools, power equipment and accessories selected for homes, businesses and project sites."}
+            </p>
+            <button
+              onClick={() =>
+                document
+                  .getElementById("shop")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              className="group inline-flex items-center gap-3 border-b-2 border-zinc-900 pb-2 text-sm font-medium tracking-wide transition-colors hover:border-[var(--brand-primary-600)] hover:text-[var(--brand-primary-600)] dark:border-white"
+            >
+              Browse products{" "}
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </button>
+          </div>
+        )}
 
-                {config.showHero && (
-                    <div className="mb-32 text-center max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
-                        <span className="text-xs font-bold tracking-[0.3em] uppercase text-[var(--brand-primary-600)] mb-8 block">
-                            Electrical essentials
-                        </span>
-                        <h1 className="text-6xl md:text-8xl font-light tracking-tight mb-10 leading-[1.1]">
-                            {config.heroTitle || <>Reliable equipment for <span className="font-serif italic text-[var(--brand-primary-600)]">real</span> work.</>}
-                        </h1>
-                        <p className="text-xl text-zinc-500 font-light mb-12 max-w-2xl mx-auto leading-relaxed">
-                            {config.heroDescription || "Cables, lighting, tools, power equipment and accessories selected for homes, businesses and project sites."}
-                        </p>
-                        <button
-                            onClick={() => document.getElementById('shop')?.scrollIntoView({ behavior: 'smooth' })}
-                            className="group inline-flex items-center gap-3 border-b-2 border-zinc-900 dark:border-white pb-2 text-sm font-medium tracking-wide hover:text-[var(--brand-primary-600)] hover:border-[var(--brand-primary-600)] transition-colors"
-                        >
-                            Browse products <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                        </button>
-                    </div>
-                )}
-
-                <div id="shop" className="flex flex-wrap justify-center gap-10 mb-12 text-sm tracking-wider uppercase">
-                    <button
-                        onClick={() => setSelectedCategory(undefined)}
-                        className={`transition-all ${selectedCategory === undefined ? 'text-[var(--brand-primary-600)] font-semibold border-b-2 border-[var(--brand-primary-600)] pb-1' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
-                    >
-                        All
-                    </button>
-                    {categories?.map((c) => (
-                        <button
-                            key={c.id}
-                            onClick={() => setSelectedCategory(c.id)}
-                            className={`transition-all ${selectedCategory === c.id ? 'text-[var(--brand-primary-600)] font-semibold border-b-2 border-[var(--brand-primary-600)] pb-1' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}
-                        >
-                            {c.name}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="mb-16 flex justify-center">
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                    >
-                        <Filter className="h-4 w-4" />
-                        {showFilters ? 'Hide Filters' : 'Show Filters'}
-                    </button>
-                </div>
-
-                {showFilters && (
-                    <div className="mb-16 max-w-4xl mx-auto animate-in fade-in slide-in-from-top-4 duration-300">
-                        <ShopFilters
-                            sortBy={sortBy}
-                            setSortBy={setSortBy}
-                            priceRange={priceRange}
-                            setPriceRange={setPriceRange}
-                            inStockOnly={inStockOnly}
-                            setInStockOnly={setInStockOnly}
-                            onClearFilters={onClearFilters}
-                        />
-                    </div>
-                )}
-
-                {isLoading ? (
-                    <ProductSkeletonGrid count={6} columns={3} />
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-16 gap-y-24">
-                        {products?.map((product, index) => (
-                            <div 
-                                key={product.id} 
-                                className="group cursor-pointer"
-                                onClick={() => setSelectedProduct(product)}
-                            >
-                                <div className="relative aspect-[3/4] mb-8 overflow-hidden bg-zinc-50 dark:bg-zinc-900">
-                                    {product.image ? (
-                                        <StorefrontImage
-                                            src={product.image}
-                                            alt={product.name}
-                                            fill
-                                            sizes="(max-width: 768px) calc(100vw - 2rem), 50vw"
-                                            priority={index < 2}
-                                            className="object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
-                                        />
-                                    ) : (
-                                        <div className="flex h-full items-center justify-center text-zinc-300">No Image</div>
-                                    )}
-                                    <StockBadge stockQuantity={product.stockQuantity} className="absolute top-6 left-6" />
-
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            addItem({
-                                                productId: product.id,
-                                                name: product.name,
-                                                price: Number(product.salePrice || product.price),
-                                                image: product.image
-                                            });
-                                        }}
-                                        disabled={product.stockQuantity === 0}
-                                        className="absolute bottom-8 right-8 h-14 w-14 flex items-center justify-center rounded-full bg-white dark:bg-zinc-800 shadow-2xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 ease-out hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black border border-zinc-100 dark:border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <span className="text-2xl font-light">+</span>
-                                    </button>
-                                </div>
-                                <div className="flex justify-between items-start gap-4">
-                                    <div className="flex-1">
-                                        <h3 className="text-xl font-light text-zinc-900 dark:text-zinc-100 group-hover:text-[var(--brand-primary-600)] transition-colors mb-2">
-                                            {product.name}
-                                        </h3>
-                                        <p className="text-sm text-zinc-500 uppercase tracking-wide">{product.category?.name || 'Item'}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        {product.salePrice ? (
-                                            <>
-                                                <div className="text-xl font-medium text-red-600 dark:text-red-400">
-                                                    {formatCurrency(Number(product.salePrice))}
-                                                </div>
-                                                <div className="text-sm text-zinc-400 line-through">
-                                                    {formatCurrency(Number(product.price))}
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <span className="text-xl font-medium text-zinc-900 dark:text-zinc-100">
-                                                {formatCurrency(product.price)}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
-
-            {selectedProduct && (
-                <ProductDetailModal
-                    product={selectedProduct}
-                    onClose={() => setSelectedProduct(null)}
-                />
-            )}
+        <div
+          id="shop"
+          className="mb-12 flex flex-wrap justify-center gap-10 text-sm tracking-wider uppercase"
+        >
+          <button
+            onClick={() => setSelectedCategory(undefined)}
+            className={`transition-all ${selectedCategory === undefined ? "border-b-2 border-[var(--brand-primary-600)] pb-1 font-semibold text-[var(--brand-primary-600)]" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"}`}
+          >
+            All
+          </button>
+          {categories?.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCategory(c.id)}
+              className={`transition-all ${selectedCategory === c.id ? "border-b-2 border-[var(--brand-primary-600)] pb-1 font-semibold text-[var(--brand-primary-600)]" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"}`}
+            >
+              {c.name}
+            </button>
+          ))}
         </div>
-    );
+
+        <TemplateBrowseControls {...props}>
+          {isLoading ? (
+            <ProductSkeletonGrid count={6} columns={3} />
+          ) : (
+            <div className="grid grid-cols-1 gap-x-16 gap-y-24 md:grid-cols-2 lg:grid-cols-3">
+              {products?.map((product, index) => (
+                <div key={product.id} className="group cursor-pointer">
+                  <div className="relative mb-8 aspect-[3/4] overflow-hidden bg-zinc-50 dark:bg-zinc-900">
+                    {product.image ? (
+                      <StorefrontImage
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) calc(100vw - 2rem), 50vw"
+                        priority={index < 2}
+                        className="object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-zinc-300">
+                        No Image
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Quick view ${product.name}`}
+                      onClick={() => setSelectedProduct(product)}
+                      className="absolute inset-0 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-600)] focus-visible:ring-inset"
+                    />
+                    <StockBadge
+                      stockQuantity={product.stockQuantity}
+                      className="pointer-events-none absolute top-6 left-6"
+                    />
+
+                    <button
+                      aria-label={`Add ${product.name} to cart`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addItem({
+                          productId: product.id,
+                          name: product.name,
+                          price: Number(product.salePrice ?? product.price),
+                          image: product.image,
+                          stockQuantity: product.stockQuantity,
+                        });
+                      }}
+                      disabled={product.stockQuantity === 0}
+                      className="absolute right-8 bottom-8 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full border border-zinc-100 bg-white opacity-100 shadow-2xl transition-all duration-500 ease-out group-hover:translate-y-0 group-hover:opacity-100 hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-white dark:hover:text-black"
+                    >
+                      <span className="text-2xl font-light">+</span>
+                    </button>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <h3 className="mb-2 text-xl font-light text-zinc-900 transition-colors group-hover:text-[var(--brand-primary-600)] dark:text-zinc-100">
+                        {product.name}
+                      </h3>
+                      <p className="text-sm tracking-wide text-zinc-500 uppercase">
+                        {(product.category?.name === ""
+                          ? undefined
+                          : product.category?.name) ?? "Item"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {product.salePrice ? (
+                        <>
+                          <div className="text-xl font-medium text-red-600 dark:text-red-400">
+                            {formatCurrency(Number(product.salePrice))}
+                          </div>
+                          <div className="text-sm text-zinc-400 line-through">
+                            {formatCurrency(Number(product.price))}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-xl font-medium text-zinc-900 dark:text-zinc-100">
+                          {formatCurrency(product.price)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TemplateBrowseControls>
+      </main>
+
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
+    </div>
+  );
 }
