@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, staffProcedure, tenantProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  staffProcedure,
+  tenantProcedure,
+} from "~/server/api/trpc";
 import { tenants } from "~/server/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { generateColorVariants } from "~/lib/color-utils";
@@ -13,7 +17,8 @@ export const settingsRouter = createTRPCRouter({
       where: eq(tenants.id, ctx.tenantId),
       columns: { currency: true },
     });
-    if (!tenant) throw new TRPCError({ code: "NOT_FOUND", message: "Tenant not found" });
+    if (!tenant)
+      throw new TRPCError({ code: "NOT_FOUND", message: "Tenant not found" });
     return { currency: tenant.currency };
   }),
 
@@ -118,6 +123,12 @@ export const settingsRouter = createTRPCRouter({
               .max(7)
               .optional(),
             socialProfiles: z.array(z.string().url()).max(20).optional(),
+            googleMapsUrl: z
+              .string()
+              .url()
+              .startsWith("https://")
+              .optional()
+              .or(z.literal("")),
             deliveryFee: z.number().min(0).optional(),
             deliveryPricing: z
               .object({
@@ -173,6 +184,7 @@ export const settingsRouter = createTRPCRouter({
             closes: string;
           }>;
           socialProfiles?: string[];
+          googleMapsUrl?: string;
           deliveryFee?: number;
           deliveryPricing?: {
             type: "flat" | "distance";

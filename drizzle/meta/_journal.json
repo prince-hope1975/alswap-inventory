@@ -113,6 +113,20 @@
       "when": 1791182262410,
       "tag": "0015_high_bushwacker",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791713465577,
+      "tag": "0016_pickup_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791713735634,
+      "tag": "0017_location_precision",
+      "breakpoints": true
     }
   ]
 }

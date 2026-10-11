@@ -1,8 +1,17 @@
 import { and, eq, inArray } from "drizzle-orm";
 
-import { formatMoney, isPlaceholderEmail, orderNumber } from "~/lib/domain/checkout";
+import {
+  formatMoney,
+  isPlaceholderEmail,
+  orderNumber,
+} from "~/lib/domain/checkout";
 import type { db as appDb } from "~/server/db";
-import { adminNotifications, orders, users, type tenants } from "~/server/db/schema";
+import {
+  adminNotifications,
+  orders,
+  users,
+  type tenants,
+} from "~/server/db/schema";
 import {
   sendNewOrderStaffEmail,
   sendOrderConfirmationEmail,
@@ -12,7 +21,11 @@ import {
 type Database = typeof appDb;
 type Tenant = typeof tenants.$inferSelect;
 
-export type StockShortfall = { productId: string; name: string; wanted: number };
+export type StockShortfall = {
+  productId: string;
+  name: string;
+  wanted: number;
+};
 
 /**
  * Tell staff (in-app + email) and, for paid Paystack orders, the shopper
@@ -60,12 +73,14 @@ export async function notifyOrderPlaced(input: {
       paymentMethod,
       deliveryAddress: order.deliveryAddress,
       pickupAddress: tenant.address,
+      pickupExpiresAt: order.expiresAt,
       storePhone: tenant.phone,
     };
 
     await db.insert(adminNotifications).values({
       tenantId: tenant.id,
-      type: order.deliveryMethod === "DELIVERY" ? "DELIVERY_ORDER" : "NEW_ORDER",
+      type:
+        order.deliveryMethod === "DELIVERY" ? "DELIVERY_ORDER" : "NEW_ORDER",
       title:
         order.deliveryMethod === "DELIVERY"
           ? `New delivery order #${number}`
@@ -99,7 +114,8 @@ export async function notifyOrderPlaced(input: {
     // Pay-on-pickup orders are anonymous and unverified: emailing whatever
     // address was typed would let anyone use the store as a spam relay. Only
     // Paystack orders (a verified payment) get a customer confirmation.
-    const confirmCustomer = paymentMethod === "PAYSTACK" && customerEmail != null;
+    const confirmCustomer =
+      paymentMethod === "PAYSTACK" && customerEmail != null;
 
     await Promise.allSettled([
       sendNewOrderStaffEmail({ ...emailInput, to: staffEmails }),

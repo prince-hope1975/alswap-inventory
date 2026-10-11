@@ -47,7 +47,11 @@ export function getTabbable(root: HTMLElement): HTMLElement[] {
  * Index to focus when Tab is pressed inside a trap of `count` elements with
  * `current` focused (-1 = outside). null = let the browser handle it.
  */
-export function nextTrapIndex(count: number, current: number, shiftKey: boolean): number | null {
+export function nextTrapIndex(
+  count: number,
+  current: number,
+  shiftKey: boolean,
+): number | null {
   if (count <= 0) return null;
   if (current < 0) return shiftKey ? count - 1 : 0;
   if (shiftKey && current === 0) return count - 1;
@@ -85,6 +89,7 @@ export function useDialogA11y({
   panelRef,
   initialFocusRef,
   paused = false,
+  returnFocusSelector,
 }: {
   open: boolean;
   /** Omit (or pass undefined) to make Esc do nothing, e.g. mid-payment. */
@@ -92,6 +97,8 @@ export function useDialogA11y({
   panelRef: RefObject<HTMLElement | null>;
   initialFocusRef?: RefObject<HTMLElement | null>;
   paused?: boolean;
+  /** Fallback when a previous dialog trigger was removed during handoff. */
+  returnFocusSelector?: string;
 }) {
   const onCloseRef = useRef(onClose);
   const pausedRef = useRef(paused);
@@ -148,7 +155,13 @@ export function useDialogA11y({
       const at = stack.lastIndexOf(id);
       if (at >= 0) stack.splice(at, 1);
       unlockScroll();
-      if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+      const returnTarget =
+        previouslyFocused?.isConnected && previouslyFocused !== document.body
+          ? previouslyFocused
+          : returnFocusSelector
+            ? document.querySelector<HTMLElement>(returnFocusSelector)
+            : null;
+      returnTarget?.focus({ preventScroll: true });
     };
     // Refs are stable; re-running on every render would steal focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps

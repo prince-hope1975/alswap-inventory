@@ -8,7 +8,9 @@ import { TRPCError } from "@trpc/server";
  * blunt a single client hammering the public checkout endpoints; it is not a
  * hard global quota (that needs a shared store such as Redis).
  */
-export type RateLimitResult = { ok: true; remaining: number } | { ok: false; retryAfterMs: number };
+export type RateLimitResult =
+  | { ok: true; remaining: number }
+  | { ok: false; retryAfterMs: number };
 
 export type RateLimiter = {
   check(key: string, now?: number): RateLimitResult;
@@ -36,7 +38,10 @@ export function createRateLimiter(options: {
 
       if (recent.length >= limit) {
         hits.set(key, recent);
-        return { ok: false, retryAfterMs: Math.max(0, recent[0]! + windowMs - now) };
+        return {
+          ok: false,
+          retryAfterMs: Math.max(0, recent[0]! + windowMs - now),
+        };
       }
 
       recent.push(now);
@@ -70,6 +75,7 @@ const MINUTE = 60_000;
 
 /** Buckets for the unauthenticated storefront checkout procedures. */
 export const shopRateLimits = {
+  cartQuote: createRateLimiter({ limit: 120, windowMs: 10 * MINUTE }),
   // Unpaid orders that reserve stock: the tightest bucket.
   payOnPickupOrder: createRateLimiter({ limit: 5, windowMs: 10 * MINUTE }),
   // Separate so a shopper who already paid can always confirm the payment.

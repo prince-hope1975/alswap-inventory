@@ -110,3 +110,61 @@ pre-fix order reconciliation remain unverified.
 The instance-local rate limiter is best-effort; trusted proxy headers and a
 shared rate-limit store require deployment verification. Anonymous pickup
 reservations currently lack automatic expiry and can hold stock indefinitely.
+
+
+## Approved follow-up implementation — 11 October 2026
+
+The sections above record the earlier session. The approved follow-up resolves
+checkout correction/recovery, template parity, unpaid pickup expiry, and the
+Find Us pin. It also routes production shop entry links to the shop subdomain.
+
+- Checkout supports line quantity changes, removal, shortage correction and an
+  empty state. Contact and fulfilment details persist in tenant-scoped session
+  storage through close/reopen and refresh; successful orders clear the draft.
+  Failed or pending price checks block ordering and offer retry.
+- All six alternate templates consume shared pagination, totals, active-filter
+  chips, error/retry and mobile filter controls. Quick view is separate from
+  touch-visible, stock-aware cart actions. Conversion banner spacing and
+  unsupported default fulfilment promises were corrected after screenshot QA.
+- Unpaid pickup orders expire after 24 hours. Cancellation, reopening and expiry
+  share a conditional, transactional status/stock transition. Expiry preserves
+  untracked stock and restores tracked stock once, including concurrent calls.
+  Daily cron and tenant-scoped checkout/staff reads reconcile overdue holds.
+  Reopened orders receive a fresh 24-hour deadline.
+- Find Us uses https://maps.app.goo.gl/DooAZktPyKXWHUfKA and the listing marker
+  5.5907057, 5.7083863. Database coordinate precision is seven decimal places.
+  The public page hides coordinate diagnostics and includes direct directions.
+- Production homepage shop links use https://shop.<custom-domain>/; legacy
+  /shop entry redirects preserve queries. Localhost and Vercel previews keep
+  /shop. Other domains require their shop subdomain DNS/hosting to be configured.
+
+Validation:
+
+- Standard suite before template integration: 60 files passed, 317 tests passed;
+  16 database integration cases skipped by default.
+- Separate disposable PostgreSQL run: all 16 payment/expiry cases passed,
+  together with four checkout-draft tests. Provider HTTP and email were mocked.
+- Template/filter/map/draft focused run: 25 tests passed. After screenshot fixes,
+  template parity and shop-entry tests: 14 passed.
+- Standalone TypeScript passed; changed-file lint has no errors (existing
+  settings/shop secret-destructuring and type-import warnings remain).
+- Browser: all six alternate templates at 390px and 1440px; no horizontal
+  overflow, accurate 24-of-30 counts, search and filter controls. Load more
+  reached 30-of-30. Search found the 1.5-million-naira inverter with relevance
+  sorting. Synthetic products intentionally have no images.
+- Browser: checkout contact recovery across refresh, unavailable-item blocking,
+  removal and empty state; synthetic pickup order with a visible WAT deadline.
+  Manager sign-in, low-stock filtering and receiving ten units were exercised.
+  Find Us checked at 390px with exact listing/direction links.
+- Production migrations 0015–0017 applied atomically and verified. Existing
+  pending pickup orders received a 24-hour migration grace period. Only the
+  intended tenant location/config was updated. Vercel API confirms expiry cron
+  enabled on its daily schedule.
+
+Current assessment for tested Modern shop and inventory paths: UI 8.5/10,
+UX 8.5/10. Checkout UI and local recovery UX meet 8.5/10 provisionally; a full
+production funnel pass remains pending Paystack dashboard/webhook/test-mode
+and actual email-delivery verification. Alternate templates have functional
+parity/browser checks, not a blanket 8.5 design certification. The independent
+review CLI failed with repeated provider connection timeouts; direct review
+and transaction tests are the available evidence.

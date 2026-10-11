@@ -1,7 +1,16 @@
 "use client";
 
-import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import dynamic from "next/dynamic";
+import { useCheckoutDraft } from "~/hooks/use-checkout-draft";
+import { reservationDeadline } from "~/lib/domain/pickup-reservation";
 import { useCart } from "./cart-context";
 import { api } from "~/trpc/react";
 import {
@@ -17,6 +26,9 @@ import {
   Navigation,
   Clock,
   ChevronDown,
+  Plus,
+  Minus,
+  Trash2,
 } from "lucide-react";
 import { useShopCurrency } from "~/hooks/use-tenant-settings";
 import {
@@ -93,7 +105,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-type OrderLine = { productId: string; name: string; quantity: number; price: number };
+type OrderLine = {
+  productId: string;
+  name: string;
+  quantity: number;
+  price: number;
+};
 
 type PlacedOrder = {
   orderNumber: string;
@@ -102,6 +119,7 @@ type PlacedOrder = {
   deliveryMethod: "PICKUP" | "DELIVERY";
   paymentMethod: "PAYSTACK" | "PAY_ON_PICKUP";
   needsAttention: boolean;
+  expiresAt?: Date | string | null;
 };
 
 const inputClass =
@@ -121,19 +139,10 @@ function FieldError({ id, error }: { id: string; error?: string }) {
 }
 
 export function CheckoutModal({ onClose }: { onClose: () => void }) {
-  const { items, totalAmount, clearCart } = useCart();
-  const [details, setDetails] = useState({ name: "", email: "", phone: "" });
+  const { items, totalAmount, clearCart, updateQuantity, removeItem } =
+    useCart();
   const [errors, setErrors] = useState<CheckoutErrors>({});
   const [submitted, setSubmitted] = useState(false);
-  const [deliveryChoice, setDeliveryMethod] = useState<"PICKUP" | "DELIVERY">(
-    "PICKUP",
-  );
-  // null = the shopper hasn't picked; the store's default applies. Store
-  // details load async, so the default can't be baked into useState.
-  const [paymentChoice, setPaymentMethod] = useState<
-    "PAYSTACK" | "PAY_ON_PICKUP" | null
-  >(null);
-  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [serverTotal, setServerTotal] = useState<number | null>(null);
@@ -150,6 +159,20 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
   const { data: shopDetails } = api.shop.getShopDetails.useQuery();
   const tenant = shopDetails?.tenant;
+  const {
+    draft,
+    ready: draftReady,
+    update: updateDraft,
+    clear: clearDraft,
+  } = useCheckoutDraft(tenant?.id);
+  const { details, deliveryChoice, paymentChoice, deliveryAddress } = draft;
+  const setDetails = (value: typeof details) => updateDraft({ details: value });
+  const setDeliveryMethod = (value: typeof deliveryChoice) =>
+    updateDraft({ deliveryChoice: value });
+  const setPaymentMethod = (value: typeof paymentChoice) =>
+    updateDraft({ paymentChoice: value });
+  const setDeliveryAddress = (value: string) =>
+    updateDraft({ deliveryAddress: value });
   // One rule for what this store offers (same as the product page/server).
   const options = storefrontOptions(tenant);
   const deliveryMethod = options.offersDelivery ? deliveryChoice : "PICKUP";
@@ -160,7 +183,11 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
   // Re-price the cart on the server as soon as checkout opens, so the button
   // shows what the order will actually charge and dead lines surface early.
   const quoteItems = useMemo(
-    () => items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    () =>
+      items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
     [items],
   );
   const quote = api.shop.quoteCart.useQuery(
@@ -168,11 +195,18 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
     { enabled: quoteItems.length > 0, retry: false, staleTime: 30_000 },
   );
   const quotedPrice = useMemo(
-    () => new Map((quote.data?.lines ?? []).map((line) => [line.productId, line.unitPrice])),
+    () =>
+      new Map(
+        (quote.data?.lines ?? []).map((line) => [
+          line.productId,
+          line.unitPrice,
+        ]),
+      ),
     [quote.data],
   );
   const cartProblems = quote.data?.problems ?? [];
-  const subtotal = quote.data && cartProblems.length === 0 ? quote.data.subtotal : totalAmount;
+  const subtotal =
+    quote.data && cartProblems.length === 0 ? quote.data.subtotal : totalAmount;
   const pricesChanged =
     quote.data != null &&
     cartProblems.length === 0 &&
@@ -209,7 +243,9 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         : Number(options.flatDeliveryFee ?? 0)
       : 0;
   const deliveryFeeKnown =
-    deliveryMethod !== "DELIVERY" || options.deliveryPricing !== "distance" || estimate.data != null;
+    deliveryMethod !== "DELIVERY" ||
+    options.deliveryPricing !== "distance" ||
+    estimate.data != null;
 
   const computedTotal = useMemo(() => {
     return Number(subtotal) + Number(deliveryFee || 0);
@@ -226,7 +262,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
   // Prices or options changed: any earlier server quote is stale.
   useEffect(() => {
     setServerTotal(null);
-  }, [deliveryMethod, deliveryAddress, totalAmount]);
+  }, [deliveryMethod, deliveryAddress, totalAmount, quote.data]);
 
   const validate = () =>
     validateCheckoutDetails(details, {
@@ -253,6 +289,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
       currency: "NGN",
       item_count: order.lines.length,
     });
+    clearDraft();
     setPlaced(order);
     clearCart();
   };
@@ -280,6 +317,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         reference,
         message: errorMessage(error, "We couldn't confirm your order."),
       });
+      clearDraft();
       clearCart();
     } finally {
       setIsProcessing(false);
@@ -287,6 +325,12 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
   };
 
   const handlePay = async () => {
+    if (!draftReady || quote.isFetching || quote.isError || !quote.data) {
+      setFormError(
+        "Wait for the latest prices and availability, or retry the price check.",
+      );
+      return;
+    }
     setSubmitted(true);
     setFormError(null);
     const found = validate();
@@ -298,7 +342,9 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
     }
     if (items.length === 0) return;
     if (cartProblems.length > 0) {
-      setFormError("Some items in your cart can't be ordered. Update your cart first.");
+      setFormError(
+        "Some items in your cart can't be ordered. Update your cart first.",
+      );
       return;
     }
 
@@ -341,6 +387,7 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           })),
           deliveryMethod: "PICKUP",
           paymentMethod: "PAY_ON_PICKUP",
+          expiresAt: "expiresAt" in result ? result.expiresAt : null,
           needsAttention: false,
         });
         setIsProcessing(false);
@@ -381,7 +428,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         access_code: init.accessCode,
         callback: (resp) => {
           paidRef.current = true;
-          void confirmPaystackPayment(resp.reference || init.reference, pricedLines);
+          void confirmPaystackPayment(
+            resp.reference || init.reference,
+            pricedLines,
+          );
         },
         onClose: () => {
           if (!paidRef.current) setIsProcessing(false);
@@ -406,7 +456,9 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
             <AlertTriangle className="h-8 w-8" aria-hidden />
           </div>
-          <h2 id={`${titleId}-issue`} className="mb-2 text-2xl font-bold">Payment received</h2>
+          <h2 id={`${titleId}-issue`} className="mb-2 text-2xl font-bold">
+            Payment received
+          </h2>
           <p className="mb-4 text-gray-600 dark:text-gray-400">
             Your payment went through, but we couldn&apos;t confirm the order
             automatically. Keep this reference; the store will sort it out.
@@ -424,7 +476,8 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
               rel="noreferrer"
               className="mb-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-600 font-semibold text-white hover:bg-green-500"
             >
-              <MessageCircle className="h-5 w-5" /> Message the store on WhatsApp
+              <MessageCircle className="h-5 w-5" /> Message the store on
+              WhatsApp
             </a>
           )}
           <button
@@ -449,15 +502,23 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/15 text-green-600 dark:text-green-500">
             <CheckCircle2 className="h-8 w-8" aria-hidden />
           </div>
-          <h2 id={`${titleId}-done`} className="text-2xl font-bold">Order placed</h2>
+          <h2 id={`${titleId}-done`} className="text-2xl font-bold">
+            Order placed
+          </h2>
           <p className="mt-1 text-gray-600 dark:text-gray-400">
-            Order <span className="font-mono font-semibold">#{placed.orderNumber}</span>
+            Order{" "}
+            <span className="font-mono font-semibold">
+              #{placed.orderNumber}
+            </span>
           </p>
         </div>
 
         <ul className="mt-6 divide-y divide-gray-200 rounded-xl border border-gray-200 text-sm dark:divide-white/10 dark:border-white/10">
           {placed.lines.map((line) => (
-            <li key={line.productId} className="flex justify-between gap-3 px-4 py-3">
+            <li
+              key={line.productId}
+              className="flex justify-between gap-3 px-4 py-3"
+            >
               <span>
                 {line.quantity} × {line.name}
               </span>
@@ -467,7 +528,11 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
             </li>
           ))}
           <li className="flex justify-between px-4 py-3 text-base font-bold">
-            <span>{placed.paymentMethod === "PAYSTACK" ? "Paid" : "To pay at pickup"}</span>
+            <span>
+              {placed.paymentMethod === "PAYSTACK"
+                ? "Paid"
+                : "To pay at pickup"}
+            </span>
             <span>{formatCurrency(placed.total)}</span>
           </li>
         </ul>
@@ -485,6 +550,12 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
               {tenant?.address ?? tenant?.location ?? "Pickup at the store"}
             </p>
+            {placed.expiresAt && (
+              <p className="mt-3 font-semibold text-amber-800 dark:text-amber-300">
+                Collect by {reservationDeadline(placed.expiresAt)}. After this
+                time, your reservation is cancelled and stock is released.
+              </p>
+            )}
             {openingHours.length > 0 && (
               <div className="mt-2 flex items-start gap-2 text-gray-600 dark:text-gray-400">
                 <Clock className="mt-0.5 h-4 w-4 shrink-0" />
@@ -523,7 +594,8 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
               rel="noreferrer"
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-600 font-semibold text-white hover:bg-green-500"
             >
-              <MessageCircle className="h-5 w-5" /> Confirm order #{placed.orderNumber} on WhatsApp
+              <MessageCircle className="h-5 w-5" /> Confirm order #
+              {placed.orderNumber} on WhatsApp
             </a>
           )}
           <button
@@ -555,17 +627,24 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
       footer={
         <div className="space-y-2">
           {formError && (
-            <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+            <div
+              role="alert"
+              className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            >
               {formError}
             </div>
           )}
           <div className="flex items-baseline justify-between">
             <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
-              {effectivePaymentMethod === "PAYSTACK" ? "Total" : "To pay at pickup"}
+              {effectivePaymentMethod === "PAYSTACK"
+                ? "Total"
+                : "To pay at pickup"}
             </span>
             <span className="text-xl font-bold" aria-live="polite">
               {quote.isLoading ? (
-                <span className="text-sm font-medium text-gray-500">Checking prices…</span>
+                <span className="text-sm font-medium text-gray-500">
+                  Checking prices…
+                </span>
               ) : (
                 formatCurrency(displayTotal)
               )}
@@ -574,7 +653,15 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             form="checkout-form"
-            disabled={isProcessing || items.length === 0 || cartProblems.length > 0 || quote.isLoading}
+            disabled={
+              isProcessing ||
+              !draftReady ||
+              items.length === 0 ||
+              cartProblems.length > 0 ||
+              quote.isFetching ||
+              quote.isError ||
+              !quote.data
+            }
             className="flex min-h-14 w-full items-center justify-center rounded-xl bg-green-700 font-bold text-white transition hover:bg-green-600 focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-[#0f1a22]"
           >
             {isProcessing ? (
@@ -583,7 +670,11 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                 {createOrder.isPending ? "Confirming order…" : "Processing…"}
               </>
             ) : effectivePaymentMethod === "PAYSTACK" ? (
-              deliveryFeeKnown ? `Pay ${formatCurrency(displayTotal)}` : "Continue to payment"
+              deliveryFeeKnown ? (
+                `Pay ${formatCurrency(displayTotal)}`
+              ) : (
+                "Continue to payment"
+              )
             ) : (
               `Place order · ${formatCurrency(subtotal)}`
             )}
@@ -591,34 +682,150 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           <p className="text-center text-xs text-gray-500 dark:text-gray-400">
             {effectivePaymentMethod === "PAYSTACK"
               ? "Secured by Paystack"
-              : "You’ll pay when you arrive for pickup"}
+              : "Pay at pickup. Stock is reserved for 24 hours."}
           </p>
         </div>
       }
     >
+      <p
+        role="status"
+        aria-live="polite"
+        className="mb-3 text-sm text-gray-600 dark:text-gray-300"
+      >
+        {quote.isFetching
+          ? "Updating prices and availability…"
+          : items.length
+            ? `${items.reduce((sum, item) => sum + item.quantity, 0)} items in your order`
+            : "Your cart is empty. Your checkout details are saved for this visit."}
+      </p>
+      {items.length === 0 && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="mb-5 min-h-11 rounded-lg bg-[#0b6e99] px-5 font-semibold text-white"
+        >
+          Continue shopping
+        </button>
+      )}
       {/* Order summary */}
-      <section aria-label="Order summary" className="mb-5 rounded-xl border border-gray-200 dark:border-white/10">
+      <section
+        aria-label="Order summary"
+        className="mb-5 rounded-xl border border-gray-200 dark:border-white/10"
+      >
         <ul className="divide-y divide-gray-200 text-sm dark:divide-white/10">
           {items.map((item) => {
             const unit = quotedPrice.get(item.productId) ?? item.price;
-            const problem = cartProblems.find((entry) => entry.productId === item.productId);
+            const problem = cartProblems.find(
+              (entry) => entry.productId === item.productId,
+            );
+            const currentStock =
+              problem?.availableQuantity ??
+              quote.data?.lines.find(
+                (line) => line.productId === item.productId,
+              )?.stockQuantity ??
+              item.stockQuantity;
             return (
               <li key={item.productId} className="px-4 py-2.5">
                 <div className="flex justify-between gap-3">
                   <span className="min-w-0">
-                    <span className="font-medium">{item.quantity} ×</span> {item.name}
+                    <span className="font-medium">{item.quantity} ×</span>{" "}
+                    {item.name}
                   </span>
-                  <span className="shrink-0">{formatCurrency(unit * item.quantity)}</span>
+                  <span className="shrink-0">
+                    {formatCurrency(unit * item.quantity)}
+                  </span>
                 </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="inline-flex items-center rounded-lg border border-gray-200 dark:border-white/15">
+                    <button
+                      type="button"
+                      aria-label={`Decrease quantity of ${item.name}`}
+                      disabled={isProcessing || item.quantity <= 1}
+                      onClick={() => {
+                        updateQuantity(
+                          item.productId,
+                          item.quantity - 1,
+                          currentStock,
+                        );
+                        setFormError(null);
+                      }}
+                      className="grid min-h-11 min-w-11 place-items-center rounded-l-lg focus-visible:ring-2 focus-visible:ring-[#0b6e99] disabled:opacity-40"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span
+                      aria-label={`Quantity of ${item.name}`}
+                      className="min-w-8 text-center font-semibold"
+                    >
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Increase quantity of ${item.name}`}
+                      disabled={
+                        isProcessing ||
+                        (currentStock != null &&
+                          currentStock >= 0 &&
+                          item.quantity >= currentStock)
+                      }
+                      onClick={() => {
+                        updateQuantity(
+                          item.productId,
+                          item.quantity + 1,
+                          currentStock,
+                        );
+                        setFormError(null);
+                      }}
+                      className="grid min-h-11 min-w-11 place-items-center rounded-r-lg focus-visible:ring-2 focus-visible:ring-[#0b6e99] disabled:opacity-40"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={() => {
+                      removeItem(item.productId);
+                      setFormError(null);
+                    }}
+                    aria-label={`Remove ${item.name}`}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 font-medium text-red-700 focus-visible:ring-2 focus-visible:ring-red-500 dark:text-red-300"
+                  >
+                    <Trash2 className="h-4 w-4" /> Remove
+                  </button>
+                </div>
+                {problem?.availableQuantity != null &&
+                  problem.availableQuantity > 0 &&
+                  problem.availableQuantity < item.quantity && (
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() =>
+                        updateQuantity(
+                          item.productId,
+                          problem.availableQuantity!,
+                          problem.availableQuantity,
+                        )
+                      }
+                      className="mt-2 min-h-11 rounded-lg px-3 text-sm font-semibold text-[#0b6e99] underline dark:text-[#8dc5dc]"
+                    >
+                      Use available quantity ({problem.availableQuantity})
+                    </button>
+                  )}
                 {problem && (
-                  <p className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">{problem.message}</p>
+                  <p className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">
+                    {problem.message}
+                  </p>
                 )}
               </li>
             );
           })}
         </ul>
         {cartProblems.length > 0 && (
-          <p role="alert" className="border-t border-gray-200 px-4 py-2.5 text-sm text-red-700 dark:border-white/10 dark:text-red-300">
+          <p
+            role="alert"
+            className="border-t border-gray-200 px-4 py-2.5 text-sm text-red-700 dark:border-white/10 dark:text-red-300"
+          >
             Remove or change the marked items in your cart to continue.
           </p>
         )}
@@ -629,7 +836,15 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         )}
         {quote.isError && (
           <p className="border-t border-gray-200 px-4 py-2.5 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-            We couldn&apos;t check the latest prices; they&apos;ll be confirmed when you order.
+            We couldn&apos;t check the latest prices. Please retry before
+            ordering.
+            <button
+              type="button"
+              onClick={() => void quote.refetch()}
+              className="ml-2 min-h-11 underline"
+            >
+              Retry price check
+            </button>
           </p>
         )}
       </section>
@@ -644,7 +859,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         className="space-y-4"
       >
         <div>
-          <label htmlFor="checkout-name" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label
+            htmlFor="checkout-name"
+            className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
             Full name
           </label>
           <input
@@ -661,7 +879,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           <FieldError id="checkout-name-error" error={errors.name} />
         </div>
         <div>
-          <label htmlFor="checkout-phone" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label
+            htmlFor="checkout-phone"
+            className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
             Phone number
           </label>
           <input
@@ -679,8 +900,14 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           <FieldError id="checkout-phone-error" error={errors.phone} />
         </div>
         <div>
-          <label htmlFor="checkout-email" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Email <span className="font-normal text-gray-500">(optional, for a receipt)</span>
+          <label
+            htmlFor="checkout-email"
+            className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Email{" "}
+            <span className="font-normal text-gray-500">
+              (optional, for a receipt)
+            </span>
           </label>
           <input
             id="checkout-email"
@@ -699,10 +926,14 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
         {/* Delivery method */}
         <fieldset className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
           <legend className="sr-only">
-            {options.offersDelivery ? "How would you like to receive your order?" : "Pickup"}
+            {options.offersDelivery
+              ? "How would you like to receive your order?"
+              : "Pickup"}
           </legend>
           <p className="mb-3 text-sm font-semibold" aria-hidden="true">
-            {options.offersDelivery ? "How would you like to receive your order?" : "Pick up from the store"}
+            {options.offersDelivery
+              ? "How would you like to receive your order?"
+              : "Pick up from the store"}
           </p>
           {options.offersDelivery && (
             <div className="grid grid-cols-2 gap-3">
@@ -710,7 +941,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 aria-pressed={deliveryMethod === "PICKUP"}
                 onClick={() => setDeliveryMethod("PICKUP")}
-                className={optionClass(deliveryMethod === "PICKUP", "bg-[#0b6e99]")}
+                className={optionClass(
+                  deliveryMethod === "PICKUP",
+                  "bg-[#0b6e99]",
+                )}
               >
                 <MapPin className="h-4 w-4" aria-hidden />
                 Pickup
@@ -726,7 +960,9 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                   Delivery
                 </span>
                 {options.deliveryLabel && (
-                  <span className="text-[11px] font-medium opacity-80">{options.deliveryLabel}</span>
+                  <span className="text-[11px] font-medium opacity-80">
+                    {options.deliveryLabel}
+                  </span>
                 )}
               </button>
             </div>
@@ -734,7 +970,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
 
           {deliveryMethod === "DELIVERY" ? (
             <div className="mt-4">
-              <label htmlFor="checkout-deliveryAddress" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="checkout-deliveryAddress"
+                className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Delivery address
               </label>
               <textarea
@@ -754,17 +993,26 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                   }
                 }}
                 aria-invalid={Boolean(errors.deliveryAddress)}
-                aria-describedby={errors.deliveryAddress ? "checkout-deliveryAddress-error" : undefined}
+                aria-describedby={
+                  errors.deliveryAddress
+                    ? "checkout-deliveryAddress-error"
+                    : undefined
+                }
                 className={fieldClass(errors.deliveryAddress)}
                 placeholder="House number, street, area, city"
               />
-              <FieldError id="checkout-deliveryAddress-error" error={errors.deliveryAddress} />
+              <FieldError
+                id="checkout-deliveryAddress-error"
+                error={errors.deliveryAddress}
+              />
             </div>
           ) : (
             <div className={`${options.offersDelivery ? "mt-4" : ""} text-sm`}>
               <p className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                {tenant?.address ?? tenant?.location ?? "Pickup location is not configured yet."}
+                {tenant?.address ??
+                  tenant?.location ??
+                  "Pickup location is not configured yet."}
               </p>
               {openingHours.length > 0 && (
                 <p className="mt-1 flex items-start gap-2 text-gray-600 dark:text-gray-400">
@@ -798,7 +1046,9 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                       className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-xs font-semibold text-[#0b6e99] hover:underline dark:text-[#8dc5dc]"
                     >
                       {showMap ? "Hide map" : "Show map"}
-                      <ChevronDown className={`h-4 w-4 transition ${showMap ? "rotate-180" : ""}`} />
+                      <ChevronDown
+                        className={`h-4 w-4 transition ${showMap ? "rotate-180" : ""}`}
+                      />
                     </button>
                   </div>
                   {showMap && (
@@ -830,12 +1080,18 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
           </p>
           {deliveryMethod === "DELIVERY" ? (
             <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-              <CreditCard className="h-4 w-4 text-green-700 dark:text-green-400" aria-hidden />
+              <CreditCard
+                className="h-4 w-4 text-green-700 dark:text-green-400"
+                aria-hidden
+              />
               Delivery orders are paid online (Paystack).
             </div>
           ) : !options.canPayOnline ? (
             <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-              <Wallet className="h-4 w-4 text-green-700 dark:text-green-400" aria-hidden />
+              <Wallet
+                className="h-4 w-4 text-green-700 dark:text-green-400"
+                aria-hidden
+              />
               Pay when you collect your order.
             </div>
           ) : (
@@ -844,7 +1100,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 aria-pressed={paymentMethod === "PAYSTACK"}
                 onClick={() => setPaymentMethod("PAYSTACK")}
-                className={optionClass(paymentMethod === "PAYSTACK", "bg-green-700")}
+                className={optionClass(
+                  paymentMethod === "PAYSTACK",
+                  "bg-green-700",
+                )}
               >
                 <CreditCard className="h-4 w-4" aria-hidden />
                 Pay online
@@ -853,7 +1112,10 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 aria-pressed={paymentMethod === "PAY_ON_PICKUP"}
                 onClick={() => setPaymentMethod("PAY_ON_PICKUP")}
-                className={optionClass(paymentMethod === "PAY_ON_PICKUP", "bg-green-700")}
+                className={optionClass(
+                  paymentMethod === "PAY_ON_PICKUP",
+                  "bg-green-700",
+                )}
               >
                 <Wallet className="h-4 w-4" aria-hidden />
                 Pay on pickup
@@ -877,17 +1139,18 @@ export function CheckoutModal({ onClose }: { onClose: () => void }) {
               </span>
             </div>
           )}
-          {deliveryMethod === "DELIVERY" && options.deliveryPricing === "distance" && (
-            <div className="text-xs text-gray-500">
-              {estimate.isFetching
-                ? "Estimating delivery fee…"
-                : estimate.error
-                  ? "Could not estimate delivery fee (we'll confirm before you pay)."
-                  : estimate.data?.distanceKm != null
-                    ? `Estimated distance: ${estimate.data.distanceKm.toFixed(1)} km`
-                    : null}
-            </div>
-          )}
+          {deliveryMethod === "DELIVERY" &&
+            options.deliveryPricing === "distance" && (
+              <div className="text-xs text-gray-500">
+                {estimate.isFetching
+                  ? "Estimating delivery fee…"
+                  : estimate.error
+                    ? "Could not estimate delivery fee (we'll confirm before you pay)."
+                    : estimate.data?.distanceKm != null
+                      ? `Estimated distance: ${estimate.data.distanceKm.toFixed(1)} km`
+                      : null}
+              </div>
+            )}
           {serverTotal != null && serverTotal !== computedTotal && (
             <p className="text-xs text-amber-800 dark:text-amber-400">
               Total updated to the store&apos;s current prices.
@@ -919,7 +1182,13 @@ function Shell({
   paused?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  useDialogA11y({ open: true, onClose, panelRef, paused });
+  useDialogA11y({
+    open: true,
+    onClose,
+    panelRef,
+    paused,
+    returnFocusSelector: 'button[aria-label^="Open cart"]',
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
@@ -951,7 +1220,9 @@ function Shell({
             </button>
           )}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
+          {children}
+        </div>
         {footer && (
           <div className="shrink-0 border-t border-gray-200 bg-white px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 dark:border-white/10 dark:bg-[#0f1a22]">
             {footer}

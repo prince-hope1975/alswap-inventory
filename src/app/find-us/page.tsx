@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowLeft, MapPin, Phone, Clock, Truck } from "lucide-react";
 
 import { FindUsMap } from "~/app/_components/find-us/find-us-map";
 import { PublicStoreUnavailable } from "~/app/_components/shop/public-store-unavailable";
@@ -35,7 +36,8 @@ export default async function FindUsPage() {
     Number.isFinite(lat) &&
     Number.isFinite(lng) &&
     !(lat === 0 && lng === 0);
-  const profile = getPublicProfile(tenant.storeConfig as StoreConfig | null);
+  const config = tenant.storeConfig as StoreConfig | null;
+  const profile = getPublicProfile(config);
 
   const landing = getSocialLanding(await requestHost(), "home");
   const localBusinessJsonLd = buildLocalBusiness({
@@ -54,66 +56,98 @@ export default async function FindUsPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#0f1016] text-white">
+    <main className="min-h-screen bg-[#f6f4ee] text-[#14212b] dark:bg-[#101d27] dark:text-white">
       <JsonLd data={localBusinessJsonLd} />
-      <div className="container mx-auto px-4 py-12">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Find Us</h1>
+      <header className="border-b border-[#14212b]/10 dark:border-white/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5">
+          <Link href="/shop" className="text-lg font-bold tracking-tight">
+            {tenant.name}
+          </Link>
           <Link
-            href="/"
-            className="text-sm text-purple-300 hover:text-purple-200"
+            href="/shop"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-[#0b6e99]"
           >
-            Back to Shop
+            <ArrowLeft className="h-4 w-4" /> Back to Shop
           </Link>
         </div>
-
-        {tenant.address && (
-          <p className="mb-6 text-gray-300">
-            Address: <span className="text-gray-100">{tenant.address}</span>
-          </p>
-        )}
-        {tenant.phone && (
-          <p className="mb-6 text-gray-300">
-            Phone: <span className="text-gray-100">{tenant.phone}</span>
-          </p>
-        )}
-
-        {(profile.openingHours.length > 0 ||
-          profile.serviceAreas.length > 0) && (
-          <div className="mb-8 grid gap-4 sm:grid-cols-2">
-            {profile.openingHours.map((hours) => (
-              <section
-                key={`${hours.days.join("-")}-${hours.opens}`}
-                className="border border-white/10 bg-white/5 p-5"
-              >
-                <h2 className="font-bold text-white">Opening hours</h2>
-                <p className="mt-2 text-sm leading-6 text-gray-300">
-                  {hours.days.join(", ")} · {hours.opens}–{hours.closes}
-                </p>
+      </header>
+      <div className="mx-auto max-w-7xl px-5 py-10 sm:py-16">
+        <p className="text-xs font-bold tracking-[0.2em] text-[#0b6e99] uppercase dark:text-[#8dc5dc]">
+          Visit the store
+        </p>
+        <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl">
+          Find us. Pick up. Get to work.
+        </h1>
+        <p className="mt-5 max-w-xl text-base leading-7 text-[#53636d] dark:text-gray-300">
+          Visit {tenant.name} for supplies and advice, or collect your online
+          order. Use the map below to plan your trip.
+        </p>
+        <div className="mt-10 grid items-start gap-6 lg:grid-cols-[0.8fr_1.6fr]">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-[#14212b]/10 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+              <MapPin
+                className="mb-4 h-6 w-6 text-[#0b6e99] dark:text-[#8dc5dc]"
+                aria-hidden
+              />
+              <h2 className="text-lg font-bold">Our pickup point</h2>
+              <p className="mt-2 leading-7 text-[#53636d] dark:text-gray-300">
+                {tenant.address ??
+                  tenant.location ??
+                  "Use the map for our store location."}
+              </p>
+              {tenant.phone && (
+                <a
+                  href={`tel:${tenant.phone.replace(/[^+0-9]/g, "")}`}
+                  className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-[#0b6e99] dark:text-[#8dc5dc]"
+                >
+                  <Phone className="h-4 w-4" />
+                  {tenant.phone}
+                </a>
+              )}
+            </section>
+            {profile.openingHours.length > 0 && (
+              <section className="rounded-2xl border border-[#14212b]/10 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+                <h2 className="flex items-center gap-2 text-lg font-bold">
+                  <Clock className="h-5 w-5" />
+                  Opening hours
+                </h2>
+                {profile.openingHours.map((hours) => (
+                  <p
+                    key={`${hours.days.join("-")}-${hours.opens}`}
+                    className="mt-3 text-sm leading-7 text-[#53636d] dark:text-gray-300"
+                  >
+                    {hours.days.join(", ")}
+                    <br />
+                    {hours.opens}–{hours.closes}
+                  </p>
+                ))}
               </section>
-            ))}
+            )}
             {profile.serviceAreas.length > 0 && (
-              <section className="border border-white/10 bg-white/5 p-5">
-                <h2 className="font-bold text-white">Service areas</h2>
-                <p className="mt-2 text-sm leading-6 text-gray-300">
+              <section className="rounded-2xl border border-[#14212b]/10 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+                <h2 className="flex items-center gap-2 text-lg font-bold">
+                  <Truck className="h-5 w-5" />
+                  Service areas
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-[#53636d] dark:text-gray-300">
                   {profile.serviceAreas.join(", ")}
                 </p>
               </section>
             )}
           </div>
-        )}
-
-        {hasCoords ? (
-          <FindUsMap
-            lat={lat}
-            lng={lng}
-            address={tenant.address ?? undefined}
-          />
-        ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-gray-300">
-            This store hasn’t configured a pickup location yet.
-          </div>
-        )}
+          {hasCoords ? (
+            <FindUsMap
+              lat={lat}
+              lng={lng}
+              address={tenant.address ?? undefined}
+              googleMapsUrl={config?.googleMapsUrl}
+            />
+          ) : (
+            <div className="rounded-2xl border border-[#14212b]/10 bg-white p-6 dark:border-white/10 dark:bg-white/5">
+              Please contact the store for directions.
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

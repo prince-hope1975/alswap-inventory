@@ -82,7 +82,13 @@ const services = [
   },
 ];
 
-export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
+export function ElectricalHome({
+  tenant,
+  shopHref = "/shop",
+}: {
+  tenant: HomeTenant;
+  shopHref?: string;
+}) {
   const phoneHref = tenant.phone
     ? `tel:${tenant.phone.replace(/\s+/g, "")}`
     : "/find-us";
@@ -121,7 +127,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
             aria-label="Primary navigation"
             className="hidden items-center gap-7 text-sm font-bold md:flex"
           >
-            <Link href="/shop" className="hover:text-[#0b6e99]">
+            <Link href={shopHref} className="hover:text-[#0b6e99]">
               Shop
             </Link>
             <Link href="/#services" className="hover:text-[#0b6e99]">
@@ -148,7 +154,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
               <Phone className="h-4 w-4" /> Call store
             </Link>
             <Link
-              href="/shop"
+              href={shopHref}
               className="inline-flex min-h-11 items-center gap-2 bg-[#f5a623] px-4 text-sm font-black text-[#14212b] transition hover:bg-[#ffc04d]"
             >
               <ShoppingBag className="h-4 w-4" /> Shop products
@@ -173,7 +179,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/shop"
+                href={shopHref}
                 className="inline-flex min-h-13 items-center justify-center gap-3 bg-[#112b3c] px-6 font-black text-white transition hover:bg-[#0b6e99]"
               >
                 Shop products <ArrowRight className="h-5 w-5" />
@@ -234,7 +240,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
             </h2>
           </div>
           <Link
-            href="/shop"
+            href={shopHref}
             className="inline-flex items-center gap-2 font-black text-[#07597d]"
           >
             View full shop <ArrowRight className="h-4 w-4" />
@@ -363,7 +369,7 @@ export function ElectricalHome({ tenant }: { tenant: HomeTenant }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-5 text-sm font-bold">
-            <Link href="/shop">Shop</Link>
+            <Link href={shopHref}>Shop</Link>
             <Link href="/guides">Guides</Link>
             <Link href="/blog">Blog</Link>
             <Link href="/solar">Solar</Link>

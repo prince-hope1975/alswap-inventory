@@ -21,6 +21,8 @@ export type StoreConfig = {
     closes: string;
   }>;
   socialProfiles?: string[];
+  /** Public place listing, separate from coordinate-based directions. */
+  googleMapsUrl?: string;
   // Optional checkout settings
   deliveryFee?: number;
   deliveryPricing?: {

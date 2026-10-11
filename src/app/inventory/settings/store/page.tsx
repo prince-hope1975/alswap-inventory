@@ -57,6 +57,12 @@ const storeSettingsSchema = z.object({
   openingTime: z.string().optional(),
   closingTime: z.string().optional(),
   socialProfilesText: z.string().optional(),
+  googleMapsUrl: z
+    .string()
+    .url()
+    .startsWith("https://")
+    .optional()
+    .or(z.literal("")),
   deliveryFee: z.coerce.number().min(0).optional(),
   deliveryPricingType: z.enum(["flat", "distance"]).optional(),
   deliveryBaseFee: z.coerce.number().min(0).optional(),
@@ -130,6 +136,7 @@ export default function StoreSettingsPage() {
           openingTime: config.openingHours?.[0]?.opens ?? "08:00",
           closingTime: config.openingHours?.[0]?.closes ?? "18:00",
           socialProfilesText: config.socialProfiles?.join("\n") ?? "",
+          googleMapsUrl: config.googleMapsUrl ?? "",
           deliveryFee: config.deliveryFee ?? 0,
           deliveryPricingType: dp?.type ?? "flat",
           deliveryBaseFee: dp?.baseFee ?? 0,
@@ -171,11 +178,12 @@ export default function StoreSettingsPage() {
     updateSettings.mutate({
       name: settings?.name ?? "", // Name is required by mutation but strictly read-only here
       customDomain,
-      location: pickupLocationName || undefined,
-      address: pickupAddress || undefined,
+      location: pickupLocationName === "" ? undefined : pickupLocationName,
+      address: pickupAddress === "" ? undefined : pickupAddress,
       latitude: pickupLat ?? undefined,
       longitude: pickupLng ?? undefined,
-      paystackPublicKey: paystackPublicKey || undefined,
+      paystackPublicKey:
+        paystackPublicKey === "" ? undefined : paystackPublicKey,
       paystackSecretKey: paystackSecretKey.trim()
         ? paystackSecretKey.trim()
         : undefined,
@@ -243,7 +251,7 @@ export default function StoreSettingsPage() {
     return {
       lat: Number(pickupLat),
       lng: Number(pickupLng),
-      address: pickupAddress ? pickupAddress : undefined,
+      address: pickupAddress,
     };
   }, [pickupAddress, pickupLat, pickupLng]);
 
@@ -532,6 +540,26 @@ export default function StoreSettingsPage() {
                 </div>
               </div>
 
+              <div>
+                <label
+                  htmlFor="googleMapsUrl"
+                  className="mb-2 block text-sm font-medium"
+                >
+                  Google Maps place link
+                </label>
+                <input
+                  id="googleMapsUrl"
+                  type="url"
+                  {...register("googleMapsUrl")}
+                  placeholder="https://maps.app.goo.gl/…"
+                  className="min-h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary-500)]"
+                />
+                {errors.googleMapsUrl && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">
+                    {errors.googleMapsUrl.message}
+                  </p>
+                )}
+              </div>
               <LocationPicker
                 value={mapValue}
                 onChange={(next) => {

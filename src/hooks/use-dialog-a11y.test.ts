@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { nextTrapIndex } from "./use-dialog-a11y";
+import { renderHook } from "@testing-library/react";
+
+import { useDialogA11y, nextTrapIndex } from "./use-dialog-a11y";
 
 describe("nextTrapIndex", () => {
   it("wraps Tab from the last element to the first", () => {
@@ -20,4 +22,24 @@ describe("nextTrapIndex", () => {
     expect(nextTrapIndex(3, 1, false)).toBeNull();
     expect(nextTrapIndex(0, -1, false)).toBeNull();
   });
+});
+
+it("returns focus to a stable control when a dialog handoff removes its trigger", () => {
+  const fallback = document.createElement("button");
+  fallback.id = "stable-cart";
+  document.body.append(fallback);
+  const panel = document.createElement("div");
+  panel.tabIndex = -1;
+  document.body.append(panel);
+  const { unmount } = renderHook(() =>
+    useDialogA11y({
+      open: true,
+      panelRef: { current: panel },
+      returnFocusSelector: "#stable-cart",
+    }),
+  );
+  unmount();
+  expect(document.activeElement).toBe(fallback);
+  fallback.remove();
+  panel.remove();
 });

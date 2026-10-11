@@ -36,6 +36,8 @@ vi.mock("~/server/email", () => ({
 
 import { finalizePaystackOrder, verifyPaystackTransaction } from "./paystack";
 import { POST } from "~/app/api/paystack/webhook/route";
+import { changeOrderStatus } from "~/server/orders/change-status";
+import { expirePickupReservations } from "~/server/orders/expire-pickup";
 import { ordersRouter } from "~/server/api/routers/orders";
 
 describe.skipIf(!testUrl)(
@@ -131,14 +133,12 @@ describe.skipIf(!testUrl)(
         paymentMethod: "PAYSTACK",
         paymentReference: reference,
       });
-      await db
-        .insert(schema.orderItems)
-        .values({
-          orderId: "order-test",
-          productId: "product-test",
-          quantity,
-          price: "100",
-        });
+      await db.insert(schema.orderItems).values({
+        orderId: "order-test",
+        productId: "product-test",
+        quantity,
+        price: "100",
+      });
     }
 
     function paidFetch(beforeResponse?: () => Promise<void>) {
@@ -292,14 +292,12 @@ describe.skipIf(!testUrl)(
         stockQuantity: 5,
         visibility: "PUBLISHED",
       });
-      await db
-        .insert(schema.orderItems)
-        .values({
-          orderId: "order-test",
-          productId: "available-product",
-          quantity: 2,
-          price: "100",
-        });
+      await db.insert(schema.orderItems).values({
+        orderId: "order-test",
+        productId: "available-product",
+        quantity: 2,
+        price: "100",
+      });
       await connection.unsafe(`CREATE OR REPLACE FUNCTION fail_order_notice() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN IF NEW.type = 'ORDER_NEEDS_ATTENTION' THEN RAISE EXCEPTION 'evidence failure'; END IF; RETURN NEW; END $$`);
       await connection.unsafe(`CREATE TRIGGER fail_order_notice BEFORE INSERT ON "alswap-inventory_admin_notification"
@@ -340,6 +338,70 @@ describe.skipIf(!testUrl)(
       await cancel();
       await cancel();
       expect((await db.query.products.findFirst())?.stockQuantity).toBe(5);
+    });
+
+    async function pickup(stock = 3, expired = true) {
+      await order(stock);
+      await db
+        .update(schema.orders)
+        .set({
+          paymentMethod: "PAY_ON_PICKUP",
+          paymentReference: null,
+          expiresAt: new Date(Date.now() + (expired ? -1000 : 3600000)),
+        })
+        .where(eq(schema.orders.id, "order-test"));
+    }
+    it("expires pickup holds once under concurrent cleanup and manual cancellation", async () => {
+      await pickup();
+      await Promise.allSettled([
+        expirePickupReservations(db, tenant.id),
+        expirePickupReservations(db, tenant.id),
+        changeOrderStatus(db, tenant.id, "order-test", "CANCELLED"),
+      ]);
+      expect((await db.query.orders.findFirst())?.status).toBe("CANCELLED");
+      expect((await db.query.products.findFirst())?.stockQuantity).toBe(5);
+      await expirePickupReservations(db, tenant.id);
+      expect((await db.query.products.findFirst())?.stockQuantity).toBe(5);
+    });
+    it("leaves untracked stock unchanged on expiry", async () => {
+      await pickup(-1);
+      await expirePickupReservations(db, tenant.id);
+      expect((await db.query.products.findFirst())?.stockQuantity).toBe(-1);
+      expect((await db.query.orders.findFirst())?.cancellationReason).toBe(
+        "RESERVATION_EXPIRED",
+      );
+    });
+    it("does not expire current or completed reservations or another tenant", async () => {
+      await pickup(3, false);
+      expect(await expirePickupReservations(db, "other-tenant")).toBe(0);
+      expect(await expirePickupReservations(db, tenant.id)).toBe(0);
+      await changeOrderStatus(db, tenant.id, "order-test", "COMPLETED");
+      await db
+        .update(schema.orders)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(schema.orders.id, "order-test"));
+      expect(await expirePickupReservations(db, tenant.id)).toBe(0);
+      expect((await db.query.products.findFirst())?.stockQuantity).toBe(3);
+    });
+    it("reopening an expired pickup reserves stock and grants a fresh deadline", async () => {
+      await pickup();
+      await expirePickupReservations(db, tenant.id);
+      await changeOrderStatus(db, tenant.id, "order-test", "PENDING");
+      const reopened = await db.query.orders.findFirst();
+      expect(reopened?.status).toBe("PENDING");
+      expect(reopened?.cancellationReason).toBeNull();
+      expect(reopened!.expiresAt!.getTime()).toBeGreaterThan(
+        Date.now() + 23 * 3600000,
+      );
+      expect((await db.query.products.findFirst())?.stockQuantity).toBe(3);
+    });
+    it("completion cannot collect an expired hold and rollback preserves stock", async () => {
+      await pickup();
+      await expect(
+        changeOrderStatus(db, tenant.id, "order-test", "COMPLETED"),
+      ).rejects.toThrow("expired");
+      expect((await db.query.orders.findFirst())?.status).toBe("PENDING");
+      expect((await db.query.products.findFirst())?.stockQuantity).toBe(3);
     });
   },
 );

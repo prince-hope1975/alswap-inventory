@@ -1,7 +1,10 @@
+import { reservationDeadline } from "~/lib/domain/pickup-reservation";
 import { Resend } from "resend";
 import { env } from "~/env";
 
-export const resend = new Resend(env.RESEND_API_KEY);
+export const resend = env.RESEND_API_KEY
+  ? new Resend(env.RESEND_API_KEY)
+  : null;
 
 export const sendPasswordResetEmail = async (input: {
   email: string;
@@ -17,7 +20,7 @@ export const sendPasswordResetEmail = async (input: {
   // domain reads as phishing.
   const forStore = tenantName ? ` for ${tenantName}` : "";
 
-  if (!env.RESEND_API_KEY) {
+  if (!resend) {
     console.log("RESEND_API_KEY is not set. Skipping email sending.");
     console.log(`Reset Link: ${resetLink}`);
     return;
@@ -65,7 +68,7 @@ export const sendDeliveryOrderEmail = async (input: {
   totalAmount: string;
   deliveryAddress: string;
 }) => {
-  if (!env.RESEND_API_KEY) {
+  if (!resend) {
     console.log("RESEND_API_KEY is not set. Skipping email sending.");
     console.log("Delivery order:", input);
     return;
@@ -120,6 +123,7 @@ export type OrderEmailInput = {
   paymentMethod: "PAYSTACK" | "PAY_ON_PICKUP";
   deliveryAddress?: string | null;
   pickupAddress?: string | null;
+  pickupExpiresAt?: Date | null;
   storePhone?: string | null;
 };
 
@@ -151,6 +155,7 @@ function orderEmailBody(input: OrderEmailInput, intro: string) {
         ${input.deliveryFee ? `<p style="margin:8px 0 0 0;"><b>Delivery fee:</b> ${escapeHtml(input.deliveryFee)}</p>` : ""}
         <p style="margin:8px 0 12px 0; font-size:16px;"><b>Total:</b> ${escapeHtml(input.total)} (${payment})</p>
         ${fulfilment}
+        ${input.pickupExpiresAt ? `<p><b>Collect by:</b> ${escapeHtml(reservationDeadline(input.pickupExpiresAt))}. After this deadline, the reservation is cancelled and stock is released.</p>` : ""}
         <p style="margin:0 0 8px 0;"><b>Customer:</b> ${escapeHtml(input.customerName)}</p>
         ${input.customerPhone ? `<p style="margin:0 0 8px 0;"><b>Phone:</b> ${escapeHtml(input.customerPhone)}</p>` : ""}
         ${input.customerEmail ? `<p style="margin:0;"><b>Email:</b> ${escapeHtml(input.customerEmail)}</p>` : ""}
@@ -164,7 +169,7 @@ export const sendOrderConfirmationEmail = async (
   input: OrderEmailInput & { to: string | null | undefined },
 ) => {
   if (!input.to) return;
-  if (!env.RESEND_API_KEY) {
+  if (!resend) {
     console.log("RESEND_API_KEY is not set. Skipping email sending.");
     console.log("Order confirmation:", input.orderNumber);
     return;
@@ -189,7 +194,7 @@ export const sendNewOrderStaffEmail = async (
   input: OrderEmailInput & { to: string[] },
 ) => {
   if (input.to.length === 0) return;
-  if (!env.RESEND_API_KEY) {
+  if (!resend) {
     console.log("RESEND_API_KEY is not set. Skipping email sending.");
     console.log("New order:", input.orderNumber);
     return;
